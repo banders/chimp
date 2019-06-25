@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
 		//inFile = "C:/Users/Brock/Documents/BandersGeo/projects/catchment-delineation/data/fwa-kotl-water-features-simplified.txt";
 		//outFile = "C:/Users/Brock/Documents/BandersGeo/projects/catchment-delineation/data/fwa-kotl-voronoi-output-21.wkt";
 
-		configNum = 4;
+		configNum = "4";
 	}
 	
 

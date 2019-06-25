@@ -18,16 +18,39 @@ Summary:
 * Download the CGAL installer: https://www.cgal.org/download/last
 	Install anywhere.  The install location is referred to as [CGAL_HOME] throughout these instructions
 	Note: this installs all the source files, but it doesn't build them.  that's another step.
+* Build CGAL
 * Download and install the Boost library binary files: https://sourceforge.net/projects/boost/files/boost-binaries/
 	Install anywyere.  The install location is referred to as [BOOST_HOME] throughout these instructions
+  - If using Visual Studio 2017 then get the boost installation files for VC++ v14.x. 
+     For Visual Studio 2013, VC++ v12.x
 
-## Visual Studio
+## Build CGAL
+
+This step requires the CMAKE-GUI utility.  If you don't yet have CMAKE, install it now:
+  https://cmake.org/
+
+- Open cmake-gui.exe
+- In the GUI, set I set the following values: 
+  Where is the source code: [CGAL_HOME]
+  Where to build the binaries: [CGAL_HOME]\build
+- Click "Configure"
+  - Choose "Visual Studio 15 2017 Win64" for the 64-bit version with VS 2017.  Note: the 15 here is not 
+    the VC++ version, so it doesn't necessarily match the "14" for VS 2017.
+- Disable WITH_CGAL_IMAGEIO
+- Click Configure again
+- Click "Generate".  A new VS "solution" is created in [CGAL_HOME]\build.  A file CGAL.sln is created
+  in the build folder.
+- Open [CGAL_HOME]\build\CGAL.sln in Visual Studio.  Build the ALL_BUILD project in both Release and Debug.
+- Done. [CGAL_HOME] now contains the include files and library files needed to build projects against CGAL.
+
+
+## Install Visual Studio
 
 Download and install visual studio from:
 
 	https://visualstudio.microsoft.com/downloads/
 
-The voronoi-catchment application has been tested with VS 2017 Community Edition.
+The voronoi-catchment application has been tested with VS 2017 Community Edition, which uses VC++ v14.x.  
 
 ### Visual Studio project properties:
 
@@ -51,10 +74,11 @@ CGAL and Boost headers and libraries:
   Configuration Properties > Linker > All Options > Additional Dependencies
 
   ```
-	CGAL_Core-vc140-mt-4.13.lib
-	CGAL_Core-vc140-mt-gd-4.13.lib
-	CGAL-vc140-mt-4.13.lib
-	CGAL-vc140-mt-gd-4.13.lib
+  All .lib files from [CGAL_HOME]/build/lib, plus...
+	  CGAL_Core-vc140-mt-4.14.lib
+	  CGAL_Core-vc140-mt-gd-4.14.lib
+	  CGAL-vc140-mt-4.14.lib
+	  CGAL-vc140-mt-gd-4.14.lib
 	libgmp-10.lib
 	libmpfr-4.lib
   ```
@@ -66,6 +90,8 @@ Set the following values to help your application find the CGAL libraries at run
   ```
 	PATH=[CGAL_HOME]\build\bin;[CGAL_HOME]\auxiliary\gmp\lib
   ```
+
+  Note: these folders contain CGAL DLL files that the voronoi application depends on at run time.
 
 ### Run the application
 
