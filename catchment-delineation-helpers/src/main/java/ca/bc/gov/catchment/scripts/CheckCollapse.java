@@ -51,12 +51,13 @@ import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.FeatureType;
 import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
+import org.opengis.geometry.BoundingBox;
 import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
 import ca.bc.gov.catchment.voronoi.SpatialIndexFeatureCollection2;
 
-public class CheckCrosses {
+public class CheckCollapse {
 
 	private static final String GEOPKG_ID = "geopkg";
 	private static final double DEFAULT_PRECISION_SCALE = 1000; //3 decimal places
@@ -71,9 +72,7 @@ public class CheckCrosses {
 		HelpFormatter formatter = new HelpFormatter();
 		
 		String inputGeopackageFilename = null;
-		String outputGeopackageFilename = null;
 		String tableNamesCsv = null;
-		double precisionScale = 0;
 		
 		try {
 			CommandLine cmd = parser.parse( options, args);
@@ -110,7 +109,13 @@ public class CheckCrosses {
 		}
 		
 		FilterFactory2 filterFactory = CommonFactoryFinder.getFilterFactory2();
-		int totalNumCrosses = 0;
+		int numCrosses = 0;
+		int numCovers = 0;
+		int numEquals = 0;
+		int numOverlaps = 0;
+		int numOverlapAndEqual = 0;
+		int numOverlapAndNotEqual = 0;
+		int numZeroLength = 0;
 		for(String featureTypeName : tableNamesToProcess) {
 			Date t0 = new Date();
 			
@@ -140,36 +145,85 @@ public class CheckCrosses {
 			//iterate over each feature in the input datastore.  
 			//check whether it crosses any other features.  
 			try {
-				SimpleFeatureCollection inFeatureCollection = inFeatureSource.getFeatures();
-				SimpleFeatureIterator it = inFeatureCollection.features();
+				SimpleFeatureCollection inFeatureCollection = inFeatureSource.getFeatures();				
 				String geomPropertyName = featureType.getGeometryDescriptor().getLocalName();
 				 
 				SpatialIndexFeatureCollection fastFeatureCollection = new SpatialIndexFeatureCollection(inFeatureCollection);
 				SpatialIndexFeatureSource fastFeatureSource = new SpatialIndexFeatureSource(fastFeatureCollection);
 				
-				
-				int numCrosses = 0;
+				//Crossings
+				SimpleFeatureIterator it = inFeatureCollection.features();
 	            while (it.hasNext()) {
 	            	
 	            	//get the input feature
 	            	SimpleFeature inFeature = it.next();
 	            	Geometry inGeom = (Geometry)inFeature.getDefaultGeometry();
 	            	
+	            	if (inGeom.getLength() == 0) {
+	            		numZeroLength++;
+	            		show(inFeature, null, "has zero length");
+	            	};
+	            	
+	            	//check for crosses
 	            	Filter crossesFilter = filterFactory.crosses(filterFactory.property(geomPropertyName), filterFactory.literal(inGeom));
 	            	SimpleFeatureCollection crossingFeatures = fastFeatureSource.getFeatures(crossesFilter);
 	            	numCrosses += crossingFeatures.size();
-
+	            	if (crossingFeatures.size() > 0) {
+	            		show(inFeature, crossingFeatures, "crosses");
+	            	}
+	            	
+	            	//check for equals
+	            	Filter equalsFilter = filterFactory.equals(filterFactory.property(geomPropertyName), filterFactory.literal(inGeom));
+	            	
+	            	
+	            	//check for covers
+	            	Filter coversFilter = filterFactory.overlaps(filterFactory.property(geomPropertyName), filterFactory.literal(inGeom));
+	            	SimpleFeatureCollection coveredFeatures = fastFeatureSource.getFeatures(coversFilter);
+	            	numCovers += coveredFeatures.size();
+	            	if (coveredFeatures.size() > 0) {
+	            		show(inFeature, coveredFeatures, "covers");
+	            	}
+	            	
+	            	//check for overlaps
+	            	Filter overlapsFilter = filterFactory.overlaps(filterFactory.property(geomPropertyName), filterFactory.literal(inGeom));
+	            	SimpleFeatureCollection overlappingFeatures = fastFeatureSource.getFeatures(overlapsFilter);
+	            	numOverlaps += overlappingFeatures.size();
+	            	if (overlappingFeatures.size() > 0) {
+	            		show(inFeature, overlappingFeatures, "overlaps");
+	            	}
+	            	
+	            	Filter notEqualsFilter = filterFactory.notEqual(filterFactory.property(geomPropertyName), filterFactory.literal(inGeom));
+	            	Filter overlapsAndNotEqualsFilter = filterFactory.and(overlapsFilter, notEqualsFilter);
+	            	SimpleFeatureCollection overlappingAndNotEqualFeatures = fastFeatureSource.getFeatures(overlapsAndNotEqualsFilter);
+	            	numOverlapAndNotEqual += overlappingAndNotEqualFeatures.size();
+	            	if (overlappingAndNotEqualFeatures.size() > 0) {
+	            		show(inFeature, overlappingAndNotEqualFeatures, "overlaps (partially)");
+	            	}
+	            	
+	            	Filter overlapsAndEqualsFilter = filterFactory.and(overlapsFilter, equalsFilter);
+	            	SimpleFeatureCollection overlapsAndEqualFeatures = fastFeatureSource.getFeatures(overlapsAndEqualsFilter);
+	            	numOverlapAndEqual += overlapsAndEqualFeatures.size();
+	            	if (overlapsAndEqualFeatures.size() > 0) {
+	            		show(inFeature, overlapsAndEqualFeatures, "equals");
+	            	}
 	            }
 	            it.close();	  
-	            totalNumCrosses += numCrosses;
+
+	                     
 	            
 	    		Date t1 = new Date();
 	    		long runTimeMs = t1.getTime() - t0.getTime();
 	    		
-	    		System.out.println("Summary");
-	    		System.out.println(" - "+inFeatureCollection.size()+" features processed");
-	    		System.out.println(" - # crossings: "+numCrosses);	
-	    		System.out.println(" - run time: "+runTimeMs+" ms");	
+	    		System.out.println(" - Summary");
+	    		System.out.println("   - "+inFeatureCollection.size()+" features processed");
+	    		System.out.println("   - # zero length: "+numZeroLength);
+	    		System.out.println("   - # Crossing: "+numCrosses);	
+	    		System.out.println("   - # Covers: "+numCovers);	
+	    		System.out.println("   - # Equals: "+numEquals);	
+	    		System.out.println("   - # Overlaps:"+numOverlaps);
+	    		System.out.println("     - # full: "+numOverlapAndEqual);
+	    		System.out.println("     - # partial: "+numOverlapAndNotEqual);
+	    		System.out.println("   - run time  : "+runTimeMs+" ms");	
 	    		
 	            
 			} catch (IOException e) {
@@ -179,9 +233,23 @@ public class CheckCrosses {
 		}
 
 		System.out.println("All done");
-		System.exit(totalNumCrosses);
+		int numProblems = numZeroLength + numCrosses + numCovers + numEquals + numOverlaps + numOverlapAndEqual + numOverlapAndNotEqual;
+		System.exit(numProblems);
 		
 	}
 	 
+	
+	private static void show(SimpleFeature f1, SimpleFeatureCollection fc, String msg) {
+		BoundingBox bbox = f1.getBounds();
+		System.out.println(" - "+f1.getID()+" (bbox: "+bbox.getMinX()+","+bbox.getMinY()+","+bbox.getMaxX()+","+bbox.getMaxY()+")");
+		
+		if (fc != null) {
+			SimpleFeatureIterator it = fc.features();
+			while(it.hasNext() ) {
+				SimpleFeature f2 = it.next();
+				System.out.println("   - "+msg+" "+f2.getID());
+			}
+		}
+	}
 
 }

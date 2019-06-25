@@ -96,16 +96,33 @@ def main():
     print("---------------------------------------------------")
     print("")
 
+    prep_water_features_input_filename_with_path = water_feature_filename_with_path
+
+    #filter out unwanted edges here
+    if ("whitelist" in run_config["input"] and run_config["input"]["whitelist"]) or ("blacklist" in run_config["input"] and run_config["input"]["blacklist"]):
+      print("Filtering out unwanted edges...")
+      edge_filter = ""
+      if run_config["input"].get("whitelist"):
+        edge_filter = "-whitelistfilter {}".format(run_config["input"].get("whitelist"))
+      elif run_config["input"].get("blacklist"):
+        edge_filter = "-blacklistfilter {}".format(run_config["input"].get("blacklist"))
+      water_feature_edges_filtered_filename = "{}-{}.edges-filtered.gpkg".format(test_id, run_id)
+      water_feature_edges_filtered_filename_with_path = os.path.join(run_out_dir, water_feature_edges_filtered_filename)    
+      cmd1 = "{} -cp {} ca.bc.gov.catchment.scripts.FilterEdgeCodes -i {} -o {} -tables {} {}".format(settings.get("java_path"), settings.get("java_classpath"), prep_water_features_input_filename_with_path, water_feature_edges_filtered_filename_with_path, tables, edge_filter)
+      resp = call(cmd1.split())
+      if resp != 0:
+        print("Failure.  Pipeline execution stopped early.")
+        exit(1);
+      prep_water_features_input_filename_with_path = water_feature_edges_filtered_filename_with_path
     #do not simplify or densify
     if not run_config["options"]["simplify"] and not run_config["options"]["densify"]:
       print("No changes will made to the water features")
-      prep_water_features_input_filename_with_path = water_feature_filename_with_path
     #simplify only
     elif run_config["options"]["simplify"] and not run_config["options"]["densify"]:
       print("Simplifying...")
       water_feature_simp_filename = "{}-{}.water.simp.gpkg".format(test_id, run_id)
       water_feature_simp_filename_with_path = os.path.join(run_out_dir, water_feature_simp_filename)    
-      cmd1 = "{} -cp {} ca.bc.gov.catchment.scripts.SimplifyThenDensity -i {} -o {} -simplify -simplifyDistanceTolerance {} -tables {}".format(settings.get("java_path"), settings.get("java_classpath"), water_feature_filename_with_path, water_feature_simp_filename_with_path, simplify_dist_tolerance, tables)
+      cmd1 = "{} -cp {} ca.bc.gov.catchment.scripts.SimplifyThenDensity -i {} -o {} -simplify -simplifyDistanceTolerance {} -tables {}".format(settings.get("java_path"), settings.get("java_classpath"), prep_water_features_input_filename_with_path, water_feature_simp_filename_with_path, simplify_dist_tolerance, tables)
       resp = call(cmd1.split())
       if resp != 0:
         print("Failure.  Pipeline execution stopped early.")
@@ -116,7 +133,7 @@ def main():
       print("Densifying...")
       water_feature_simp_filename = "{}-{}.water.dens.gpkg".format(test_id, run_id)
       water_feature_simp_filename_with_path = os.path.join(run_out_dir, water_feature_simp_filename)    
-      cmd1 = "{} -cp {} ca.bc.gov.catchment.scripts.SimplifyThenDensity -i {} -o {} -densify -densifyDistanceSpacing {} -tables {}".format(settings.get("java_path"), settings.get("java_classpath"), water_feature_filename_with_path, water_feature_simp_filename_with_path, densify_dist_spacing, tables)
+      cmd1 = "{} -cp {} ca.bc.gov.catchment.scripts.SimplifyThenDensity -i {} -o {} -densify -densifyDistanceSpacing {} -tables {}".format(settings.get("java_path"), settings.get("java_classpath"), prep_water_features_input_filename_with_path, water_feature_simp_filename_with_path, densify_dist_spacing, tables)
       resp = call(cmd1.split())
       if resp != 0:
         print("Failure.  Pipeline execution stopped early.")
@@ -127,7 +144,7 @@ def main():
       print("Simplifying and Densifying...")
       water_feature_simp_dens_filename = "{}-{}.water.simp-dens.gpkg".format(test_id, run_id)
       water_feature_simp_dens_filename_with_path = os.path.join(run_out_dir, water_feature_simp_dens_filename)
-      cmd1 = "{} -cp {} ca.bc.gov.catchment.scripts.SimplifyThenDensity -i {} -o {} -simplify -simplifyDistanceTolerance {} -densify -densifyDistanceSpacing {} -tables {}".format(settings.get("java_path"), settings.get("java_classpath"), water_feature_filename_with_path, water_feature_simp_dens_filename_with_path, simplify_dist_tolerance, densify_dist_spacing, tables)
+      cmd1 = "{} -cp {} ca.bc.gov.catchment.scripts.SimplifyThenDensity -i {} -o {} -simplify -simplifyDistanceTolerance {} -densify -densifyDistanceSpacing {} -tables {}".format(settings.get("java_path"), settings.get("java_classpath"), prep_water_features_input_filename_with_path, water_feature_simp_dens_filename_with_path, simplify_dist_tolerance, densify_dist_spacing, tables)
       resp = call(cmd1.split())
       if resp != 0:
         print("Failure.  Pipeline execution stopped early.")
@@ -151,22 +168,33 @@ def main():
         exit(1);
       prep_water_features_input_filename_with_path = water_feature_snap_filename_with_path
 
-    #check for valid topology (no crossings)
-    print("Checking for crossings...")
-    cmd1c = "{} -cp {} ca.bc.gov.catchment.scripts.CheckCrosses -i {} -tables {}".format(settings.get("java_path"), settings.get("java_classpath"), prep_water_features_input_filename_with_path, tables)
+    #combine all water features (streams and lakes) into a single file.  
+    #also split all geometries into segments
+    print("Combining water features datasets and segmenting...")
+    water_feature_segmented_filename = "{}-{}.water.segmented.gpkg".format(test_id, run_id)
+    water_feature_segmented_filename_with_path = os.path.join(run_out_dir, water_feature_segmented_filename)
+    cmd1c = "{} -cp {} ca.bc.gov.catchment.scripts.SegmentLinestrings -i {} -o {} -tables {} -bbox {} -bboxcrs {} ".format(settings.get("java_path"), settings.get("java_classpath"), prep_water_features_input_filename_with_path, water_feature_segmented_filename_with_path, tables, data_bbox, data_bbox_crs)
     resp = call(cmd1c.split())
     if resp != 0:
-      print("Topological collapse detected in the snapped data set(s). {} crossings.".format(resp))
       print("Failure.  Pipeline execution stopped early.")
       exit(1);
+    prep_water_features_input_filename_with_path = water_feature_segmented_filename_with_path
 
-
+    #check that the input data is valid
+    print("");
+    print("Checking validity of geometries that will be input into voronoi algorithm")
+    cmd1d = "{} -cp {} ca.bc.gov.catchment.scripts.CheckCollapse -i {} -tables {}".format(settings.get("java_path"), settings.get("java_classpath"), prep_water_features_input_filename_with_path, "water_features_segmented")
+    resp = call(cmd1d.split())
+    if resp != 0:
+      print("Input data is not suitable for voronoi algorithm.")
+      if run_config["options"].get("halt_on_invalid_topo", True):
+        print("Failure.  Pipeline execution stopped early.")
+        exit(1);
 
   #i/o filenames for step 2
   voronoi_input_txt_filename = "{}-{}.water.voronoi-in.txt".format(test_id, run_id)
-  voronoi_input_gpkg_filename = "{}-{}.water.voronoi-in.gpkg".format(test_id, run_id)
   voronoi_input_txt_filename_with_path = os.path.join(run_out_dir, voronoi_input_txt_filename)
-  voronoi_input_gpkg_filename_with_path = os.path.join(run_out_dir, voronoi_input_gpkg_filename)
+  voronoi_input_gpkg_filename_with_path = prep_water_features_input_filename_with_path
   
   if args.start_step <= 2 and 2 <= args.last_step:
     print("")  
@@ -174,15 +202,8 @@ def main():
     print(" Step 2: Translate water features to CGAL format")
     print("---------------------------------------------------")
     print("")  
-
-    edge_filter = ""
-    if run_config["input"].get("whitelist"):
-      edge_filter = "-whitelistfilter {}".format(run_config["input"].get("whitelist"))
-    elif run_config["input"].get("blacklist"):
-      edge_filter = "-blacklistfilter {}".format(run_config["input"].get("blacklist"))
-
     
-    cmd2 = "{} -cp {} ca.bc.gov.catchment.scripts.PrepCgalVoronoiInput -i {} -outTextFile {} -outGeoPackageFile {} -bbox {} -bboxcrs {} -streams {} -linearboundaries {} {}".format(settings.get("java_path"), settings.get("java_classpath"), prep_water_features_input_filename_with_path, voronoi_input_txt_filename_with_path, voronoi_input_gpkg_filename_with_path, data_bbox, data_bbox_crs, streams_table, linearboundaries_table, edge_filter)
+    cmd2 = "{} -cp {} ca.bc.gov.catchment.scripts.PrepCgalVoronoiInput -i {} -o {} -table water_features_segmented {}".format(settings.get("java_path"), settings.get("java_classpath"), prep_water_features_input_filename_with_path, voronoi_input_txt_filename_with_path, streams_table)
     resp = call(cmd2.split())
     if resp != 0:
       print("Failure.  Pipeline execution stopped early.")

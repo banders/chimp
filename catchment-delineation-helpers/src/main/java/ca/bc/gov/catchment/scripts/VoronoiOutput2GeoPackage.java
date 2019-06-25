@@ -59,16 +59,6 @@ import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.NoSuchAuthorityCodeException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.opengis.referencing.operation.TransformException;
-import org.rogach.jopenvoronoi.Edge;
-import org.rogach.jopenvoronoi.EdgeType;
-import org.rogach.jopenvoronoi.HalfEdgeDiagram;
-import org.rogach.jopenvoronoi.MedialAxisFilter;
-import org.rogach.jopenvoronoi.PolygonInteriorFilter;
-import org.rogach.jopenvoronoi.SvgOutput;
-import org.rogach.jopenvoronoi.Vertex;
-import org.rogach.jopenvoronoi.VertexStatus;
-import org.rogach.jopenvoronoi.VertexType;
-import org.rogach.jopenvoronoi.VoronoiDiagram;
 
 /*
  * Test bboxes: 

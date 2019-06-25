@@ -23,12 +23,10 @@ public class GeoPackagePersistable implements Persistable {
 		this.featureTypeName = featureTypeName;
 	}
 	
-	@Override
 	public void persist(SimpleFeatureCollection fc) throws IOException {
 		SaveUtils.saveToGeoPackage(filename, fc, true);
 	}
 
-	@Override
 	public SimpleFeatureCollection getFeatureCollection() throws IOException {
 		Map<String, String> params = new HashMap<String, String>();
 		params.put("dbtype", GEOPKG_ID);

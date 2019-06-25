@@ -71,11 +71,10 @@ import org.opengis.referencing.operation.TransformException;
  * 
  * 
  */
-public class WKTList2GeoPackage {
+public class VoronoiInput2GeoPackage {
 
 	private static final String GEOPKG_ID = "geopkg";
-	private static final String GEOPKG_VORONOI_EDGES_TABLE = "voronoi_edges";
-	private static final String GEOPKG_VORONOI_POLYS_TABLE = "voronoi_polys";
+	private static final String OUTPUT_TABLE = "water_features_segmented";
 	
 	
 	public static void main(String[] args) {
@@ -84,24 +83,17 @@ public class WKTList2GeoPackage {
 		Options options = new Options();
 		options.addOption("i", true, "Input Txt file");
 		options.addOption("o", true, "Output GeoPackage file");
-		options.addOption("bbox", true, "Bounding box: [minx,miny,maxx,maxy]");
-		options.addOption("bboxcrs", true, "CRS of the bounding box.  e.g. 'EPSG:3005' or 'EPSG:4326'");
 		CommandLineParser parser = new DefaultParser();
 		HelpFormatter formatter = new HelpFormatter();
 		
 		String inputTxtFilename = null;
 		String outputGeopackageFilename = null;
-		String bboxStr = null;
-		String bboxCrs = null;
-		int bboxSrid = -1;
-		Envelope bounds = null;
+		int bboxSrid = 3005;
 		
 		try {
 			CommandLine cmd = parser.parse( options, args);
 			inputTxtFilename = cmd.getOptionValue("i");
 			outputGeopackageFilename = cmd.getOptionValue("o");	
-			bboxStr = cmd.getOptionValue("bbox");
-			bboxCrs = cmd.getOptionValue("bboxcrs");
 		} catch (ParseException e2) {
 			formatter.printHelp( WKTList2GeoPackage.class.getSimpleName(), options );
 		}
@@ -115,33 +107,8 @@ public class WKTList2GeoPackage {
 			formatter.printHelp( WKTList2GeoPackage.class.getSimpleName(), options );
 			System.exit(1);
 		}
-		if (bboxStr == null) {
-			formatter.printHelp( PrepCgalVoronoiInput.class.getSimpleName(), options );
-			System.exit(1);
-		}
-		if (bboxCrs == null) {
-			formatter.printHelp( PrepCgalVoronoiInput.class.getSimpleName(), options );
-			System.exit(1);
-		}
+
 		
-		if(bboxStr != null) {
-			String[] pieces = bboxStr.split(",");
-			double minX = Double.parseDouble(pieces[0]);
-			double minY = Double.parseDouble(pieces[1]);
-			double maxX = Double.parseDouble(pieces[2]);
-			double maxY = Double.parseDouble(pieces[3]);
-			bounds = new ReferencedEnvelope(minX,maxX,minY,maxY, null);
-		}
-		if (bboxCrs != null) {
-			if (bboxCrs.startsWith("EPSG:")) {
-				String srid = bboxCrs.substring(5);
-				bboxSrid = Integer.parseInt(srid);
-			}
-			else {
-				System.out.println("Unknown bboxcrs: "+bboxCrs);
-				System.exit(1);
-			}
-		}
 		
 		System.out.println("Inputs:");
 		System.out.println("- in file: "+inputTxtFilename);
@@ -189,35 +156,28 @@ public class WKTList2GeoPackage {
 			e.printStackTrace();
 		}
 		
-		SimpleFeatureType voronoiEdgesFeatureType = null;
+		SimpleFeatureType outFeatureType = null;
 		try {
-			voronoiEdgesFeatureType = DataUtilities.createType(GEOPKG_VORONOI_EDGES_TABLE, "geometry:LineString");
+			outFeatureType = DataUtilities.createType(OUTPUT_TABLE, "geometry:LineString");
 		} catch (SchemaException e1) {
-			System.out.println("Unable to create feature type "+GEOPKG_VORONOI_EDGES_TABLE);
+			System.out.println("Unable to create feature type "+OUTPUT_TABLE);
 			System.exit(1);
 		}
 		
-		SimpleFeatureType voronoiPolysFeatureType = null;
-		try {
-			voronoiPolysFeatureType = DataUtilities.createType(GEOPKG_VORONOI_POLYS_TABLE, "geometry:Polygon");
-		} catch (SchemaException e1) {
-			System.out.println("Unable to create feature type "+GEOPKG_VORONOI_POLYS_TABLE);
-			System.exit(1);
-		}
 		
-		SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder(voronoiEdgesFeatureType);
+		SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder(outFeatureType);
 		
-		DefaultFeatureCollection voronoiEdgesFeatureCollection = new DefaultFeatureCollection(GEOPKG_VORONOI_EDGES_TABLE, voronoiEdgesFeatureType);
-		DefaultFeatureCollection voronoiPolysFeatureCollection = new DefaultFeatureCollection(GEOPKG_VORONOI_POLYS_TABLE, voronoiPolysFeatureType);
+		DefaultFeatureCollection outFeatureCollection = new DefaultFeatureCollection(OUTPUT_TABLE, outFeatureType);
+
 		
 		
 		//iterate over input, converting each line segment to a geometry
 		
 		try {
-			String wktLine = null;
+			String voronoiInLine = null;
 			int lineNum = 0;
 			int numSkipped = 0;
-			while ((wktLine = inReader.readLine()) != null) {
+			while ((voronoiInLine = inReader.readLine()) != null) {
 				String id = lineNum+"";
 				//convert input line into a geometry
 				Geometry geometry = null;
@@ -225,10 +185,10 @@ public class WKTList2GeoPackage {
 				try {
 					//cleaning appears to be unnecessary because all the lines that were invalid before
 					// are still invalid after
-					wktLine = cleanLine(wktLine);
+					String wkt = voronoiInLineToWkt(voronoiInLine);
 					GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();	
 					WKTReader reader = new WKTReader(geometryFactory);
-					geometry = reader.read(wktLine);
+					geometry = reader.read(wkt);
 					
 					if (geometry == null) {
 						throw new IllegalArgumentException("unable to parse WKT");
@@ -239,7 +199,7 @@ public class WKTList2GeoPackage {
 				}
 				catch (Exception e) {
 					//e.printStackTrace();
-					System.out.println(" skipping. "+e.getMessage()+". '"+wktLine+"'");
+					System.out.println(" skipping. "+e.getMessage()+". '"+voronoiInLine+"'");
 					numSkipped++;
 					continue;
 				}
@@ -249,22 +209,18 @@ public class WKTList2GeoPackage {
 				Object[] attributeValues = new Object[] { geometry };
 				SimpleFeature feature = featureBuilder.buildFeature(id, attributeValues);
 				
-				if (wktLine.toUpperCase().startsWith("POLYGON")) {
-					voronoiPolysFeatureCollection.add(feature);
-				}
-				else if(wktLine.toUpperCase().startsWith("LINESTRING")) {
-					voronoiEdgesFeatureCollection.add(feature);
-				}
+				outFeatureCollection.add(feature);
+
 				
 				lineNum++;
 			}
 			inReader.close();
 			System.out.println(numSkipped + " skipped");
 			
-			//write voronoi edges to output
-			if (voronoiEdgesFeatureCollection.size() > 0) {
-				System.out.println("Saving "+GEOPKG_VORONOI_EDGES_TABLE+"...");
-				SimpleFeatureCollection edgesCollection = DataUtilities.simple(voronoiEdgesFeatureCollection);
+			//write to output
+			if (outFeatureCollection.size() > 0) {
+				System.out.println("Saving "+OUTPUT_TABLE+"...");
+				SimpleFeatureCollection edgesCollection = DataUtilities.simple(outFeatureCollection);
 				FeatureEntry voronoiEdgesEntry = new FeatureEntry();
 				voronoiEdgesEntry.setSrid(bboxSrid);
 				voronoiEdgesEntry.setBounds(edgesCollection.getBounds());
@@ -272,27 +228,11 @@ public class WKTList2GeoPackage {
 	            System.out.println(" - Writing "+edgesCollection.size()+" features");
 	            outGeoPackage.add(voronoiEdgesEntry, edgesCollection);
 	            System.out.println(" - Done");
-	            System.out.println("Adding spatial index on "+GEOPKG_VORONOI_EDGES_TABLE+"...");
+	            System.out.println("Adding spatial index on "+OUTPUT_TABLE+"...");
 	            outGeoPackage.createSpatialIndex(voronoiEdgesEntry);
 	            System.out.println(" - Done");	
 			}
-            
-            //write voronoi polys to output
-            if (voronoiPolysFeatureCollection.size() > 0) {
-            	System.out.println("Saving "+GEOPKG_VORONOI_POLYS_TABLE+"...");
-            	SimpleFeatureCollection polysCollection = DataUtilities.simple(voronoiPolysFeatureCollection);
-				FeatureEntry voronoiPolysEntry = new FeatureEntry();
-				voronoiPolysEntry.setSrid(bboxSrid);
-				voronoiPolysEntry.setBounds(polysCollection.getBounds());
-				
-	            System.out.println(" - Writing "+polysCollection.size()+" features");
-	            outGeoPackage.add(voronoiPolysEntry, polysCollection);
-	            System.out.println(" - Done");
-	            System.out.println("Adding spatial index on "+GEOPKG_VORONOI_POLYS_TABLE+"...");
-	            outGeoPackage.createSpatialIndex(voronoiPolysEntry);
-	            System.out.println(" - Done");
-            }
-            
+                        
             
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -303,78 +243,19 @@ public class WKTList2GeoPackage {
 		System.out.print("All Done");
 	}
 	
-	private static final String cleanLine(String wktLine) {
-		//wktLine = cleanRepeatedPoints(wktLine);
-		//wktLine = cleanNaNPoints(wktLine);
-		return wktLine;
-	}
-	
-	private static final String cleanNaNPoints(String wktLine) {
-		int startIndex = wktLine.indexOf("(") + 1;
-		int endIndex = wktLine.indexOf(")");
-		String coordsAsStr = wktLine.substring(startIndex, endIndex);
-		String[] pieces = coordsAsStr.split(",");
+	private static String voronoiInLineToWkt(String voronoiInLine) {
+		//input example: s x1 y2  x2 y2
+		//output example: LINESTRING (30 10, 10 30, 40 40)
 		
-		List<String> cleanedPieces = new ArrayList<String>();
-		for (String piece : pieces) {
-			if (!piece.contains("nan")) {
-				cleanedPieces.add(piece);
-			}
-		}
+		String[] pieces = voronoiInLine.split(" ");
+		float x1 = Float.parseFloat(pieces[1]);
+		float y1 = Float.parseFloat(pieces[2]);
+		float x2 = Float.parseFloat(pieces[4]);
+		float y2 = Float.parseFloat(pieces[5]);
 		
-		String cleanedLine = "LINESTRING("+String.join(",", cleanedPieces)+")";
-		return cleanedLine;
+		String wkt = "LINESTRING ("+x1+" "+y1+", "+x2+" "+y2+")";
+		return wkt;
 		
-	}
-	
-	private static final String cleanRepeatedPoints(String wktLine) {
-		int startIndex = wktLine.indexOf("(") + 1;
-		int endIndex = wktLine.indexOf(")");
-		String coordsAsStr = wktLine.substring(startIndex, endIndex);
-		String[] pieces = coordsAsStr.split(",");
-		
-		List<String> cleanedPieces = new ArrayList<String>();
-		String prevPiece = null;
-		for (String piece : pieces) {
-			if (!piece.equals(prevPiece)) {
-				cleanedPieces.add(piece);
-			}
-			
-			prevPiece = piece;
-		}
-		
-		String cleanedLine = "LINESTRING("+String.join(",", cleanedPieces)+")";
-		return cleanedLine;
-		
-	}
-	
-	private static final LineString voronoiLineToLineString(String line, Envelope bounds) {
-		String[] pieces = line.split(" ");
-		double UNSET = -1;
-		double prevVal = UNSET;
-		List<Coordinate> coords = new ArrayList<Coordinate>();
-		for (String piece : pieces ) { 
-			double val = Double.parseDouble(piece);
-			
-			if (prevVal != UNSET) {				
-				Coordinate coord = new Coordinate(prevVal, val);
-				if (!bounds.covers(coord.x, coord.y)) {
-					throw new IllegalStateException("out of bounds: "+coord);
-				}
-				coords.add(coord);
-				prevVal = UNSET;
-			}
-			else {
-				prevVal = val;
-			}
-		}
-		
-		Coordinate[] coordArr = new Coordinate[] {};
-		coordArr = coords.toArray(coordArr);
-		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
-		LineString lineString = geometryFactory.createLineString(coordArr);
-		
-		return lineString;
 	}
 
 }

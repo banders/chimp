@@ -33,6 +33,7 @@ hs_err_pid*
 ## --------
 settings.json
 run-configs
+venv
 
 ## voronoi-catchment
 #-------------------
@@ -46,3 +47,7 @@ voronoi-catchments/voronoi-catchments/voronoi-catchments/Debug/
 voronoi-catchments/voronoi-catchments/voronoi-catchments/x64/
 *.working-but-save-slow
 *.vcxproj*
+
+## bbox-tests
+#--------------------
+venv
