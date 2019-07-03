@@ -239,7 +239,7 @@ def main():
     print("---------------------------------------------------")
     print("")  
 
-    cmd4 = "{} -Xmx4096m -cp {} ca.bc.gov.catchment.scripts.WKTList2GeoPackage -i {} -o {} -bbox {} -bboxcrs {}".format(settings.get("java_path"), settings.get("java_classpath"), voronoi_output_wkt_filename_with_path, voronoi_output_gpkg_filename_with_path, data_bbox, data_bbox_crs)
+    cmd4 = "{} -Xmx4096m -cp {} ca.bc.gov.catchment.scripts.WKTList2GeoPackage -i {} -o {} -crs {}".format(settings.get("java_path"), settings.get("java_classpath"), voronoi_output_wkt_filename_with_path, voronoi_output_gpkg_filename_with_path, data_bbox_crs)
     resp = call(cmd4.split())
     if resp != 0:
       print("Failure.  Pipeline execution stopped early.")

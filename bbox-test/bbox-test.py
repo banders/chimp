@@ -12,27 +12,46 @@ import subprocess
 
 JAVA_PATH = "C:/Java/jdk1.8.0_161/bin/java.exe"
 JAVA_CLASSPATH = "C:/git_repos/banders/chimp/catchment-delineation-helpers/target/classes;C:/Users/Brock/.m2/repository/org/geotools/gt-main/20.0/gt-main-20.0.jar;C:/Users/Brock/.m2/repository/org/geotools/gt-api/20.0/gt-api-20.0.jar;C:/Users/Brock/.m2/repository/org/locationtech/jts/jts-core/1.16.0/jts-core-1.16.0.jar;C:/Users/Brock/.m2/repository/org/jdom/jdom2/2.0.6/jdom2-2.0.6.jar;C:/Users/Brock/.m2/repository/javax/media/jai_core/1.1.3/jai_core-1.1.3.jar;C:/Users/Brock/.m2/repository/org/geotools/gt-geopkg/20.0/gt-geopkg-20.0.jar;C:/Users/Brock/.m2/repository/org/geotools/gt-coverage/20.0/gt-coverage-20.0.jar;C:/Users/Brock/.m2/repository/javax/media/jai_imageio/1.1/jai_imageio-1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/imageio-ext/imageio-ext-tiff/1.1.25/imageio-ext-tiff-1.1.25.jar;C:/Users/Brock/.m2/repository/it/geosolutions/imageio-ext/imageio-ext-utilities/1.1.25/imageio-ext-utilities-1.1.25.jar;C:/Users/Brock/.m2/repository/it/geosolutions/imageio-ext/imageio-ext-geocore/1.1.25/imageio-ext-geocore-1.1.25.jar;C:/Users/Brock/.m2/repository/it/geosolutions/imageio-ext/imageio-ext-streams/1.1.25/imageio-ext-streams-1.1.25.jar;C:/Users/Brock/.m2/repository/javax/media/jai_codec/1.1.3/jai_codec-1.1.3.jar;C:/Users/Brock/.m2/repository/org/jaitools/jt-zonalstats/1.5.0/jt-zonalstats-1.5.0.jar;C:/Users/Brock/.m2/repository/org/jaitools/jt-utils/1.5.0/jt-utils-1.5.0.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/affine/jt-affine/1.1.1/jt-affine-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/algebra/jt-algebra/1.1.1/jt-algebra-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/bandmerge/jt-bandmerge/1.1.1/jt-bandmerge-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/bandselect/jt-bandselect/1.1.1/jt-bandselect-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/bandcombine/jt-bandcombine/1.1.1/jt-bandcombine-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/border/jt-border/1.1.1/jt-border-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/buffer/jt-buffer/1.1.1/jt-buffer-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/crop/jt-crop/1.1.1/jt-crop-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/iterators/jt-iterators/1.1.1/jt-iterators-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/lookup/jt-lookup/1.1.1/jt-lookup-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/mosaic/jt-mosaic/1.1.1/jt-mosaic-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/nullop/jt-nullop/1.1.1/jt-nullop-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/rescale/jt-rescale/1.1.1/jt-rescale-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/scale/jt-scale/1.1.1/jt-scale-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/scale2/jt-scale2/1.1.1/jt-scale2-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/stats/jt-stats/1.1.1/jt-stats-1.1.1.jar;C:/Users/Brock/.m2/repository/com/google/guava/guava/25.1-jre/guava-25.1-jre.jar;C:/Users/Brock/.m2/repository/com/google/code/findbugs/jsr305/3.0.2/jsr305-3.0.2.jar;C:/Users/Brock/.m2/repository/org/checkerframework/checker-qual/2.0.0/checker-qual-2.0.0.jar;C:/Users/Brock/.m2/repository/com/google/errorprone/error_prone_annotations/2.1.3/error_prone_annotations-2.1.3.jar;C:/Users/Brock/.m2/repository/com/google/j2objc/j2objc-annotations/1.1/j2objc-annotations-1.1.jar;C:/Users/Brock/.m2/repository/org/codehaus/mojo/animal-sniffer-annotations/1.14/animal-sniffer-annotations-1.14.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/translate/jt-translate/1.1.1/jt-translate-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/utilities/jt-utilities/1.1.1/jt-utilities-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/warp/jt-warp/1.1.1/jt-warp-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/zonal/jt-zonal/1.1.1/jt-zonal-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/binarize/jt-binarize/1.1.1/jt-binarize-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/format/jt-format/1.1.1/jt-format-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/colorconvert/jt-colorconvert/1.1.1/jt-colorconvert-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/errordiffusion/jt-errordiffusion/1.1.1/jt-errordiffusion-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/orderdither/jt-orderdither/1.1.1/jt-orderdither-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/colorindexer/jt-colorindexer/1.1.1/jt-colorindexer-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/imagefunction/jt-imagefunction/1.1.1/jt-imagefunction-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/piecewise/jt-piecewise/1.1.1/jt-piecewise-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/classifier/jt-classifier/1.1.1/jt-classifier-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/rlookup/jt-rlookup/1.1.1/jt-rlookup-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/vectorbin/jt-vectorbin/1.1.1/jt-vectorbin-1.1.1.jar;C:/Users/Brock/.m2/repository/it/geosolutions/jaiext/shadedrelief/jt-shadedrelief/1.1.1/jt-shadedrelief-1.1.1.jar;C:/Users/Brock/.m2/repository/org/geotools/gt-jdbc/20.0/gt-jdbc-20.0.jar;C:/Users/Brock/.m2/repository/org/geotools/gt-data/20.0/gt-data-20.0.jar;C:/Users/Brock/.m2/repository/commons-dbcp/commons-dbcp/1.4/commons-dbcp-1.4.jar;C:/Users/Brock/.m2/repository/commons-collections/commons-collections/3.2.2/commons-collections-3.2.2.jar;C:/Users/Brock/.m2/repository/org/xerial/sqlite-jdbc/3.23.1/sqlite-jdbc-3.23.1.jar;C:/Users/Brock/.m2/repository/commons-io/commons-io/2.6/commons-io-2.6.jar;C:/Users/Brock/.m2/repository/org/geotools/xsd/gt-xsd-core/20.0/gt-xsd-core-20.0.jar;C:/Users/Brock/.m2/repository/picocontainer/picocontainer/1.2/picocontainer-1.2.jar;C:/Users/Brock/.m2/repository/commons-jxpath/commons-jxpath/1.3/commons-jxpath-1.3.jar;C:/Users/Brock/.m2/repository/org/eclipse/emf/org.eclipse.emf.common/2.12.0/org.eclipse.emf.common-2.12.0.jar;C:/Users/Brock/.m2/repository/org/eclipse/emf/org.eclipse.emf.ecore/2.12.0/org.eclipse.emf.ecore-2.12.0.jar;C:/Users/Brock/.m2/repository/org/eclipse/xsd/org.eclipse.xsd/2.12.0/org.eclipse.xsd-2.12.0.jar;C:/Users/Brock/.m2/repository/org/eclipse/emf/org.eclipse.emf.ecore.xmi/2.12.0/org.eclipse.emf.ecore.xmi-2.12.0.jar;C:/Users/Brock/.m2/repository/org/geotools/xsd/gt-xsd-fes/20.0/gt-xsd-fes-20.0.jar;C:/Users/Brock/.m2/repository/org/geotools/ogc/net.opengis.fes/20.0/net.opengis.fes-20.0.jar;C:/Users/Brock/.m2/repository/org/geotools/ogc/org.w3.xlink/20.0/org.w3.xlink-20.0.jar;C:/Users/Brock/.m2/repository/org/geotools/ogc/net.opengis.ows/20.0/net.opengis.ows-20.0.jar;C:/Users/Brock/.m2/repository/org/geotools/xsd/gt-xsd-gml3/20.0/gt-xsd-gml3-20.0.jar;C:/Users/Brock/.m2/repository/org/geotools/xsd/gt-xsd-gml2/20.0/gt-xsd-gml2-20.0.jar;C:/Users/Brock/.m2/repository/org/geotools/xsd/gt-xsd-ows/20.0/gt-xsd-ows-20.0.jar;C:/Users/Brock/.m2/repository/org/geotools/xsd/gt-xsd-filter/20.0/gt-xsd-filter-20.0.jar;C:/Users/Brock/.m2/repository/org/geotools/gt-referencing/20.0/gt-referencing-20.0.jar;C:/Users/Brock/.m2/repository/org/ejml/ejml-ddense/0.34/ejml-ddense-0.34.jar;C:/Users/Brock/.m2/repository/org/ejml/ejml-core/0.34/ejml-core-0.34.jar;C:/Users/Brock/.m2/repository/commons-pool/commons-pool/1.5.4/commons-pool-1.5.4.jar;C:/Users/Brock/.m2/repository/org/geotools/gt-metadata/20.0/gt-metadata-20.0.jar;C:/Users/Brock/.m2/repository/org/geotools/gt-opengis/20.0/gt-opengis-20.0.jar;C:/Users/Brock/.m2/repository/systems/uom/systems-common-java8/0.7.2/systems-common-java8-0.7.2.jar;C:/Users/Brock/.m2/repository/tec/uom/uom-se/1.0.8/uom-se-1.0.8.jar;C:/Users/Brock/.m2/repository/javax/measure/unit-api/1.0/unit-api-1.0.jar;C:/Users/Brock/.m2/repository/tec/uom/lib/uom-lib-common/1.0.2/uom-lib-common-1.0.2.jar;C:/Users/Brock/.m2/repository/si/uom/si-quantity/0.7.1/si-quantity-0.7.1.jar;C:/Users/Brock/.m2/repository/si/uom/si-units-java8/0.7.1/si-units-java8-0.7.1.jar;C:/Users/Brock/.m2/repository/jgridshift/jgridshift/1.0/jgridshift-1.0.jar;C:/Users/Brock/.m2/repository/net/sf/geographiclib/GeographicLib-Java/1.49/GeographicLib-Java-1.49.jar;C:/Users/Brock/.m2/repository/org/geotools/gt-epsg-hsql/20.0/gt-epsg-hsql-20.0.jar;C:/Users/Brock/.m2/repository/org/hsqldb/hsqldb/2.4.1/hsqldb-2.4.1.jar;C:/Users/Brock/.m2/repository/org/geotools/gt-epsg-extension/20.0/gt-epsg-extension-20.0.jar;C:/Users/Brock/.m2/repository/org/rogach/jopenvoronoi/jopenvoronoi-main/1.0-SNAPSHOT/jopenvoronoi-main-1.0-SNAPSHOT.jar;C:/Users/Brock/.m2/repository/commons-cli/commons-cli/1.4/commons-cli-1.4.jar;C:/Users/Brock/.m2/repository/org/apache/commons/commons-math3/3.4.1/commons-math3-3.4.1.jar"
-VORONOI_PATH = "C:/git_repos/banders/catchments/catchment-delineation-cpp/voronoi-catchments/x64/Release/voronoi-catchments.exe"
+VORONOI_PATH = "C:/git_repos/banders/chimp/voronoi-catchments/voronoi-catchments/x64/Release/voronoi-catchments.exe"
 
 class SampleArea:
   _next_id = 1
-  def __init__(self, bbox):
+  def __init__(self, bbox, crs):
     self.bbox = bbox
+    self.crs = crs
     self.has_bbox_header = False
     self.id = SampleArea._next_id #"{}_{}_{}_{}".format(self.bbox[0], self.bbox[1], self.bbox[2], self.bbox[3])
     SampleArea._next_id += 1
+    self.success = None
+    self.num_segments = None
   def get_id(self):
-    return self.id 
+    return self.id
+  def get_crs(self):
+    return self.crs
   def set_has_bbox_header(self, b):
     self.has_bbox_header = b
   def set_num_segments(self, n):
     self.num_segments = n
   def set_in_filename(self, f):
     self.in_filename = f
+  def set_info_filename(self, f):
+    self.info_filename = f
   def set_out_filename(self, f):
     self.out_filename = f
   def set_success(self, s):
     self.success = s
+  def save_info_file(self):
+    print("save info file: {}".format(self.info_filename))
+    data = {
+      "id": self.get_id(),
+      "bbox": ",".join(map(str, self.bbox)),
+      "crs": self.get_crs(),
+      "num_segments": self.num_segments,
+      "success": self.success,
+      "test_finished": self.success != None
+    }
+    with open(self.info_filename, 'w') as info_file:  
+      json.dump(data, info_file, indent=2)
 
 def main():
   argParser = argparse.ArgumentParser(description="runs a group of catchment delineation processing tools")
@@ -41,7 +60,9 @@ def main():
   argParser.add_argument('-bbox', dest='bbox', action='store', default=None, required=False, help='xmin,ymin,xmax,ymax')
   argParser.add_argument('-division', dest='division', action='store', default=4, required=False, help='how many equal chunks to divide each bbox into')
   argParser.add_argument('-voronoi-config-num', dest='voronoi_config_num', action='store', default=5, required=False, help='voronoi config num')
+  argParser.add_argument('-crs', dest='crs', action='store', default="EPSG:3005", required=False, help='e.g. EPSG:3005')
   argParser.add_argument('--in-file-excludes-bbox-header', dest='excludes_bbox_header', action='store_const', const=True, default=False, help='indicates whether the first 4 lines of the input file are the bbox')
+
 
   try:
     args = argParser.parse_args()
@@ -60,7 +81,7 @@ def main():
   failures = []
   queue = []
   #sample_areas = subdivide(SampleArea(initial_bbox), int(args.division))
-  initial_sample_area = SampleArea(initial_bbox)
+  initial_sample_area = SampleArea(initial_bbox, args.crs)
   initial_sample_area.set_has_bbox_header(not args.excludes_bbox_header)
   sample_areas = [initial_sample_area]
   queue.extend(sample_areas)
@@ -101,15 +122,17 @@ def subdivide(sample_area, num_divisions):
       division_ymin = initial_ymin + col * division_height
       division_ymax = division_ymin + division_height
       division_bbox = [division_xmin, division_ymin, division_xmax, division_ymax]
-      sample_area = SampleArea(division_bbox)
+      sample_area = SampleArea(division_bbox, sample_area.get_crs())
       subdivided_sample_areas.append(sample_area)
   return subdivided_sample_areas
 
 def run_on_sample_area(sample_area, voronoi_config_num, all_in_filename, out_dir):
-  in_filename = "{}/voronoi-in.{}.txt".format(out_dir, sample_area.get_id())
-  out_filename = "{}/voronoi-out.{}.wkt".format(out_dir, sample_area.get_id())
+  in_filename = "{}/voronoi.{}.in.txt".format(out_dir, sample_area.get_id())
+  out_filename = "{}/voronoi.{}.out.wkt".format(out_dir, sample_area.get_id())
+  info_filename = "{}/voronoi.{}.info.json".format(out_dir, sample_area.get_id())
   sample_area.set_in_filename(in_filename)
   sample_area.set_out_filename(out_filename)
+  sample_area.set_info_filename(info_filename)
   prepare_in_file(all_in_filename, in_filename, sample_area.bbox, has_bbox_header=sample_area.has_bbox_header, include_bounds=True)
   sample_area.set_num_segments(num_lines_in_file(in_filename))
   print("-----------------------")
@@ -119,6 +142,7 @@ def run_on_sample_area(sample_area, voronoi_config_num, all_in_filename, out_dir
   print("  in_file: {}".format(sample_area.in_filename))
   print("  out_file: {}".format(sample_area.out_filename))
   print("  num segments: {}".format(sample_area.num_segments))
+  sample_area.save_info_file()
   print("  running...")
   t1 = datetime.datetime.now()
   success = run_voronoi(sample_area.in_filename, sample_area.out_filename, voronoi_config_num)
@@ -128,11 +152,14 @@ def run_on_sample_area(sample_area, voronoi_config_num, all_in_filename, out_dir
   print("  success?: {}".format(success))
 
   if not success:
-    geopackage_filename = save_as_geopkg(sample_area)
+    geopackage_filename = save_input_as_geopkg(sample_area)
     has_collapse = has_topological_collapse(geopackage_filename, "water_features_segmented")
     print("  collapse?: {}".format(has_collapse))
+  if success: 
+    geopackage_filename = save_output_as_geopkg(sample_area)
 
   sample_area.set_success(success)
+  sample_area.save_info_file()
   return success
 
 def num_lines_in_file(fname):
@@ -213,9 +240,18 @@ def prepare_in_file(in_filename_initial, in_filename_final, bbox, has_bbox_heade
   in_file.close()
   out_file.close()
 
-def save_as_geopkg(sample_area):
+def save_input_as_geopkg(sample_area):
   out_geopkg_filename = sample_area.in_filename.replace(".txt", ".gpkg")
   cmd1 = "{} -cp {} ca.bc.gov.catchment.scripts.VoronoiInput2GeoPackage -i {} -o {}".format(JAVA_PATH, JAVA_CLASSPATH, sample_area.in_filename, out_geopkg_filename)
+  resp = subprocess.call(cmd1.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+  if resp != 0:
+    return None
+  return out_geopkg_filename
+
+def save_output_as_geopkg(sample_area):
+  out_geopkg_filename = sample_area.out_filename.replace(".wkt", ".gpkg")
+  cmd1 = "{} -cp {} ca.bc.gov.catchment.scripts.WKTList2GeoPackage -i {} -o {} -crs {}".format(JAVA_PATH, JAVA_CLASSPATH, sample_area.in_filename, out_geopkg_filename, sample_area.get_crs())
+  #print(cmd1)
   resp = subprocess.call(cmd1.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
   if resp != 0:
     return None
@@ -237,6 +273,7 @@ def run_voronoi(in_filename, out_filename, voronoi_config_num):
   cmd1 = "{} {} {} {}".format(VORONOI_PATH, in_filename, out_filename, voronoi_config_num)
   print(cmd1)
   resp = subprocess.call(cmd1.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+  #resp = subprocess.call(cmd1.split())
 
   if resp != 0:
     return False

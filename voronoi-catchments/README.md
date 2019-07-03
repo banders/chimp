@@ -74,13 +74,14 @@ CGAL and Boost headers and libraries:
   Configuration Properties > Linker > All Options > Additional Dependencies
 
   ```
-  All .lib files from [CGAL_HOME]/build/lib, plus...
+  All .lib files from [CGAL_HOME]/build/lib:
 	  CGAL_Core-vc140-mt-4.14.lib
 	  CGAL_Core-vc140-mt-gd-4.14.lib
 	  CGAL-vc140-mt-4.14.lib
 	  CGAL-vc140-mt-gd-4.14.lib
-	libgmp-10.lib
-	libmpfr-4.lib
+  plus...
+	  libgmp-10.lib
+  	libmpfr-4.lib
   ```
 
 Set the following values to help your application find the CGAL libraries at run time (when running from visual studio)
@@ -97,6 +98,7 @@ Set the following values to help your application find the CGAL libraries at run
 
 Build the application in Visual Studio, then run from the command line with:
 
+set PATH=%PATH%;[CGAL_HOME]\build\bin;[CGAL_HOME]\auxiliary\gmp\lib;
 [PATH_TO_VORONOI_CATCHMENT_EXE] [INPUT_TXT_FILE] [OUTPUT_WKT_FILE] [VORONOI_IMPLEMENTATION_NUMBER]
 
 e.g. 

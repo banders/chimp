@@ -45,6 +45,7 @@ import ca.bc.gov.catchment.voronoi.Persistable;
 import ca.bc.gov.catchment.voronoi.VoronoiLongLineCleaner;
 import ca.bc.gov.catchment.voronoi.VoronoiTouchingWaterCleaner;
 import ca.bc.gov.catchment.voronoi.VoronoiDanglerCleaner;
+import ca.bc.gov.catchment.voronoi.VoronoiDoubleEdgeCleaner;
 import ca.bc.gov.catchments.utils.FilterUtils;
 import ca.bc.gov.catchments.utils.SaveUtils;
 
@@ -198,9 +199,10 @@ public class CleanVoronoiOutput {
 		
 		
 		try {
-			int phase = startPhase;
+			int phaseNum = startPhase;
 			SimpleFeatureSource featureSourceForNextPhase = voronoiEdgesFeatureSource;
 			
+			/*
 			if (phase <= 0) {
 				//this phase is probably unnecessary.  most of the bad edges are cleaned by the WKTList2GeoPackage script
 				String phaseKeptTableName = outKeptTableName + "_p"+phase;
@@ -222,50 +224,70 @@ public class CleanVoronoiOutput {
 	            
 				featureSourceForNextPhase = DataUtilities.source(phaseResult.getKept());
 				phase++;
-			} 
-			if (phase <= 1) {
+			}
+			*/
+			if (phaseNum <= 1) {
+				String phaseKeptTableName = outKeptTableName + "_p"+phaseNum;
+				String phaseDiscardedTableName = outDiscardedTableName + "_p"+phaseNum;
 				
-				String phaseKeptTableName = outKeptTableName + "_p"+phase;
-				String phaseDiscardedTableName = outDiscardedTableName + "_p"+phase;
-				
-				System.out.println(" - Phase "+phase+": Discard voronoi edges touching only one water feature");
+				System.out.println(" - Phase "+phaseNum+": Discard doubled edges touching confluence");
 				System.out.println("   - Initializing...");
-				VoronoiTouchingWaterCleaner phase1 = new VoronoiTouchingWaterCleaner(featureSourceForNextPhase, waterFeatureSource, phaseKeptTableName, phaseDiscardedTableName);
+				VoronoiDoubleEdgeCleaner phase = new VoronoiDoubleEdgeCleaner(featureSourceForNextPhase, waterFeatureSource, phaseKeptTableName, phaseDiscardedTableName);
+				System.out.println("   - Cleaning...");
+				Date t1 = new Date();
+				KeptAndDiscarded phaseResult = phase.clean();
+				Date t2 = new Date();
+				System.out.println("   - Run time: "+(t2.getTime()-t1.getTime())/1000+ " s");
+				System.out.println("   - Phase "+phaseNum+" done");
+
+	            System.out.println("   - Saving "+phaseResult.getNumKept()+" features to "+phaseKeptTableName+"...");
+	            SaveUtils.saveToGeoPackage(outputFilename, phaseResult.getKept());
+	            System.out.println("   - Saving "+phaseResult.getNumDiscarded()+" features to "+phaseDiscardedTableName+"...");
+	            SaveUtils.saveToGeoPackage(outputFilename, phaseResult.getDiscarded());
+	            System.out.println("   - Phase "+phaseNum+" done");
+				
+				featureSourceForNextPhase = DataUtilities.source(phaseResult.getKept());
+				phaseNum++;
+			}
+			if (phaseNum <= 2) {
+				
+				String phaseKeptTableName = outKeptTableName + "_p"+phaseNum;
+				String phaseDiscardedTableName = outDiscardedTableName + "_p"+phaseNum;
+				
+				System.out.println(" - Phase "+phaseNum+": Discard voronoi edges touching only one water feature");
+				System.out.println("   - Initializing...");
+				VoronoiTouchingWaterCleaner phase = new VoronoiTouchingWaterCleaner(featureSourceForNextPhase, waterFeatureSource, phaseKeptTableName, phaseDiscardedTableName);
 				Date t1 = new Date();
 				Persistable kept = new GeoPackagePersistable(outputFilename, phaseKeptTableName);
 				Persistable discarded = new GeoPackagePersistable(outputFilename, phaseDiscardedTableName);
-				phase1.clean(kept, discarded);
+				phase.clean(kept, discarded);
 				Date t2 = new Date();
 				System.out.println("   - Run time: "+(t2.getTime()-t1.getTime())/1000+ " s");
-				System.out.println("   - Phase "+phase+" done");
+				System.out.println("   - Phase "+phaseNum+" done");
 
 				featureSourceForNextPhase = DataUtilities.source(kept.getFeatureCollection());
-				phase++;
+				phaseNum++;
 			} 
-			if (phase <= 2) {
-				String phaseKeptTableName = outKeptTableName + "_p"+phase;
-				String phaseDiscardedTableName = outDiscardedTableName + "_p"+phase;
+			if (phaseNum <= 3) {
+				String phaseKeptTableName = outKeptTableName + "_p"+phaseNum;
+				String phaseDiscardedTableName = outDiscardedTableName + "_p"+phaseNum;
 				
-				System.out.println(" - Phase "+phase+": Discard dangling voronoi edges");
+				System.out.println(" - Phase "+phaseNum+": Discard dangling voronoi edges");
 				System.out.println("   - Initializing...");
 				
-				VoronoiDanglerCleaner phase2 = new VoronoiDanglerCleaner(featureSourceForNextPhase, waterFeatureSource, phaseKeptTableName, phaseDiscardedTableName);
+				VoronoiDanglerCleaner phase = new VoronoiDanglerCleaner(featureSourceForNextPhase, waterFeatureSource, phaseKeptTableName, phaseDiscardedTableName);
 				
 				Date t1 = new Date();
-				KeptAndDiscarded phase2Result = phase2.clean();
+				KeptAndDiscarded phaseResult = phase.clean();
 				Date t2 = new Date();
 				System.out.println("   - Run time: "+(t2.getTime()-t1.getTime())/1000+ " s");
-				
-				//save phase 2 results:
-				// - kept edges
-				// - discarded edges
-				
-	            System.out.println("   - Saving "+phase2Result.getNumKept()+" features to "+phaseKeptTableName+"...");
-	            SaveUtils.saveToGeoPackage(outputFilename, phase2Result.getKept());
-	            System.out.println("   - Saving "+phase2Result.getNumDiscarded()+" features to "+phaseDiscardedTableName+"...");
-	            SaveUtils.saveToGeoPackage(outputFilename, phase2Result.getDiscarded());
-	            System.out.println("   - Phase "+phase+" done");
-	            phase++;
+							
+	            System.out.println("   - Saving "+phaseResult.getNumKept()+" features to "+phaseKeptTableName+"...");
+	            SaveUtils.saveToGeoPackage(outputFilename, phaseResult.getKept());
+	            System.out.println("   - Saving "+phaseResult.getNumDiscarded()+" features to "+phaseDiscardedTableName+"...");
+	            SaveUtils.saveToGeoPackage(outputFilename, phaseResult.getDiscarded());
+	            System.out.println("   - Phase "+phaseNum+" done");
+	            phaseNum++;
 			}
 
 			System.out.println("All done");

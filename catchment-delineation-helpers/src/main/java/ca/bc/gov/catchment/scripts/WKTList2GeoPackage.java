@@ -84,24 +84,27 @@ public class WKTList2GeoPackage {
 		Options options = new Options();
 		options.addOption("i", true, "Input Txt file");
 		options.addOption("o", true, "Output GeoPackage file");
-		options.addOption("bbox", true, "Bounding box: [minx,miny,maxx,maxy]");
-		options.addOption("bboxcrs", true, "CRS of the bounding box.  e.g. 'EPSG:3005' or 'EPSG:4326'");
+		//options.addOption("bbox", true, "Bounding box: [minx,miny,maxx,maxy]");
+		options.addOption("crs", true, "CRS of the bounding box.  e.g. 'EPSG:3005' or 'EPSG:4326'");
 		CommandLineParser parser = new DefaultParser();
 		HelpFormatter formatter = new HelpFormatter();
 		
 		String inputTxtFilename = null;
 		String outputGeopackageFilename = null;
-		String bboxStr = null;
-		String bboxCrs = null;
-		int bboxSrid = -1;
-		Envelope bounds = null;
+		//String bboxStr = null;
+		//String bboxCrs = null;
+		//int bboxSrid = -1;
+		//Envelope bounds = null;
+		String crs = null;
+		int srid = -1;
 		
 		try {
 			CommandLine cmd = parser.parse( options, args);
 			inputTxtFilename = cmd.getOptionValue("i");
 			outputGeopackageFilename = cmd.getOptionValue("o");	
-			bboxStr = cmd.getOptionValue("bbox");
-			bboxCrs = cmd.getOptionValue("bboxcrs");
+			//bboxStr = cmd.getOptionValue("bbox");
+			//bboxCrs = cmd.getOptionValue("bboxcrs");
+			crs = cmd.getOptionValue("crs");
 		} catch (ParseException e2) {
 			formatter.printHelp( WKTList2GeoPackage.class.getSimpleName(), options );
 		}
@@ -115,6 +118,11 @@ public class WKTList2GeoPackage {
 			formatter.printHelp( WKTList2GeoPackage.class.getSimpleName(), options );
 			System.exit(1);
 		}
+		if (crs == null) {
+			formatter.printHelp( PrepCgalVoronoiInput.class.getSimpleName(), options );
+			System.exit(1);
+		}
+		/*
 		if (bboxStr == null) {
 			formatter.printHelp( PrepCgalVoronoiInput.class.getSimpleName(), options );
 			System.exit(1);
@@ -124,6 +132,7 @@ public class WKTList2GeoPackage {
 			System.exit(1);
 		}
 		
+
 		if(bboxStr != null) {
 			String[] pieces = bboxStr.split(",");
 			double minX = Double.parseDouble(pieces[0]);
@@ -132,16 +141,18 @@ public class WKTList2GeoPackage {
 			double maxY = Double.parseDouble(pieces[3]);
 			bounds = new ReferencedEnvelope(minX,maxX,minY,maxY, null);
 		}
-		if (bboxCrs != null) {
-			if (bboxCrs.startsWith("EPSG:")) {
-				String srid = bboxCrs.substring(5);
-				bboxSrid = Integer.parseInt(srid);
+		*/
+		if (crs != null) {
+			if (crs.startsWith("EPSG:")) {
+				String sridAsStr = crs.substring(5);
+				srid = Integer.parseInt(sridAsStr);
 			}
 			else {
-				System.out.println("Unknown bboxcrs: "+bboxCrs);
+				System.out.println("Unknown crs: "+crs);
 				System.exit(1);
 			}
 		}
+		
 		
 		System.out.println("Inputs:");
 		System.out.println("- in file: "+inputTxtFilename);
@@ -156,6 +167,7 @@ public class WKTList2GeoPackage {
 			e.printStackTrace();
 			System.exit(1);
 		}
+		
 		
 		//Create output geopackage
 		File outFile = new File(outputGeopackageFilename);
@@ -243,7 +255,7 @@ public class WKTList2GeoPackage {
 					numSkipped++;
 					continue;
 				}
-				geometry.setSRID(bboxSrid);
+				geometry.setSRID(srid);
 				
 				//add the geometry to a feature
 				Object[] attributeValues = new Object[] { geometry };
@@ -266,7 +278,7 @@ public class WKTList2GeoPackage {
 				System.out.println("Saving "+GEOPKG_VORONOI_EDGES_TABLE+"...");
 				SimpleFeatureCollection edgesCollection = DataUtilities.simple(voronoiEdgesFeatureCollection);
 				FeatureEntry voronoiEdgesEntry = new FeatureEntry();
-				voronoiEdgesEntry.setSrid(bboxSrid);
+				voronoiEdgesEntry.setSrid(srid);
 				voronoiEdgesEntry.setBounds(edgesCollection.getBounds());
 				
 	            System.out.println(" - Writing "+edgesCollection.size()+" features");
@@ -282,7 +294,7 @@ public class WKTList2GeoPackage {
             	System.out.println("Saving "+GEOPKG_VORONOI_POLYS_TABLE+"...");
             	SimpleFeatureCollection polysCollection = DataUtilities.simple(voronoiPolysFeatureCollection);
 				FeatureEntry voronoiPolysEntry = new FeatureEntry();
-				voronoiPolysEntry.setSrid(bboxSrid);
+				voronoiPolysEntry.setSrid(srid);
 				voronoiPolysEntry.setBounds(polysCollection.getBounds());
 				
 	            System.out.println(" - Writing "+polysCollection.size()+" features");

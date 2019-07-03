@@ -241,13 +241,13 @@ public class CheckCollapse {
 	
 	private static void show(SimpleFeature f1, SimpleFeatureCollection fc, String msg) {
 		BoundingBox bbox = f1.getBounds();
-		System.out.println(" - "+f1.getID()+" (bbox: "+bbox.getMinX()+","+bbox.getMinY()+","+bbox.getMaxX()+","+bbox.getMaxY()+")");
+		System.out.println(" - "+f1.getID()+" (bbox: "+bbox.getMinX()+","+bbox.getMinY()+","+bbox.getMaxX()+","+bbox.getMaxY()+") "+msg+":");
 		
 		if (fc != null) {
 			SimpleFeatureIterator it = fc.features();
 			while(it.hasNext() ) {
 				SimpleFeature f2 = it.next();
-				System.out.println("   - "+msg+" "+f2.getID());
+				System.out.println("   - "+f2.getID());
 			}
 		}
 	}

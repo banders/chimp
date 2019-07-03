@@ -10,6 +10,7 @@
 //#include "Voronoi_3.h"
 #include "Voronoi_4.h"
 #include "Voronoi_5.h"
+#include "Voronoi_6.h"
 
 using namespace std;
 
@@ -39,13 +40,16 @@ int main(int argc, char *argv[]) {
 		//inFile = "C:/Users/Brock/Documents/BandersGeo/projects/catchment-delineation/data/richelieu-voronoi-input-2.txt";
 		//outFile = "C:/Users/Brock/Documents/BandersGeo/projects/catchment-delineation/data/richelieu-voronoi-output-2.wkt";
 
-		inFile = "C:/Users/Brock/Documents/BandersGeo/projects/catchment-delineation/data/fwa-kotl-water-features-18.txt";
-		outFile = "C:/Users/Brock/Documents/BandersGeo/projects/catchment-delineation/data/fwa-kotl-voronoi-output-18.wkt";
+		//inFile = "C:/Users/Brock/Documents/BandersGeo/projects/catchment-delineation/data/fwa-kotl-water-features-18.txt";
+		//outFile = "C:/Users/Brock/Documents/BandersGeo/projects/catchment-delineation/data/fwa-kotl-voronoi-output-18.wkt";
 
 		//inFile = "C:/Users/Brock/Documents/BandersGeo/projects/catchment-delineation/data/fwa-kotl-water-features-simplified.txt";
 		//outFile = "C:/Users/Brock/Documents/BandersGeo/projects/catchment-delineation/data/fwa-kotl-voronoi-output-21.wkt";
 
-		configNum = "4";
+		inFile = "C:/Users/Brock/Documents/BandersGeo/projects/catchment-delineation/bbox-tests/test/voronoi_config_num_6/kotl-simp-dens-snap.1.in.txt";
+		outFile = "C:/Users/Brock/Documents/BandersGeo/projects/catchment-delineation/bbox-tests/test/voronoi_config_num_6/kotl-simp-dens-snap.1.out.wkt";
+
+		configNum = "6";
 	}
 	
 
@@ -79,6 +83,12 @@ int main(int argc, char *argv[]) {
 	}
 	else if (configNum == "5") {
 		Voronoi_5 voronoi = Voronoi_5(inFile, outFile); //SDG, another alternative.  Kernel Cartesian<Gmpq>
+		voronoi.process();
+	}
+	else if (configNum == "6") {
+		//this uses the kernel suggested by the a CGAL contributor in this bug report:
+		// https://github.com/CGAL/cgal/issues/4030
+		Voronoi_6 voronoi = Voronoi_6(inFile, outFile); //SDG, another alternative.  Kernel SimpleCartesian<double>
 		voronoi.process();
 	}
 	else {
