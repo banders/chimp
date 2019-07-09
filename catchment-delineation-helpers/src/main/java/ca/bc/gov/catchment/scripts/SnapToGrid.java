@@ -219,14 +219,11 @@ public class SnapToGrid {
 	                	throw new IllegalStateException("Post condition failed: coordinate has been moved than it should have been");
 	                }
 	                
-	                
-	                
 	                //copy the attributes from the existing feature to the new feature,
 	                //the overwrite the original geometry with the new geometry
 	                outFeature.setAttributes(inFeature.getAttributes());
 	                outFeature.setDefaultGeometry(outGeom);	
 	                outFeatureCollection.add(outFeature);
-
 
 	            }
 	            
