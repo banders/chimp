@@ -15,15 +15,18 @@ DEFAULT_SETTINGS_FILENAME = "settings.json"
 DEFAULT_SIMPLIFY_DISTANCE_TOLERANCE = 2
 DEFAULT_DENSIFY_DISTANCE_SPACING = 50
 WATER_FEATURES_TABLE = "water_features"
+SEGMENTED_WATER_FEATURES_TABLE = "{}_segmented".format(WATER_FEATURES_TABLE)
 VORONOI_EDGES_TABLE = "voronoi_edges"
+VORONOI_CLEANED_TABLE = "voronoi_edges_kept_p3"
 
 def main():
   argParser = argparse.ArgumentParser(description="runs a group of catchment delineation processing tools")
   argParser.add_argument('-run-config', dest='run_config_file', action='store', default=None, required=True, help='Name of the run config JSON file')
+  argParser.add_argument('-run-id', dest='run_id', action='store', default=None, required=True, help='Name of the run config JSON file')
   argParser.add_argument('-start-step', dest='start_step', action='store', default=1, required=False, help='# of step to start with (e.g. 1, 2, 3, ...)')
-  argParser.add_argument('-last-step', dest='last_step', action='store', default=5, required=False, help='# of step to finish with (e.g. 1, 2, 3, ...)')
+  argParser.add_argument('-last-step', dest='last_step', action='store', default=100, required=False, help='# of step to finish with (e.g. 1, 2, 3, ...)')
   argParser.add_argument('-settings', dest='settings', action='store', default=DEFAULT_SETTINGS_FILENAME, required=False, help='path to settings json file')
-#  argParser.add_argument('--use-mpcm-cache', dest='use_mpcm_cache', action='store_const', const=True, default=False, help='a flag indicating whether to request that MPCM layers be stored in a cache after downloading, and on next run the cached copy will be used (if this flag is still enabled)')
+#  argParser.add_argument('--usecache', dest='usecache', action='store_const', const=True, default=False, help='...')
 
   try:
     args = argParser.parse_args()
@@ -53,21 +56,20 @@ def main():
     run_config = json.loads(data)
 
   test_id = run_config.get("test_id")
-  run_id = 1
+  run_id = args.run_id
 
   # Create output folder for all generated files
   # ---------------------------------------------------------------------------
   test_out_dir = os.path.join(settings.get("out_base_dir"), test_id)
   run_out_dir = test_out_dir
-
   
-  run_dirs = glob.glob(os.path.join(test_out_dir, "*"))
-  run_dirs = [int(os.path.split(run_dir)[1]) for run_dir in run_dirs]
-  if len(run_dirs):
-    last_run_id = max(run_dirs)
-    run_id = last_run_id + 1
-  
-
+  if run_id == None:
+    #auto-choose run id
+    run_dirs = glob.glob(os.path.join(test_out_dir, "*"))
+    run_dirs = [int(os.path.split(run_dir)[1]) for run_dir in run_dirs]
+    if len(run_dirs):
+      last_run_id = max(run_dirs)
+      run_id = last_run_id + 1
   
   run_out_dir = os.path.join(test_out_dir, "{}".format(run_id))
   if not os.path.exists(run_out_dir):
@@ -77,14 +79,33 @@ def main():
   data_bbox = run_config["input"]["data_bbox"]
   data_bbox_crs = run_config["input"]["data_bbox_crs"]
 
-  #i/o filenames for step 1
+  elevation_file_with_path = run_config["input"].get("elevation_file")
+  elevation_point_table = run_config["input"].get("elevation_point_table")
+  elevation_breakline_table = run_config["input"].get("elevation_breakline_table")
+
+  #i/o filenames:
+  #----------------------------------------------------------------------------
   water_feature_filename_with_path = run_config["input"]["water_feature_file"]
   [head, tail] = os.path.split(water_feature_filename_with_path)
 
+  water_feature_segmented_filename = "{}-{}.water.segmented.gpkg".format(test_id, run_id)
+  water_feature_segmented_filename_with_path = os.path.join(run_out_dir, water_feature_segmented_filename)
+
+  voronoi_output_snapped_gpkg_filename = "{}-{}.voronoi-out.snapped.gpkg".format(test_id, run_id)
+  voronoi_output_snapped_gpkg_filename_with_path = os.path.join(run_out_dir, voronoi_output_snapped_gpkg_filename)
+
+  voronoi_output_cleaned_gpkg_filename = "{}-{}.voronoi-out.cleaned.gpkg".format(test_id, run_id)
+  voronoi_output_cleaned_gpkg_filename_with_path = os.path.join(run_out_dir, voronoi_output_cleaned_gpkg_filename)
+
+  point_cloud_gpkg_filename = "{}-{}.point-cloud.gpkg".format(test_id, run_id)
+  point_cloud_gpkg_filename_with_path = os.path.join(run_out_dir, point_cloud_gpkg_filename)
+
+  #----------------------------------------------------------------------------
+
   tables = run_config["input"]["tables"]
-  table_names = tables.split(",")
-  streams_table = table_names[0]
-  linearboundaries_table = table_names[1]
+  #table_names = tables.split(",")
+  #streams_table = table_names[0]
+  #linearboundaries_table = table_names[1]
   voronoi_config_num = run_config["options"].get("voronoi_config_num", 2)
   simplify_dist_tolerance = run_config["options"].get("simplify_dist_tolerance", DEFAULT_SIMPLIFY_DISTANCE_TOLERANCE)
   densify_dist_spacing = run_config["options"].get("densify_dist_spacing", DEFAULT_DENSIFY_DISTANCE_SPACING)
@@ -171,8 +192,6 @@ def main():
     #combine all water features (streams and lakes) into a single file.  
     #also split all geometries into segments
     print("Combining water features datasets and segmenting...")
-    water_feature_segmented_filename = "{}-{}.water.segmented.gpkg".format(test_id, run_id)
-    water_feature_segmented_filename_with_path = os.path.join(run_out_dir, water_feature_segmented_filename)
     cmd1c = "{} -cp {} ca.bc.gov.catchment.scripts.SegmentLinestrings -i {} -o {} -tables {} -bbox {} -bboxcrs {} ".format(settings.get("java_path"), settings.get("java_classpath"), prep_water_features_input_filename_with_path, water_feature_segmented_filename_with_path, tables, data_bbox, data_bbox_crs)
     resp = call(cmd1c.split())
     if resp != 0:
@@ -183,7 +202,7 @@ def main():
     #check that the input data is valid
     print("");
     print("Checking validity of geometries that will be input into voronoi algorithm")
-    cmd1d = "{} -cp {} ca.bc.gov.catchment.scripts.CheckCollapse -i {} -tables {}".format(settings.get("java_path"), settings.get("java_classpath"), prep_water_features_input_filename_with_path, "water_features_segmented")
+    cmd1d = "{} -cp {} ca.bc.gov.catchment.scripts.CheckCollapse -i {} -tables {}".format(settings.get("java_path"), settings.get("java_classpath"), prep_water_features_input_filename_with_path, SEGMENTED_WATER_FEATURES_TABLE)
     resp = call(cmd1d.split())
     if resp != 0:
       print("Input data is not suitable for voronoi algorithm.")
@@ -194,7 +213,7 @@ def main():
   #i/o filenames for step 2
   voronoi_input_txt_filename = "{}-{}.water.voronoi-in.txt".format(test_id, run_id)
   voronoi_input_txt_filename_with_path = os.path.join(run_out_dir, voronoi_input_txt_filename)
-  voronoi_input_gpkg_filename_with_path = prep_water_features_input_filename_with_path
+  voronoi_input_gpkg_filename_with_path = water_feature_segmented_filename_with_path
   
   if args.start_step <= 2 and 2 <= args.last_step:
     print("")  
@@ -203,7 +222,7 @@ def main():
     print("---------------------------------------------------")
     print("")  
     
-    cmd2 = "{} -cp {} ca.bc.gov.catchment.scripts.PrepCgalVoronoiInput -i {} -o {} -table water_features_segmented {}".format(settings.get("java_path"), settings.get("java_classpath"), prep_water_features_input_filename_with_path, voronoi_input_txt_filename_with_path, streams_table)
+    cmd2 = "{} -cp {} ca.bc.gov.catchment.scripts.PrepCgalVoronoiInput -i {} -o {} -table {} {}".format(settings.get("java_path"), settings.get("java_classpath"), prep_water_features_input_filename_with_path, voronoi_input_txt_filename_with_path, SEGMENTED_WATER_FEATURES_TABLE)
     resp = call(cmd2.split())
     if resp != 0:
       print("Failure.  Pipeline execution stopped early.")
@@ -246,8 +265,6 @@ def main():
       exit(1);
 
   #i/o filenames for step 5
-  voronoi_output_cleaned_gpkg_filename = "{}-{}.voronoi-out.cleaned.gpkg".format(test_id, run_id)
-  voronoi_output_cleaned_gpkg_filename_with_path = os.path.join(run_out_dir, voronoi_output_cleaned_gpkg_filename)
 
   if args.start_step <= 5 and 5 <= args.last_step:
     print("")  
@@ -255,13 +272,60 @@ def main():
     print(" Step 5: Clean Voronoi edges")
     print("---------------------------------------------------")
     print("")  
-
+    
     cmd5 = "{} -cp {} ca.bc.gov.catchment.scripts.CleanVoronoiOutput -voronoiEdgesFile {} -waterFeaturesFile {} -outFile {} -voronoiEdgesTable {} -waterFeaturesTable {} -startPhase 1".format(settings.get("java_path"), settings.get("java_classpath"), voronoi_output_gpkg_filename_with_path, voronoi_input_gpkg_filename_with_path, voronoi_output_cleaned_gpkg_filename_with_path, VORONOI_EDGES_TABLE, WATER_FEATURES_TABLE)
     resp = call(cmd5.split())
     if resp != 0:
       print("Failure.  Pipeline execution stopped early.")
       exit(1);
+    
+    print("Snapping to grid...")
+    precisionScale = run_config["options"].get("snap_precision_scale")
+    if not precisionScale:
+      print("Option 'snap_precision_scale' must be specified in the run config when option 'snap' is true.")
+      print("Failure.  Pipeline execution stopped early.")
+      exit(1)
+    cmd1b = "{} -cp {} ca.bc.gov.catchment.scripts.SnapToGrid -i {} -o {} -tables {} -precisionScale {}".format(settings.get("java_path"), settings.get("java_classpath"), voronoi_output_cleaned_gpkg_filename_with_path, voronoi_output_snapped_gpkg_filename_with_path, VORONOI_CLEANED_TABLE, precisionScale)
+    resp = call(cmd1b.split())
+    if resp != 0:
+      print("Failure.  Pipeline execution stopped early.")
+      exit(1);
 
+  #create point cloud
+  if args.start_step <= 6 and 6 <= args.last_step:
+    print("")  
+    print("---------------------------------------------------")
+    print(" Step 6: Create point cloud")
+    print("---------------------------------------------------")
+    print("")  
+
+    bbox = "-bbox {} -bboxcrs {}".format(data_bbox, data_bbox_crs)
+
+    #add elevation points
+    print("Adding 3D elevation points to point cloud")
+    cmd6c = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} {}".format(settings.get("java_path"), settings.get("java_classpath"), elevation_file_with_path, elevation_point_table, "E", point_cloud_gpkg_filename_with_path, bbox)
+    resp = call(cmd6c.split())
+    if resp != 0:
+      print("Failure.  Pipeline execution stopped early.")
+      exit(1);
+
+
+    #add water features
+    print("Adding 2D vertices from water features to point cloud")
+    cmd6a = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} {}".format(settings.get("java_path"), settings.get("java_classpath"), water_feature_segmented_filename_with_path, SEGMENTED_WATER_FEATURES_TABLE, "W", point_cloud_gpkg_filename_with_path, bbox)
+    resp = call(cmd6a.split())
+    if resp != 0:
+      print("Failure.  Pipeline execution stopped early.")
+      exit(1);
+
+    #add initial catchments
+    print("Adding 2D vertices from initial catchments to point cloud")
+    cmd6b = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} {}".format(settings.get("java_path"), settings.get("java_classpath"), voronoi_output_cleaned_gpkg_filename_with_path, VORONOI_CLEANED_TABLE, "C", point_cloud_gpkg_filename_with_path, bbox)
+    print(voronoi_output_snapped_gpkg_filename_with_path)
+    resp = call(cmd6b.split())
+    if resp != 0:
+      print("Failure.  Pipeline execution stopped early.")
+      exit(1);
 
 
 
