@@ -344,16 +344,27 @@ public class VoronoiDoubleEdgeCleaner {
 		if (coords.length < 2) {
 			throw new IllegalArgumentException("geometry expected to be a line with at least two points.  actual geometry has "+coords.length+" points.");
 		}
-		Coordinate c1 = coords[0];
-		Coordinate c2 = coords[1];
 		
 		Coordinate fromCoord = fromPoint.getCoordinate();
-		if (fromCoord.distance(c1) > TOUCHES_DISTANCE_TOLERANCE && fromCoord.distance(c2) > TOUCHES_DISTANCE_TOLERANCE) {
+		
+		Coordinate firstCoord = coords[0];
+		Coordinate lastCoord = coords[coords.length-1];
+		
+		if (fromCoord.distance(firstCoord) > TOUCHES_DISTANCE_TOLERANCE && fromCoord.distance(lastCoord) > TOUCHES_DISTANCE_TOLERANCE) {
 			throw new IllegalArgumentException("one of the line endpoints must be the same at the 'fromPoint' (within the distance tolerance)");
 		}
 		
-		Coordinate toCoord = fromCoord.distance(c1) < fromCoord.distance(c2) ? c2 : c1;
-				
+		//determine which end of the line is closer to 'fromCoord'. assume
+		//"from" point is the same as the first point on the close end and 
+		//"to" point is the next point along from that end.
+		Coordinate toCoord = null;
+		if (fromCoord.distance(firstCoord) < fromCoord.distance(lastCoord)) {
+			toCoord = coords[1];
+		}
+		else {
+			toCoord = coords[coords.length-2];
+		}
+						
 		double diffX = fromCoord.getX() - toCoord.getX();
 		double diffY = fromCoord.getY() - toCoord.getY();
 		double angleRadians = Math.atan2(diffY, diffX);
