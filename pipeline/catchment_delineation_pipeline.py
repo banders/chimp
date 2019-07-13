@@ -18,6 +18,8 @@ WATER_FEATURES_TABLE = "water_features"
 SEGMENTED_WATER_FEATURES_TABLE = "{}_segmented".format(WATER_FEATURES_TABLE)
 VORONOI_EDGES_TABLE = "voronoi_edges"
 VORONOI_CLEANED_TABLE = "voronoi_edges_kept_p3"
+POINT_CLOUD_TABLE_PARTIAL_3D = "point_cloud"
+POINT_CLOUD_TABLE_FULL_3D = "point_cloud_3d"
 
 def main():
   argParser = argparse.ArgumentParser(description="runs a group of catchment delineation processing tools")
@@ -99,6 +101,9 @@ def main():
 
   point_cloud_gpkg_filename = "{}-{}.point-cloud.gpkg".format(test_id, run_id)
   point_cloud_gpkg_filename_with_path = os.path.join(run_out_dir, point_cloud_gpkg_filename)
+
+  point_cloud_3d_gpkg_filename = "{}-{}.point-cloud-3d.gpkg".format(test_id, run_id)
+  point_cloud_3d_gpkg_filename_with_path = os.path.join(run_out_dir, point_cloud_3d_gpkg_filename)
 
   #----------------------------------------------------------------------------
 
@@ -301,33 +306,37 @@ def main():
 
     bbox = "-bbox {} -bboxcrs {}".format(data_bbox, data_bbox_crs)
 
-    #add elevation points
-    print("Adding 3D elevation points to point cloud")
-    cmd6c = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} {}".format(settings.get("java_path"), settings.get("java_classpath"), elevation_file_with_path, elevation_point_table, "E", point_cloud_gpkg_filename_with_path, bbox)
-    resp = call(cmd6c.split())
-    if resp != 0:
-      print("Failure.  Pipeline execution stopped early.")
-      exit(1);
+    if not os.path.exists(point_cloud_gpkg_filename_with_path):
+      #add elevation points
+      print("Adding 3D elevation points to point cloud")
+      cmd6c = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), elevation_file_with_path, elevation_point_table, "E", point_cloud_gpkg_filename_with_path, bbox)
+      resp = call(cmd6c.split())
+      if resp != 0:
+        print("Failure.  Pipeline execution stopped early.")
+        exit(1);
 
+      #add water features
+      print("Adding 2D vertices from water features to point cloud")
+      cmd6a = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), water_feature_segmented_filename_with_path, SEGMENTED_WATER_FEATURES_TABLE, "W", point_cloud_gpkg_filename_with_path, bbox)
+      resp = call(cmd6a.split())
+      if resp != 0:
+        print("Failure.  Pipeline execution stopped early.")
+        exit(1);
 
-    #add water features
-    print("Adding 2D vertices from water features to point cloud")
-    cmd6a = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} {}".format(settings.get("java_path"), settings.get("java_classpath"), water_feature_segmented_filename_with_path, SEGMENTED_WATER_FEATURES_TABLE, "W", point_cloud_gpkg_filename_with_path, bbox)
-    resp = call(cmd6a.split())
-    if resp != 0:
-      print("Failure.  Pipeline execution stopped early.")
-      exit(1);
-
-    #add initial catchments
-    print("Adding 2D vertices from initial catchments to point cloud")
-    cmd6b = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} {}".format(settings.get("java_path"), settings.get("java_classpath"), voronoi_output_cleaned_gpkg_filename_with_path, VORONOI_CLEANED_TABLE, "C", point_cloud_gpkg_filename_with_path, bbox)
-    print(voronoi_output_snapped_gpkg_filename_with_path)
-    resp = call(cmd6b.split())
-    if resp != 0:
-      print("Failure.  Pipeline execution stopped early.")
-      exit(1);
-
-
+      #add initial catchments
+      print("Adding 2D vertices from initial catchments to point cloud")
+      cmd6b = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), voronoi_output_cleaned_gpkg_filename_with_path, VORONOI_CLEANED_TABLE, "C", point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_PARTIAL_3D, bbox)
+      resp = call(cmd6b.split())
+      if resp != 0:
+        print("Failure.  Pipeline execution stopped early.")
+        exit(1);
+  
+  print("Estimating elevation for points in cloud without z-coordinate")
+  cmd6d = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.EstimatePointCloudElevation -i {} -inTable {} -o {} -outTable {} -searchRadius 100".format(settings.get("java_path"), settings.get("java_classpath"), point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_PARTIAL_3D, point_cloud_3d_gpkg_filename_with_path, POINT_CLOUD_TABLE_FULL_3D)
+  resp = call(cmd6d.split())
+  if resp != 0:
+    print("Failure.  Pipeline execution stopped early.")
+    exit(1);
 
   """
   -voronoiEdgesTable voronoi_edges  water_features -startPhase 1

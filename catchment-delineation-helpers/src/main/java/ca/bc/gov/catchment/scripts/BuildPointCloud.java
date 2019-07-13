@@ -93,7 +93,7 @@ import org.opengis.referencing.crs.CoordinateReferenceSystem;
 public class BuildPointCloud {
 
 	private static final String GEOPKG_ID = "geopkg";
-	private static final String DEFAULT_OUTPUT_TABLE = "point_cloud";
+	private static final String DEFAULT_OUTPUT_TABLE = "point_cloud_partial_3d";
 	private static final String OUT_GEOMETRY_PROPERTY_NAME = "geometry";
 	private static final String TYPE_CODE_ELEVATION = "E";
 	private static final String TYPE_CODE_WATER = "W";
