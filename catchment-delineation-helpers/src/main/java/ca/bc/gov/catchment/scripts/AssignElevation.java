@@ -95,62 +95,55 @@ import org.opengis.referencing.crs.CoordinateReferenceSystem;
  *
  */
 
-public class EstimatePointCloudElevation {
+public class AssignElevation {
 
 	private static final String GEOPKG_ID = "geopkg";
 	private static final String DEFAULT_OUTPUT_TABLE = "point_cloud_3d";
-	private static final String OUT_GEOMETRY_PROPERTY_NAME = "geometry";
-	private static final String TYPE_CODE_ELEVATION = "E";
-	private static final String TYPE_CODE_WATER = "W";
-	private static final String TYPE_CODE_CATCHMENT = "C";
-	private static final String TYPE_CODE_BREAK = "B";
-	private static final String ATTR_IS_ELEVATION = "is_elevation";
-	private static final String ATTR_IS_WATER = "is_water";
-	private static final String ATTR_IS_CATCHMENT = "is_catchment";
-	private static final String ATTR_IS_BREAK = "is_break";
-	private static final String ATTR_IS_CONFLUENCE = "is_confluence";
 	
-	private static double DEFAULT_SEARCH_RADIUS = 100; 
-	private static final int K_NEIGHBOURS = 3;
-	private static final int MIN_NEIGHBORS = 1; 
-
+	private static final int MIN_NEIGHBOURS = 1;
+	private static final int K_NEIGHBOURS = 1;
+	private static final double DEFAULT_SEARCH_RADIUS = 0.1;
+	
 	public static void main(String[] args) {
 		
 		// create Options object
 		Options options = new Options();
-		options.addOption("i", true, "Input GeoPackage file");
+		options.addOption("pointCloud3DFile", true, "Input GeoPackage file");
+		options.addOption("i", true, "Output GeoPackage file");
 		options.addOption("o", true, "Output GeoPackage file");
+		options.addOption("inPointCloud3DTable", true, "input table name");
 		options.addOption("inTable", true, "input table name");
 		options.addOption("outTable", true, "output table name");
 		options.addOption("bbox", true, "bbox (minx,miny,maxx,maxy)");
 		options.addOption("bboxcrs", true, "e.g. EPSG:3005");
 		options.addOption("searchRadius", true, "distance in same unit as input data crs");
-		options.addOption("omitFailedPoints", false, "flag indicating whether to exclude points from the output when z cannot be determined");
 		CommandLineParser parser = new DefaultParser();
 		HelpFormatter formatter = new HelpFormatter();
 		
-		String inputGeopackageFilename = null;
+		String pointCloud3DFile = null;
+		String inFile = null;
 		String outputGeopackageFilename = null;
-		String inTableName = null;
-		String outTableName = null;
+		String inPointCloud3DTable = null;
+		String inTable = null;
+		String outTable = null;
 		String bboxStr = null;
 		String bboxCrs = null;
 		int bboxSrid = -1;
 		ReferencedEnvelope boundsToProcess = null;
-		boolean omitFailedPoints = false;
 		
 		double searchRadius = -1;
 		
 		try {
 			CommandLine cmd = parser.parse( options, args);
-			inputGeopackageFilename = cmd.getOptionValue("i");
+			pointCloud3DFile = cmd.getOptionValue("pointCloud3DFile");
+			inFile = cmd.getOptionValue("i");
 			outputGeopackageFilename = cmd.getOptionValue("o");	
-			inTableName = cmd.getOptionValue("inTable");
-			outTableName = cmd.getOptionValue("outTable", DEFAULT_OUTPUT_TABLE);
+			inPointCloud3DTable = cmd.getOptionValue("inPointCloud3DTable");
+			inTable = cmd.getOptionValue("inTable");
+			outTable = cmd.getOptionValue("outTable", DEFAULT_OUTPUT_TABLE);
 			bboxStr = cmd.getOptionValue("bbox");
 			bboxCrs = cmd.getOptionValue("bboxcrs");
 			String searchRadiusStr = cmd.getOptionValue("searchRadius");
-			omitFailedPoints = cmd.hasOption("omitFailedPoints");
 			if (searchRadiusStr == null) {
 				searchRadius = DEFAULT_SEARCH_RADIUS;
 			}
@@ -182,28 +175,29 @@ public class EstimatePointCloudElevation {
 		}
 		
 		System.out.println("Inputs:");
-		System.out.println("- in file: "+inputGeopackageFilename);
-		System.out.println("- in table: "+inTableName);
+		System.out.println("- pointCloud3DFile: "+pointCloud3DFile);
+		System.out.println("- inFile: "+inFile);
 		System.out.println("- out file: "+outputGeopackageFilename);
-		System.out.println("- out table: "+outTableName);
-		System.out.println("- omitFailedPoints?: "+omitFailedPoints);
+		System.out.println("- inPointCloud3DTable: "+inPointCloud3DTable);
+		System.out.println("- inTable: "+inTable);
+		System.out.println("- out table: "+outTable);
+		System.out.println("- searchRadius: "+searchRadius);
 		if (bboxStr != null) {
 			System.out.println("- bbox: "+bboxStr+" ("+bboxCrs+")");	
 		}
 
-		
-		//Open input datastore
+		//Open main input datastore
 		//---------------------------------------------------------------------
 		
-		Map<String, String> inputDatastoreParams = new HashMap<String, String>();
-		inputDatastoreParams.put("dbtype", GEOPKG_ID);
-		inputDatastoreParams.put("database", inputGeopackageFilename);
+		Map<String, String> inDatastoreParams = new HashMap<String, String>();
+		inDatastoreParams.put("dbtype", GEOPKG_ID);
+		inDatastoreParams.put("database", inFile);
 		
 		DataStore inDatastore = null;
 		try {
-			inDatastore = DataStoreFinder.getDataStore(inputDatastoreParams);
+			inDatastore = DataStoreFinder.getDataStore(inDatastoreParams);
 		} catch (IOException e) {
-			System.out.println("Unable to open input file: "+inputGeopackageFilename);
+			System.out.println("Unable to open input file: "+inFile);
 			e.printStackTrace();
 			System.exit(1);
 		}
@@ -212,41 +206,116 @@ public class EstimatePointCloudElevation {
 			System.out.println("Unable to open input datastore");
 			System.exit(1);
 		}
-			
-		// Collect some information about the input data
+		
+		//Open inPointCloud3D datastore
+		//---------------------------------------------------------------------
+		
+		Map<String, String> inPointCloudDatastoreParams = new HashMap<String, String>();
+		inPointCloudDatastoreParams.put("dbtype", GEOPKG_ID);
+		inPointCloudDatastoreParams.put("database", pointCloud3DFile);
+		
+		DataStore inPointCloudDatastore = null;
+		try {
+			inPointCloudDatastore = DataStoreFinder.getDataStore(inPointCloudDatastoreParams);
+		} catch (IOException e) {
+			System.out.println("Unable to open input file: "+pointCloud3DFile);
+			e.printStackTrace();
+			System.exit(1);
+		}
+		
+		if (inPointCloudDatastore == null) {
+			System.out.println("Unable to open input datastore");
+			System.exit(1);
+		}
+				
+
+		// Collect some information about the main input data
 		//---------------------------------------------------------------------
 		
 		SimpleFeatureType inFeatureType = null;
 		try {
-			inFeatureType = inDatastore.getSchema(inTableName);			
+			inFeatureType = inDatastore.getSchema(inTable);			
 		} catch (IOException e) {
-			System.out.println("Unable to get schema for feature type "+inTableName+" in the input datastore");
+			System.out.println("Unable to get schema for feature type "+inTable+" in the input datastore");
 			e.printStackTrace();
 			System.exit(1);
 		}
 		
 		String inGeometryPropertyName = inFeatureType.getGeometryDescriptor().getLocalName();
 		
-		CoordinateReferenceSystem crs = inFeatureType.getCoordinateReferenceSystem();
-		int srid = -1;
+		CoordinateReferenceSystem inCrs = inFeatureType.getCoordinateReferenceSystem();
+		int inSrid = -1;
 		try {
-			srid = CRS.lookupEpsgCode(crs, true);
+			inSrid = CRS.lookupEpsgCode(inCrs, true);
 		} catch (FactoryException e1) {
-			System.out.println("Unable to lookup SRID for feature type "+inTableName);
+			System.out.println("Unable to lookup SRID for feature type "+inTable);
 			System.exit(1);
 		}
 		
 		SimpleFeatureSource inFeatureSource = null;
 		try {
-			inFeatureSource = inDatastore.getFeatureSource(inTableName);
-			System.out.println("Indexing...");
+			inFeatureSource = inDatastore.getFeatureSource(inTable);
+			System.out.println("Indexing input features...");
 			SpatialIndexFeatureCollection fastFeatureCollection = new SpatialIndexFeatureCollection(inFeatureSource.getFeatures());
 			inFeatureSource = new SpatialIndexFeatureSource(fastFeatureCollection);
 		} catch (IOException e1) {
-			System.out.println("Unable to get in feature source: "+inTableName);
+			System.out.println("Unable to get in feature source: "+inTable);
 			e1.printStackTrace();
 			System.exit(1);
 		}
+		
+		
+		// Collect some information about the pointCloud3D input data
+		//---------------------------------------------------------------------
+		
+		SimpleFeatureType inPointCloud3DFeatureType = null;
+		try {
+			inPointCloud3DFeatureType = inPointCloudDatastore.getSchema(inPointCloud3DTable);			
+		} catch (IOException e) {
+			System.out.println("Unable to get schema for feature type "+inPointCloud3DTable+" in the input datastore");
+			e.printStackTrace();
+			System.exit(1);
+		}
+		
+		String inPointCloud3DGeometryPropertyName = inPointCloud3DFeatureType.getGeometryDescriptor().getLocalName();
+		
+		CoordinateReferenceSystem inPointCloud3DCrs = inPointCloud3DFeatureType.getCoordinateReferenceSystem();
+		int inPointCloudSrid = -1;
+		try {
+			inPointCloudSrid = CRS.lookupEpsgCode(inPointCloud3DCrs, true);
+		} catch (FactoryException e1) {
+			System.out.println("Unable to lookup SRID for feature type "+inPointCloud3DTable);
+			System.exit(1);
+		}
+		
+		SimpleFeatureSource inPointCloud3DFeatureSource = null;
+		try {
+			inPointCloud3DFeatureSource = inPointCloudDatastore.getFeatureSource(inPointCloud3DTable);
+			System.out.println("Indexing point cloud...");
+			SpatialIndexFeatureCollection fastFeatureCollection = new SpatialIndexFeatureCollection(inPointCloud3DFeatureSource.getFeatures());
+			inPointCloud3DFeatureSource = new SpatialIndexFeatureSource(fastFeatureCollection);
+		} catch (IOException e1) {
+			System.out.println("Unable to get in feature source: "+inPointCloud3DTable);
+			e1.printStackTrace();
+			System.exit(1);
+		}
+		
+		//Output
+		//---------------------------------------------------------------------
+		
+		int outSrid = inSrid;
+		
+		SimpleFeatureType outFeatureType = null;
+		try {
+			outFeatureType = DataUtilities.createType(outTable, 
+					"geometry:LineString:srid="+outSrid);
+		} catch (SchemaException e1) {
+			System.out.println("Unable to create feature type: "+outTable);
+			System.exit(1);
+		}
+		
+		SimpleFeatureBuilder outFeatureBuilder = new SimpleFeatureBuilder(outFeatureType);		
+		DefaultFeatureCollection outFeatureCollection = new DefaultFeatureCollection(outTable, outFeatureType);
 		
 		//Processing
 		//---------------------------------------------------------------------
@@ -272,56 +341,45 @@ public class EstimatePointCloudElevation {
 			System.exit(1);
 		}
 		
-		SimpleFeatureType outFeatureType = null;
-		try {
-			outFeatureType = DataUtilities.createType(outTableName, 
-					"geometry:Point:srid="+srid+","+ATTR_IS_ELEVATION+","+ATTR_IS_WATER+","+ATTR_IS_CATCHMENT+","+ATTR_IS_BREAK+","+ATTR_IS_CONFLUENCE);
-		} catch (SchemaException e1) {
-			System.out.println("Unable to create feature type: "+outTableName);
-			System.exit(1);
-		}
-
-		DefaultFeatureCollection outFeatureCollection = new DefaultFeatureCollection(outTableName, outFeatureType);
 		SimpleFeatureIterator inIterator = inFeatureCollection.features();
 		try {
 			
-			int numProcessed = 0;
-			int numFailures = 0;
+			int numProcessed= 0;
+			int num2D = 0;
+			int num3D = 0;
 			while(inIterator.hasNext()) {
 				numProcessed++;
 				SimpleFeature inFeature = inIterator.next();
 				Geometry inGeometry = (Geometry)inFeature.getDefaultGeometry();
-				Coordinate inCoord = inGeometry.getCoordinate();
 				
-				SimpleFeature outFeature = SimpleFeatureBuilder.retype(inFeature, outFeatureType);
-				boolean alreadyHasElevation = !Double.isNaN(inCoord.getZ());
-				if (!alreadyHasElevation) {
-					double elevation = Coordinate.NULL_ORDINATE;
-					try {
-						elevation = estimateElevation(inGeometry, inFeatureSource, searchRadius);
-					} catch (IllegalStateException e) {
-						numFailures++;
-						if (omitFailedPoints) {
-							continue;
-						}
-					}					
-					//System.out.println(" estimated elevation: "+elevation);
-					Coordinate outCoord = new Coordinate(inCoord.x, inCoord.y, elevation);
-					Point outPoint = geometryFactory.createPoint(outCoord);
-					outFeature.setDefaultGeometry(outPoint);
+				Coordinate[] coordsUpdated = to3D(inGeometry.getCoordinates(), inPointCloud3DFeatureSource, searchRadius);
+				
+				String type = inGeometry.getGeometryType();
+				Geometry outGeometry = null;
+				if (type.equals("LineString")) {
+					outGeometry = geometryFactory.createLineString(coordsUpdated);
 				}
 				else {
-					//System.out.println("Elevation feature copied to output");
+					System.out.println("Unsupported geometry type: "+type);
+					System.exit(1);
 				}
 				
+				if (Double.isNaN(coordsUpdated[0].getZ())) {
+					num2D++;
+				}
+				else {
+					num3D++;;
+				}
+				
+				Object[] attributes = {outGeometry};
+				SimpleFeature outFeature = outFeatureBuilder.buildFeature(inFeature.getID(), attributes);
 				outFeatureCollection.add(outFeature);
 				
 				if (numProcessed % 10000 == 0) {
-					System.out.println("Processed "+numProcessed+" (Failures: "+numFailures+")");
+					System.out.println("Processed "+numProcessed+" 2D: "+num2D+", 3D: "+num3D);
 				}
 			}
 		} catch (Exception e) {
-			System.out.println("Unable to estimate elevation from nearby features");
 			e.printStackTrace();
 			System.exit(1);
 		}
@@ -334,8 +392,8 @@ public class EstimatePointCloudElevation {
 		File outFile = new File(outputGeopackageFilename);
 		GeoPackage outGeoPackage = null;
 		FeatureEntry outEntry = new FeatureEntry();
-		System.out.println("out table: "+outTableName);
-		outEntry.setTableName(outTableName);
+		System.out.println("out table: "+outTable);
+		outEntry.setTableName(outTable);
 		outEntry.setBounds(boundsToProcess);
 		outEntry.setZ(true); //store a z coordinate for each geometry
 		
@@ -373,39 +431,48 @@ public class EstimatePointCloudElevation {
 		
 	}
 	
-	private static double estimateElevation(final Geometry point, SimpleFeatureSource inFeatureSource, double searchRadius) throws IOException {
-		Coordinate inCoord = point.getCoordinate();
+	private static Coordinate[] to3D(Coordinate[] inCoords, SimpleFeatureSource elevationPointSource, double searchRadius) throws IOException {
+		Coordinate[] outCoords = new Coordinate[inCoords.length];
+		for(int i = 0; i < inCoords.length; i++) {
+			outCoords[i] = to3D(inCoords[i], elevationPointSource, searchRadius);
+		}
+		return outCoords;
+	}
+	
+	private static Coordinate to3D(Coordinate inCoord, SimpleFeatureSource elevationPointSource, double searchRadius) throws IOException {
+
+		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+		Point inPoint = geometryFactory.createPoint(inCoord);
+		
 		Hints filterHints = new Hints( Hints.FEATURE_2D, true ); // force 2D queries
 		FilterFactory2 filterFactory = CommonFactoryFinder.getFilterFactory2(filterHints);
 		
-		SimpleFeatureType inFeatureType = inFeatureSource.getSchema();
-		String inGeomProperty = inFeatureType.getGeometryDescriptor().getLocalName();
-		Filter isElevationFilter = filterFactory.like(
-				filterFactory.property(ATTR_IS_ELEVATION),
-				"true");
+		SimpleFeatureType elevationFeatureType = elevationPointSource.getSchema();
+		String elevationGeometryProperty = elevationFeatureType.getGeometryDescriptor().getLocalName();
 
 		SimpleFeatureCollection nearbyElevationPoints = null;
 			Filter nearFilter = filterFactory.dwithin(
-				filterFactory.property(inGeomProperty), 
-				filterFactory.literal(point), 
+				filterFactory.property(elevationGeometryProperty), 
+				filterFactory.literal(inPoint), 
 				searchRadius, 
 				"meter");
 			
-		Filter nearByElevationFilter = filterFactory.and(isElevationFilter, nearFilter);
-		nearbyElevationPoints = inFeatureSource.getFeatures(nearByElevationFilter);
+		nearbyElevationPoints = elevationPointSource.getFeatures(nearFilter);
 		
-		if (nearbyElevationPoints == null || nearbyElevationPoints.size() < MIN_NEIGHBORS) {
-			throw new IllegalStateException("Unable to find at least "+MIN_NEIGHBORS+" elevation points near to: "+inCoord.x+","+inCoord.y);
+		if (nearbyElevationPoints == null || nearbyElevationPoints.size() < MIN_NEIGHBOURS) {
+			throw new IllegalStateException("Unable to find at least "+MIN_NEIGHBOURS+" elevation points near to: "+inCoord.x+","+inCoord.y);
 		}
 		
 		//if we find fewer nearby points than K_NEIGHBORS, use all the points that we found 
 		int numPointsToUse = Math.min(K_NEIGHBOURS, nearbyElevationPoints.size());
 		
-		List<SimpleFeature> kNearestPoints = getKNearest(point, nearbyElevationPoints, numPointsToUse);
+		List<SimpleFeature> kNearestPoints = getKNearest(inPoint, nearbyElevationPoints, numPointsToUse);
 		
-		double elevation = estimateElevationFromNearbyPoints(point, kNearestPoints);
-		return elevation;
-		
+		double elevation = estimateElevationFromNearbyPoints(inPoint, kNearestPoints);
+				
+		double outZ = Double.isNaN(inCoord.getZ()) ? elevation : inCoord.getZ();
+		Coordinate outCoord = new Coordinate(inCoord.getX(), inCoord.getY(), outZ);
+		return outCoord;
 	}
 	
 	private static double estimateElevationFromNearbyPoints(Geometry point, List<SimpleFeature> nearbyPoints) {
@@ -418,15 +485,27 @@ public class EstimatePointCloudElevation {
 		
 		//calc weighted average elevation
 		double weightedAverageElevation = 0;
+		int i = 0;
 		for(SimpleFeature f : nearbyPoints) {
+			i++;
 			Geometry g = (Geometry)f.getDefaultGeometry();
 			Coordinate coord = g.getCoordinate();
 			double z = coord.getZ();
 			double dist = g.distance(point);
-			double numerator = z/dist;
-			double thisVal = numerator/denom;
-			//System.out.println(" elevation:"+z+", dist:"+dist);
-			weightedAverageElevation += thisVal; 
+			if (dist == 0) {
+				//when an elevation point is exactly on top of the input point 
+				//we have division-by-zero problems .  To avoid this, don't 
+				//do a weighted average.  just return the z value of the point that matches exactly.
+				return z; 
+			}
+			else {
+				//distance is not 0, so compute the weighted average elevation
+				//based on distance
+				double numerator = z/dist;
+				double thisVal = numerator/denom;
+				//System.out.println(" elevation:"+z+", dist:"+dist);
+				weightedAverageElevation += thisVal;
+			}
 		}
 		
 		return weightedAverageElevation;

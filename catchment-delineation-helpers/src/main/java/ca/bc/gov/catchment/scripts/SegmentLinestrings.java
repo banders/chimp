@@ -76,6 +76,7 @@ import ca.bc.gov.catchments.utils.SpatialUtils;
 public class SegmentLinestrings {
 	
 	private static final String GEOPKG_ID = "geopkg";
+	private static final boolean EXCLUDE_ZERO_LENGTH_SEGMENTS = true;
 	
 	public static void main(String[] args) {
 		
@@ -247,7 +248,7 @@ public class SegmentLinestrings {
 				while (streamIterator.hasNext()) {            	
 	            	//get the input feature
 	            	SimpleFeature inFeature = (SimpleFeature)streamIterator.next();            	
-	            	List<SimpleFeature> segmentFeatureList = splitIntoSegments(inFeature, segmentedFeatureType);
+	            	List<SimpleFeature> segmentFeatureList = splitIntoSegments(inFeature, segmentedFeatureType, EXCLUDE_ZERO_LENGTH_SEGMENTS);
 	        		Object[] attrs = {inFeature.getDefaultGeometry()};
 	        		SimpleFeature featureCopy = unsegmentedFeatureBuilder.buildFeature(inFeature.getID(), attrs);
 	        		unsegmentedFeatures.add(featureCopy);
@@ -291,7 +292,7 @@ public class SegmentLinestrings {
 	 * splits a LineString feature into its segments, one feature for each.  Note: the attributes from the 
 	 * original feature aren't copied into the new features.
 	 */
-	private static List<SimpleFeature> splitIntoSegments(SimpleFeature inFeature, SimpleFeatureType outFeatureType) {
+	private static List<SimpleFeature> splitIntoSegments(SimpleFeature inFeature, SimpleFeatureType outFeatureType, boolean excludeZeroLengthSegments) {
 		List<SimpleFeature> result = new ArrayList<SimpleFeature>();
 		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
 		SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder(outFeatureType);
@@ -303,17 +304,23 @@ public class SegmentLinestrings {
 		for(Coordinate coord : coordinates) {
 			index++;
 			if (prevCoord != null) {
-				//create new geometry
-				Coordinate[] segmentCoords = {prevCoord, coord};
-				Geometry segmentGeometry = geometryFactory.createLineString(segmentCoords);
-				
-				//create new feature
-				String newId = inFeature.getID()+"-"+index;
-				Object[] attributeValues = new Object[] { segmentGeometry };
-				SimpleFeature segmentFeature = featureBuilder.buildFeature(newId, attributeValues);
-				
-				//add feature to collection
-				result.add(segmentFeature);
+				boolean isZeroLengthSegment = prevCoord.getX() == coord.getX() && prevCoord.getY() == coord.getY();
+				if (excludeZeroLengthSegments && isZeroLengthSegment) {
+					System.out.println("Excluding zero-length segment");	
+				}
+				else {
+					//create new geometry
+					Coordinate[] segmentCoords = {prevCoord, coord};
+					Geometry segmentGeometry = geometryFactory.createLineString(segmentCoords);
+					
+					//create new feature
+					String newId = inFeature.getID()+"-"+index;
+					Object[] attributeValues = new Object[] { segmentGeometry };
+					SimpleFeature segmentFeature = featureBuilder.buildFeature(newId, attributeValues);
+					
+					//add feature to collection
+					result.add(segmentFeature);	
+				}
 			}
 			prevCoord = coord;
 		}

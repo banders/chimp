@@ -42,7 +42,6 @@ import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
 public class VoronoiDoubleEdgeCleaner {
 	
-	private static final double TOUCHES_DISTANCE_TOLERANCE = 0.0001; 
 	private static final double MAX_LENGTH_TO_KEEP_IN_VORONOI_UNITS = 20000;
 	private static final double MIN_LENGTH_TO_KEEP_IN_VORONOI_UNITS = 0.01; //1 cm
 	private static final int NUM_X_TILES = 10;
@@ -72,10 +71,15 @@ public class VoronoiDoubleEdgeCleaner {
 	
 	private Unit<?> distanceUnit;
 	
+	private double touchesDistanceTolerance;
+	
 	public VoronoiDoubleEdgeCleaner(SimpleFeatureSource voronoiEdgesFeatureSource, 
 			SimpleFeatureSource waterFeatureSource,
 			String keptTypeName,
-			String discardedTypeName) throws IOException, FactoryException {
+			String discardedTypeName,
+			double touchesDistanceTolerance) throws IOException, FactoryException {
+		
+		this.touchesDistanceTolerance = touchesDistanceTolerance;
 		
 		//add spatial index to the voronoi features
 		SpatialIndexFeatureCollection vfc = new SpatialIndexFeatureCollection(voronoiEdgesFeatureSource.getFeatures());
@@ -217,18 +221,27 @@ public class VoronoiDoubleEdgeCleaner {
 		Filter waterFeatureFilter = ff.dwithin(
 				ff.property(waterGeomProperty), 
 				ff.literal(p), 
-				TOUCHES_DISTANCE_TOLERANCE, 
+				touchesDistanceTolerance, 
 				distanceUnit.toString());
 		//Filter waterFeatureFilter = ff.touches(ff.property(waterGeomProperty), ff.literal(p));
 		SimpleFeatureCollection touchingWaterFeatures = waterFeatureSource.getFeatures(waterFeatureFilter);
+		SimpleFeatureIterator waterFeatIt = touchingWaterFeatures.features();
+		while(waterFeatIt.hasNext()) {
+			SimpleFeature f= waterFeatIt.next();
+			Geometry geom = (Geometry)f.getDefaultGeometry();
+			
+		}
 
 		//identify voronoi edges touching the given point
+		//Note: this isn't technically a "touches" filter.  it actually identifies segments
+		//that have any point or edge within a given distance tolerance.  The code below must confirm that features
+		//do actually touch.
 		SimpleFeatureType voronoiFeatureType = inVoronoiFeatures.getSchema();
 		String voronoiGeomProperty = voronoiFeatureType.getGeometryDescriptor().getLocalName();
 		Filter voronoiFeatureFilter = ff.dwithin(
 				ff.property(voronoiGeomProperty), 
 				ff.literal(p), 
-				TOUCHES_DISTANCE_TOLERANCE, 
+				touchesDistanceTolerance, 
 				distanceUnit.toString());
 		//Filter voronoiFeatureFilter = ff.touches(ff.property(voronoiGeomProperty), ff.literal(p));
 		SimpleFeatureCollection touchingVoronoiFeatures = inVoronoiFeatures.getFeatures(voronoiFeatureFilter);
@@ -240,9 +253,11 @@ public class VoronoiDoubleEdgeCleaner {
 			//all voronoi edges touching the point are kept.
 			this.numNonConfluencePoints++;
 			result.addKept(toKept(touchingVoronoiFeatures));
+			//System.out.println(" "+p.getX()+","+p.getY()+" not a confluence point");
 			return result;
 		}
 		else {
+			//System.out.println(" "+p.getX()+","+p.getY()+" is a confluence point");
 			this.numConfluencePoints++;
 		}
 
@@ -260,7 +275,13 @@ public class VoronoiDoubleEdgeCleaner {
 		SimpleFeatureIterator touchingWaterFeatureIt = touchingWaterFeatures.features(); 
 		while(touchingWaterFeatureIt.hasNext()) {
 			SimpleFeature waterFeature = touchingWaterFeatureIt.next();
-			double angleDegrees = getAngleDegrees(p, (Geometry)waterFeature.getDefaultGeometry());
+			double angleDegrees = -1;
+			try {
+				angleDegrees = getAngleDegrees(p, (Geometry)waterFeature.getDefaultGeometry());
+			}
+			catch (IllegalArgumentException e) { //exception thrown when segment doesn't actually touch. 
+				continue; //skip this segment
+			}
 			Pair<Double, SimpleFeature> pair = new Pair(angleDegrees, waterFeature);
 			allTouching.add(pair);
 		}
@@ -275,10 +296,16 @@ public class VoronoiDoubleEdgeCleaner {
 			Coordinate[] coords = geometry.getCoordinates();
 			//String coordStr = coords[0].x+","+coords[0].y+" "+coords[1].x+","+coords[1].y;
 			
-			double angleDegrees = getAngleDegrees(p, geometry);
+			double angleDegrees = -1;
+			try {
+				angleDegrees = getAngleDegrees(p, geometry);
+			}
+			catch (IllegalArgumentException e) { //exception thrown when segment doesn't actually touch.
+				continue; //skip this segment
+			}
 			//System.out.println(voronoiFeature.getID() + " " + coordStr + " " + angleDegrees);
 			Pair<Double, SimpleFeature> pair = new Pair(angleDegrees, voronoiFeature);
-			if (geometry.getLength() < TOUCHES_DISTANCE_TOLERANCE) {
+			if (geometry.getLength() < touchesDistanceTolerance) {
 				tooShort++;
 				continue;				
 			}
@@ -350,8 +377,8 @@ public class VoronoiDoubleEdgeCleaner {
 		Coordinate firstCoord = coords[0];
 		Coordinate lastCoord = coords[coords.length-1];
 		
-		if (fromCoord.distance(firstCoord) > TOUCHES_DISTANCE_TOLERANCE && fromCoord.distance(lastCoord) > TOUCHES_DISTANCE_TOLERANCE) {
-			throw new IllegalArgumentException("one of the line endpoints must be the same at the 'fromPoint' (within the distance tolerance)");
+		if (fromCoord.distance(firstCoord) > touchesDistanceTolerance && fromCoord.distance(lastCoord) > touchesDistanceTolerance) {
+			throw new IllegalArgumentException("one of the line endpoints must be the same at the 'fromPoint' (within the distance tolerance) as "+fromCoord.x+","+fromCoord.y);
 		}
 		
 		//determine which end of the line is closer to 'fromCoord'. assume

@@ -31,11 +31,10 @@ import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
 public class VoronoiTouchingWaterCleaner {
 	
-	private static final double TOUCHES_DISTANCE_TOLERANCE = 0.0001; 
 	private static final double MAX_LENGTH_TO_KEEP_IN_VORONOI_UNITS = 20000;
 	private static final double MIN_LENGTH_TO_KEEP_IN_VORONOI_UNITS = 0.01; //1 cm
-	private static final int NUM_X_TILES = 10;
-	private static final int NUM_Y_TILES = 10;
+	private static final int NUM_X_TILES = 1;
+	private static final int NUM_Y_TILES = 1;
 	
 	private String keptTypeName;
 	private String discardedTypeName;
@@ -54,11 +53,15 @@ public class VoronoiTouchingWaterCleaner {
 	
 	private Unit<?> distanceUnit;
 	
+	private double touchesDistanceTolerance;
+	
 	public VoronoiTouchingWaterCleaner(SimpleFeatureSource voronoiEdgesFeatureSource, 
 			SimpleFeatureSource waterFeatureSource,
 			String keptTypeName,
-			String discardedTypeName) throws IOException, FactoryException {
+			String discardedTypeName,
+			double touchesDistanceTolerance) throws IOException, FactoryException {
 		
+		this.touchesDistanceTolerance = touchesDistanceTolerance;
 		this.voronoiEdgesFeatureSource = voronoiEdgesFeatureSource;
 
 		//add a spatial index to the water features
@@ -95,7 +98,7 @@ public class VoronoiTouchingWaterCleaner {
 		keptFeatureBuilder = new SimpleFeatureBuilder(keptFeatureType);
 		discardedFeatureBuilder = new SimpleFeatureBuilder(discardedFeatureType);
 		
-		System.out.println("   - Distance tolerance for 'touching' lines is: "+TOUCHES_DISTANCE_TOLERANCE + " " +distanceUnit.toString());
+		System.out.println("   - Distance tolerance for 'touching' lines is: "+touchesDistanceTolerance + " " +distanceUnit.toString());
 		
 	}
 	
@@ -209,10 +212,14 @@ public class VoronoiTouchingWaterCleaner {
 				//  Therefore, we cannot reliably use the JTS "touches" operation to detect these approximate touches. 
 				//  Instead we use "dwithin" to identify features whose closest vertex is within some
 				//  small distance tolerance.
-				Filter waterTouchesVoronoiEdgeFilter = filterFactory.dwithin(filterFactory.property(waterFeaturesGeometryPropertyName), filterFactory.literal(voronoiEdgeGeometry), TOUCHES_DISTANCE_TOLERANCE, distanceUnit.toString());
+				Filter waterTouchesVoronoiEdgeFilter = filterFactory.dwithin(
+						filterFactory.property(waterFeaturesGeometryPropertyName), 
+						filterFactory.literal(voronoiEdgeGeometry), 
+						touchesDistanceTolerance, 
+						distanceUnit.toString());
 				FeatureCollection touchingWaterFeatures = waterFeatureSource.getFeatures(waterTouchesVoronoiEdgeFilter);
 				numTouchingWaterFeatures = touchingWaterFeatures.size();
-				keep = numTouchingWaterFeatures == 0 || numTouchingWaterFeatures >= 3; //discard when num is 1 or 2 //numTouchingWaterFeatures != 1;
+				keep = numTouchingWaterFeatures == 0 || numTouchingWaterFeatures >= 3; //discard when num is 1 or 2 //numTouchingWaterFeatures != 1;				
 			}
 			else {
 				shortCircuitCount++;
@@ -227,6 +234,10 @@ public class VoronoiTouchingWaterCleaner {
 				Object[] attributeValues = new Object[] { voronoiEdgeGeometry, numTouchingWaterFeatures };
 				SimpleFeature discardedFeature = discardedFeatureBuilder.buildFeature(voronoiEdgeFeature.getID(), attributeValues);
 				result.addDiscarded(discardedFeature);
+			}
+			
+			if (index % 50000 == 0) {
+				System.out.println(" "+index+" voronoi edges processed");
 			}
 			
 			

@@ -58,6 +58,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateSequenceFactory;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
@@ -73,39 +74,18 @@ import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
 /**
- * Combines vertices from the following data sets into a point cloud:
- * - elevation points (points)
- * - water features such as rivers and lakes (lines and/or polygons)
- * - initial catchment boundaries (lines and/or polygons)
- * Vertices from the elevation data set will be 3D, although vertices from the
- * other data sets will probably only be 2D.  The output will be a point cloud 
- * in which some points have a Z value and others do not.
- * The following attributes are set for each point:
- * 	- is_elevation (boolean)
- *  - is_water (boolean)
- *  - is_catchment (boolean)
- *  - is_break (boolean)
- *  - is_confluence (boolean)
- * When the input data contains multiple points at the same 2D locatio
+ * Adds all lines from the given input data set to the given output data set.  If the output data
+ * set already exists, it is appended to.  No attempt is made to filter out duplicates.  New feature IDs
+ * are assigned to all features copied to the output data set.
  * @author Brock
  *
  */
 
-public class BuildPointCloud {
+public class SegmentAndAppendToSet {
 
 	private static final String GEOPKG_ID = "geopkg";
-	private static final String OUT_GEOMETRY_PROPERTY_NAME = "geometry";
-	private static final String TYPE_CODE_ELEVATION = "E";
-	private static final String TYPE_CODE_WATER = "W";
-	private static final String TYPE_CODE_CATCHMENT = "C";
-	private static final String TYPE_CODE_BREAK = "B";
-	private static final String[] VALID_TYPE_CODES = {TYPE_CODE_ELEVATION, TYPE_CODE_WATER, TYPE_CODE_CATCHMENT, TYPE_CODE_BREAK};
-	private static final String ATTR_IS_ELEVATION = "is_elevation";
-	private static final String ATTR_IS_WATER = "is_water";
-	private static final String ATTR_IS_CATCHMENT = "is_catchment";
-	private static final String ATTR_IS_BREAK = "is_break";
-	private static final String ATTR_IS_CONFLUENCE = "is_confluence";
-
+	private static final boolean EXCLUDE_ZERO_LENGTH_SEGMENTS = true;
+	
 	public static void main(String[] args) {
 		
 		// create Options object
@@ -114,7 +94,7 @@ public class BuildPointCloud {
 		options.addOption("o", true, "Output GeoPackage file");
 		options.addOption("inTable", true, "input table name");
 		options.addOption("outTable", true, "output table name");
-		options.addOption("inTypeCode", true, "type code of input: E (elevation), W (water), C (catchment)");
+		options.addOption("outLabel", true, "label to assign to all output features copied from the given input");
 		options.addOption("bbox", true, "bbox (minx,miny,maxx,maxy)");
 		options.addOption("bboxcrs", true, "e.g. EPSG:3005");
 		options.addOption("o", true, "Output GeoPackage file");
@@ -125,7 +105,7 @@ public class BuildPointCloud {
 		String outputGeopackageFilename = null;
 		String inTableName = null;
 		String outTableName = null;
-		String inTypeCode = null;
+		String outLabel = null;
 		String bboxStr = null;
 		String bboxCrs = null;
 		int bboxSrid = -1;
@@ -137,16 +117,11 @@ public class BuildPointCloud {
 			outputGeopackageFilename = cmd.getOptionValue("o");	
 			inTableName = cmd.getOptionValue("inTable");
 			outTableName = cmd.getOptionValue("outTable");
-			inTypeCode = cmd.getOptionValue("inTypeCode");
+			outLabel = cmd.getOptionValue("outLabel");
 			bboxStr = cmd.getOptionValue("bbox");
 			bboxCrs = cmd.getOptionValue("bboxcrs");
 		} catch (ParseException e2) {
 			formatter.printHelp( WKTList2GeoPackage.class.getSimpleName(), options );
-		}
-				
-		if (!Arrays.asList(VALID_TYPE_CODES).contains(inTypeCode)) {
-			System.out.println("Invalid type code.  Expected one of: "+VALID_TYPE_CODES);
-			System.exit(1);
 		}
 		
 		if(bboxStr != null) {
@@ -171,28 +146,11 @@ public class BuildPointCloud {
 		System.out.println("Inputs:");
 		System.out.println("- in file: "+inputGeopackageFilename);
 		System.out.println("- in table: "+inTableName);
-		System.out.println("- in type code: "+inTypeCode);
 		System.out.println("- out file: "+outputGeopackageFilename);
 		System.out.println("- out table: "+outTableName);
+		System.out.println("- out label: "+outLabel);
 		if (bboxStr != null) {
 			System.out.println("- bbox: "+bboxStr+" ("+bboxCrs+")");	
-		}
-		
-		//Other setup
-		//---------------------------------------------------------------------
-		
-		String typeAttributeName = null;
-		if (inTypeCode.equals(TYPE_CODE_ELEVATION)) {
-			typeAttributeName = ATTR_IS_ELEVATION;
-		}
-		if (inTypeCode.equals(TYPE_CODE_WATER)) {
-			typeAttributeName = ATTR_IS_WATER;
-		}
-		if (inTypeCode.equals(TYPE_CODE_CATCHMENT)) {
-			typeAttributeName = ATTR_IS_CATCHMENT;
-		}
-		if (inTypeCode.equals(TYPE_CODE_BREAK)) {
-			typeAttributeName = ATTR_IS_BREAK;
 		}
 		
 		//Open input datastore
@@ -261,7 +219,7 @@ public class BuildPointCloud {
 		SimpleFeatureType outFeatureType = null;
 		try {
 			outFeatureType = DataUtilities.createType(outTableName, 
-					"geometry:Point:srid="+srid+","+ATTR_IS_ELEVATION+","+ATTR_IS_WATER+","+ATTR_IS_CATCHMENT+","+ATTR_IS_BREAK+","+ATTR_IS_CONFLUENCE);
+					"geometry:LineString:srid="+srid+",label");
 		} catch (SchemaException e1) {
 			System.out.println("Unable to create feature type: "+outTableName);
 			System.exit(1);
@@ -330,32 +288,18 @@ public class BuildPointCloud {
 		//Processing
 		//---------------------------------------------------------------------
 
-		System.out.println("Indexing existing features...");
-		
-		
-		Map<String, SimpleFeature> outFeatureMap = null;
-		try {
-			outFeatureMap = loadIntoMap(outDatastore.getFeatureSource(outTableName));
-		} catch (IOException e1) {
-			System.out.println("Unable to load existing features into memory");
-			e1.printStackTrace();
-			System.exit(1);
-		}
 		System.out.println("Processing started");
 		
 		Hints filterHints = new Hints( Hints.FEATURE_2D, true ); // force 2D queries
 		FilterFactory2 filterFactory = CommonFactoryFinder.getFilterFactory2(filterHints);
 		
-		//get a geometry factory able to create 3d points
-		//Hints coordSeqHints = new Hints( Hints.COORDINATE_DIMENSION, 3);
-		//CoordinateSequenceFactory csf = JTSFactoryFinder.getCoordinateSequenceFactory(null);
-		//Hints geomFactHints = new Hints( Hints.COORDINATE_DIMENSION, 3);
 		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
-		//GeometryBuilder geometryBuilder = new GeometryBuilder(geometryFactory);
 		SimpleFeatureBuilder outFeatureBuilder = new SimpleFeatureBuilder(outFeatureType);
 		
+		DefaultFeatureCollection outFeatureCollection = new DefaultFeatureCollection();
+		
+		int numZeroLengthExcluded = 0;
 		try {
-			int nextOutId = 0;
 			//iterate over each feature in the input data set
 			SimpleFeatureCollection inFeatureCollection = null;
 			if (boundsToProcess != null) {
@@ -369,65 +313,41 @@ public class BuildPointCloud {
 			inFeatureSource = new SpatialIndexFeatureSource(new SpatialIndexFeatureCollection(inFeatureCollection));
 			System.out.println(inFeatureCollection.size()+" input features to be processed");
 			SimpleFeatureIterator inIterator = inFeatureCollection.features();
-			int inFeatureNum = 0;
-			int numAdded = 0;
-			int numUpdated = 0;
+			int inFeatureNum = 0;			
 			while(inIterator.hasNext()) {
 				inFeatureNum++;
 				SimpleFeature inFeature = inIterator.next();
 				Geometry inGeometry = (Geometry)inFeature.getDefaultGeometry();
 				
 				Coordinate[] coordinates = inGeometry.getCoordinates();
-
 				
-				//iterate over each vertex in the current feature
+				//iterate over each vertex in the current feature.
+				//combine the current vertex and the previous vertex into a two-point line
+				//segment.  Add each segment to the output
+				Coordinate prevCoord = null;
 				for(Coordinate coord: coordinates) {
-					
-					Point inPoint = geometryFactory.createPoint(coord); //geometryBuilder.pointZ(coord.getX(), coord.getY(), coord.getZ());	
-					
-					String hash = coordToHash(coord);
-					SimpleFeature existingFeature = outFeatureMap.get(hash);
-					
-					//determine if feature is confluence
-					Filter inEqualsFilter = filterFactory.equal(filterFactory.property(inGeometryPropertyName), filterFactory.literal(inPoint));
-					FeatureCollection matchesInInput = inFeatureSource.getFeatures(inEqualsFilter);
-					boolean isConfluence = matchesInInput.size() > 2;				
-									
-					if (existingFeature != null) { //vertex already exists in output
-						//System.out.println("update");
-						existingFeature.setAttribute(typeAttributeName, true);	
-						existingFeature.setAttribute("is_confluence", isConfluence);	
-						//if (!typeAttributeName.equals("is_water")) {
-						//	String isWater = (String)existingFeature.getAttribute("is_water");
-						//	if (isWater.equals("true")) {
-								//System.out.println("is_confluence:"+existingFeature.getAttribute("is_confluence"));
-								//System.out.println("is_water:"+existingFeature.getAttribute("is_water"));
-								//System.out.println(typeAttributeName+":"+existingFeature.getAttribute(typeAttributeName));
-								//System.out.println("coord:"+coord.x+","+coord.y);
-						//	}							
-						//}
-						outFeatureMap.put(hash, existingFeature);
-						numUpdated++;
-					}					
-					else  { //vertex doesn't yet exist in output
-						//System.out.println("add");
-						Object[] attributeValues = new Object[] { 
-								inPoint,
-								inTypeCode.equals(TYPE_CODE_ELEVATION),
-								inTypeCode.equals(TYPE_CODE_WATER),
-								inTypeCode.equals(TYPE_CODE_CATCHMENT),
-								inTypeCode.equals(TYPE_CODE_BREAK),
-								isConfluence
-							};						
-						String featureId = hash;
-						SimpleFeature outFeature = outFeatureBuilder.buildFeature(featureId, attributeValues);	
-						outFeatureMap.put(hash, outFeature);
-						numAdded++;
+					if (prevCoord != null) {
+						boolean isZeroLengthSegment = prevCoord.getX() == coord.getX() && prevCoord.getY() == coord.getY();
+						if (EXCLUDE_ZERO_LENGTH_SEGMENTS && isZeroLengthSegment) {
+							numZeroLengthExcluded++;	
+						}
+						else {
+							//build output geometry
+							Coordinate[] segmentCoordinates = {prevCoord, coord};
+							LineString outGeometry = geometryFactory.createLineString(segmentCoordinates); 	
+							
+							//build output feature
+							String newId = UUID.randomUUID()+"";
+							Object[] attributeValues = new Object[] { outGeometry, outLabel };
+							SimpleFeature outFeature = outFeatureBuilder.buildFeature(newId, attributeValues);
+							outFeatureCollection.add(outFeature);
+						}
 					}
 					
+					prevCoord = coord;
 				}
 				if (inFeatureNum % 10000 == 0) {
-					System.out.println(outFeatureMap.size()+" points in cloud");
+					System.out.println(outFeatureCollection.size()+" segments processed");
 				}
 			}
 			inIterator.close();
@@ -437,10 +357,11 @@ public class BuildPointCloud {
 			System.exit(1);
 		}
 
+		System.out.println(numZeroLengthExcluded+" zero-length segments excluded");
 		System.out.println("Saving...");
 		try {
 			outGeoPackage = new GeoPackage(outFile);
-			save(outGeoPackage, outEntry, outFeatureMap);
+			addToGeopackage(outGeoPackage, outEntry, outFeatureCollection);
 			outGeoPackage.close();
 		} catch (IOException e3) {
 			System.out.println("Unable to save geopackage "+outputGeopackageFilename);
@@ -451,7 +372,6 @@ public class BuildPointCloud {
 		System.out.println("All done");
 		
 	}
-	
 	
 	private static Map<String, SimpleFeature> loadIntoMap(SimpleFeatureSource fs) throws IOException {
 		Map<String, SimpleFeature> map = new HashMap<String, SimpleFeature>();
@@ -484,57 +404,29 @@ public class BuildPointCloud {
 		return hash;
 	}
 	
-	private static void save(GeoPackage gp, FeatureEntry entry, Map<String, SimpleFeature> map) throws IOException {
-		Transaction updateTx = new DefaultTransaction();
-		//Hints hints = new Hints( Hints.FEATURE_2D, true ); // force 2D data
-		FilterFactory2 filterFactory = CommonFactoryFinder.getFilterFactory2(null);
-		Filter filter = filterFactory.equals(filterFactory.literal(1), filterFactory.literal(1));
-		SimpleFeatureWriter updater = gp.writer(entry, false, filter, updateTx);
-		
-		//iterate over existing features, and update any that have changed
-		int updateCount = 0;
-		Set<String> updatedHashes = new HashSet<String>();
-		while(updater.hasNext()) { 
-			SimpleFeature existingFeature = updater.next();
-			Geometry geometry = (Geometry)existingFeature.getDefaultGeometry();
-			Coordinate coord = geometry.getCoordinate();
-			String hash = coordToHash(coord);
-			SimpleFeature matchingFeature = map.get(hash);
-			if (matchingFeature != null) {
-				existingFeature.setAttributes(matchingFeature.getAttributes());
-				updatedHashes.add(hash);
-				updateCount++;
-			}	
-			updater.write();
-		}
-		updateTx.commit();
-		updateTx.close();
-		updater.close();
-		System.out.println(" - "+updateCount+" points updated");
+	private static void addToGeopackage(GeoPackage gp, FeatureEntry entry, SimpleFeatureCollection fc) throws IOException {
 		
 		//identify new features that need to be added, then add them
 		int addCount = 0;
 		Transaction appendTx = new DefaultTransaction();
 		SimpleFeatureWriter appender = gp.writer(entry, true, null, appendTx);
-		Iterator<String> keyIt = map.keySet().iterator();
-		while(keyIt.hasNext()) {
-			String key = keyIt.next();
-			SimpleFeature featureToCopy = map.get(key);
-			Geometry geometry = (Geometry)featureToCopy.getDefaultGeometry();
-			Coordinate coord = geometry.getCoordinate();
-			String hash = coordToHash(coord);
-			if (!updatedHashes.contains(hash)) {
-				SimpleFeature newFeature = appender.next();
-				newFeature.setAttributes(featureToCopy.getAttributes());
-				newFeature.setDefaultGeometry(geometry);
-				appender.write();
-				addCount++;
+		SimpleFeatureIterator it = fc.features();
+		while(it.hasNext()) {
+			SimpleFeature featureToAdd = it.next();
+			SimpleFeature newFeature = appender.next();
+			newFeature.setAttributes(featureToAdd.getAttributes());
+			newFeature.setDefaultGeometry(featureToAdd.getDefaultGeometry());
+			appender.write();
+			addCount++;
+			if (addCount % 50000 == 0) {
+				System.out.println(addCount +" added");
 			}
 		}
 		appendTx.commit();
 		appendTx.close();
 		appender.close();
-		System.out.println(" - "+ addCount+" points added");
+		it.close();
+		System.out.println(" - "+ addCount+" segments added");
 		
 		
 	}

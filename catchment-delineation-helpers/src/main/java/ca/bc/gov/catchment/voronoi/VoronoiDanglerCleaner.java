@@ -35,7 +35,6 @@ import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
 public class VoronoiDanglerCleaner {
 	
-	private static final double TOUCHES_DISTANCE_TOLERANCE = 0.5; 
 	private static final int NUM_X_TILES = 10;
 	private static final int NUM_Y_TILES = 10;
 	
@@ -55,10 +54,15 @@ public class VoronoiDanglerCleaner {
 	private CoordinateReferenceSystem voronoiEdgesCrs;
 	private Unit<?> distanceUnit;
 	
+	double touchesDistanceTolerance;
+	
 	public VoronoiDanglerCleaner(SimpleFeatureSource voronoiEdgesFeatureSource,
 			SimpleFeatureSource waterFeatureSource,
 			String keptTypeName,
-			String discardedTypeName) throws IOException, FactoryException {
+			String discardedTypeName,
+			double touchesDistanceTolerance) throws IOException, FactoryException {
+		
+		this.touchesDistanceTolerance = touchesDistanceTolerance;
 		
 		//SpatialIndexFeatureCollection fc = new SpatialIndexFeatureCollection(voronoiEdgesFeatureSource.getFeatures());
 		this.voronoiEdgesFeatureSource = voronoiEdgesFeatureSource;
@@ -93,7 +97,7 @@ public class VoronoiDanglerCleaner {
 		keptFeatureBuilder = new SimpleFeatureBuilder(keptFeatureType);
 		discardedFeatureBuilder = new SimpleFeatureBuilder(discardedFeatureType);
 		
-		System.out.println("   - Distance tolerance for 'touching' lines is: "+TOUCHES_DISTANCE_TOLERANCE + " " +distanceUnit.toString());
+		System.out.println("   - Distance tolerance for 'touching' lines is: "+touchesDistanceTolerance + " " +distanceUnit.toString());
 
 	}
 	
@@ -176,7 +180,7 @@ public class VoronoiDanglerCleaner {
 			
 			
 			Filter notSelf = filterFactory.not(filterFactory.id(filterFactory.featureId(voronoiEdgeFeature.getID())));
-			Filter firstPointTouchesOtherVoronoiEdges = filterFactory.dwithin(filterFactory.property(voronoiEdgesGeometryPropertyName), filterFactory.literal(firstPoint), TOUCHES_DISTANCE_TOLERANCE, distanceUnit.toString());
+			Filter firstPointTouchesOtherVoronoiEdges = filterFactory.dwithin(filterFactory.property(voronoiEdgesGeometryPropertyName), filterFactory.literal(firstPoint), touchesDistanceTolerance, distanceUnit.toString());
 			Filter firstTouchesOther = filterFactory.and(notSelf, firstPointTouchesOtherVoronoiEdges);
 			
 			SimpleFeatureCollection featuresTouchingFirstPoint = indexedFeatureSource.getFeatures(firstTouchesOther);
@@ -198,7 +202,7 @@ public class VoronoiDanglerCleaner {
 			}
 			
 			if (numEndpointsTouching != 0) {
-				Filter secondPointTouchesOtherVoronoiEdges = filterFactory.dwithin(filterFactory.property(voronoiEdgesGeometryPropertyName), filterFactory.literal(secondPoint), TOUCHES_DISTANCE_TOLERANCE, distanceUnit.toString());
+				Filter secondPointTouchesOtherVoronoiEdges = filterFactory.dwithin(filterFactory.property(voronoiEdgesGeometryPropertyName), filterFactory.literal(secondPoint), touchesDistanceTolerance, distanceUnit.toString());
 				Filter secondTouchesOther = filterFactory.and(notSelf, secondPointTouchesOtherVoronoiEdges);
 				SimpleFeatureCollection featuresTouchingSecondPoint = indexedFeatureSource.getFeatures(secondTouchesOther);
 				featuresTouchingSecondPoint = subtract(featuresTouchingSecondPoint, featuresTouchingFirstPoint); //don't count a features as touching the second point if it also touches the first.  this means the line is very short.
@@ -331,12 +335,12 @@ public class VoronoiDanglerCleaner {
 			//System.out.println(firstPoint.toText() +"|"+secondPoint.toText()+"|"+voronoiEdgeGeometry.toText());
 			
 			
-			Filter firstPointTouchesOtherVoronoiEdges = filterFactory.dwithin(filterFactory.property(voronoiEdgesGeometryPropertyName), filterFactory.literal(firstPoint), TOUCHES_DISTANCE_TOLERANCE, distanceUnit.toString());
+			Filter firstPointTouchesOtherVoronoiEdges = filterFactory.dwithin(filterFactory.property(voronoiEdgesGeometryPropertyName), filterFactory.literal(firstPoint), touchesDistanceTolerance, distanceUnit.toString());
 			SimpleFeatureCollection featuresTouchingFirstPoint = indexedFeatureSource.getFeatures(firstPointTouchesOtherVoronoiEdges);
 			int numEndpointsTouching = featuresTouchingFirstPoint.size() > 1 ? 1 : 0; //including self
 			
 			if (numEndpointsTouching != 0) {
-				Filter secondPointTouchesOtherVoronoiEdges = filterFactory.dwithin(filterFactory.property(voronoiEdgesGeometryPropertyName), filterFactory.literal(secondPoint), TOUCHES_DISTANCE_TOLERANCE, distanceUnit.toString());
+				Filter secondPointTouchesOtherVoronoiEdges = filterFactory.dwithin(filterFactory.property(voronoiEdgesGeometryPropertyName), filterFactory.literal(secondPoint), touchesDistanceTolerance, distanceUnit.toString());
 				SimpleFeatureCollection featuresTouchingSecondPoint = indexedFeatureSource.getFeatures(secondPointTouchesOtherVoronoiEdges);
 				featuresTouchingSecondPoint = subtract(featuresTouchingSecondPoint, featuresTouchingFirstPoint);
 				numEndpointsTouching += featuresTouchingSecondPoint.size() > 0 ? 1 : 0; //self not include

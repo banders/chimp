@@ -52,6 +52,7 @@ import ca.bc.gov.catchments.utils.SaveUtils;
 public class CleanVoronoiOutput {
 
 	private static final String DEFAULT_VORONOI_EDGES_FEATURE_TYPE = "VORONOI_EDGES";
+	private static final double DEFAULT_TOUCHES_DISTANCE_TOLERANCE = 0.1/2; //5 cm
 	private static final String GEOPKG_ID = "geopkg";
 	
 	
@@ -69,6 +70,7 @@ public class CleanVoronoiOutput {
 		options.addOption("outKeptTable", true, "Name of output table containing kept voronoi edges");
 		options.addOption("outDiscardedTable", true, "Name of output table containing discarded voronoi edges");
 		options.addOption("startPhase", true, "Phase number to start on");
+		options.addOption("touchesDistanceTolerance", true, "touches distance tolerance");
 		CommandLineParser parser = new DefaultParser();
 		HelpFormatter formatter = new HelpFormatter();
 		
@@ -79,6 +81,7 @@ public class CleanVoronoiOutput {
 		String waterFeaturesTable = null;
 		String outKeptTableName = null;
 		String outDiscardedTableName = null;
+		double touchesDistanceTolerance = 0;
 		int startPhase = 1;
 		
 		try {
@@ -91,6 +94,7 @@ public class CleanVoronoiOutput {
 			outKeptTableName = cmd.getOptionValue("outKeptTable", voronoiEdgesTableName+"_kept");
 			outDiscardedTableName = cmd.getOptionValue("outDiscardedTable", voronoiEdgesTableName+"_discarded");
 			startPhase = Integer.parseInt(cmd.getOptionValue("startPhase", "1"));
+			touchesDistanceTolerance = Double.parseDouble(cmd.getOptionValue("touchesDistanceTolerance", DEFAULT_TOUCHES_DISTANCE_TOLERANCE+""));
 		} catch (ParseException e) {
 			e.printStackTrace();
 			formatter.printHelp( CleanVoronoiOutput.class.getSimpleName(), options );
@@ -122,6 +126,7 @@ public class CleanVoronoiOutput {
 		System.out.println("- waterFeaturesFile: "+waterFeaturesFilename);
 		System.out.println("   - waterFeaturesTable: " +waterFeaturesTable);
 		System.out.println("- outFile: "+outputFilename);
+		System.out.println("- touchesDistanceTolerance: "+touchesDistanceTolerance);
 		System.out.println("Connecting to input data...");
 
 		//open input files
@@ -232,7 +237,11 @@ public class CleanVoronoiOutput {
 				
 				System.out.println(" - Phase "+phaseNum+": Discard doubled edges touching confluence");
 				System.out.println("   - Initializing...");
-				VoronoiDoubleEdgeCleaner phase = new VoronoiDoubleEdgeCleaner(featureSourceForNextPhase, waterFeatureSource, phaseKeptTableName, phaseDiscardedTableName);
+				VoronoiDoubleEdgeCleaner phase = new VoronoiDoubleEdgeCleaner(featureSourceForNextPhase, 
+						waterFeatureSource, 
+						phaseKeptTableName, 
+						phaseDiscardedTableName,
+						touchesDistanceTolerance);
 				System.out.println("   - Cleaning...");
 				Date t1 = new Date();
 				KeptAndDiscarded phaseResult = phase.clean();
@@ -256,7 +265,11 @@ public class CleanVoronoiOutput {
 				
 				System.out.println(" - Phase "+phaseNum+": Discard voronoi edges touching only one water feature");
 				System.out.println("   - Initializing...");
-				VoronoiTouchingWaterCleaner phase = new VoronoiTouchingWaterCleaner(featureSourceForNextPhase, waterFeatureSource, phaseKeptTableName, phaseDiscardedTableName);
+				VoronoiTouchingWaterCleaner phase = new VoronoiTouchingWaterCleaner(featureSourceForNextPhase, 
+						waterFeatureSource, 
+						phaseKeptTableName, 
+						phaseDiscardedTableName,
+						touchesDistanceTolerance);
 				Date t1 = new Date();
 				Persistable kept = new GeoPackagePersistable(outputFilename, phaseKeptTableName);
 				Persistable discarded = new GeoPackagePersistable(outputFilename, phaseDiscardedTableName);
@@ -275,7 +288,11 @@ public class CleanVoronoiOutput {
 				System.out.println(" - Phase "+phaseNum+": Discard dangling voronoi edges");
 				System.out.println("   - Initializing...");
 				
-				VoronoiDanglerCleaner phase = new VoronoiDanglerCleaner(featureSourceForNextPhase, waterFeatureSource, phaseKeptTableName, phaseDiscardedTableName);
+				VoronoiDanglerCleaner phase = new VoronoiDanglerCleaner(featureSourceForNextPhase, 
+						waterFeatureSource, 
+						phaseKeptTableName, 
+						phaseDiscardedTableName, 
+						touchesDistanceTolerance);
 				
 				Date t1 = new Date();
 				KeptAndDiscarded phaseResult = phase.clean();

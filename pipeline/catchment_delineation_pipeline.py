@@ -14,12 +14,18 @@ from subprocess import call
 DEFAULT_SETTINGS_FILENAME = "settings.json"
 DEFAULT_SIMPLIFY_DISTANCE_TOLERANCE = 2
 DEFAULT_DENSIFY_DISTANCE_SPACING = 50
+DEFAULT_SNAP_PRECISION_SCALE = 10000 #4 decimal places (e.g. to the nearest 0.0001 
 WATER_FEATURES_TABLE = "water_features"
 SEGMENTED_WATER_FEATURES_TABLE = "{}_segmented".format(WATER_FEATURES_TABLE)
 VORONOI_EDGES_TABLE = "voronoi_edges"
 VORONOI_CLEANED_TABLE = "voronoi_edges_kept_p3"
 POINT_CLOUD_TABLE_PARTIAL_3D = "point_cloud"
 POINT_CLOUD_TABLE_FULL_3D = "point_cloud_3d"
+BREAKLINES_TABLE = "breaklines"
+BREAKLINES_TABLE_3D = "breaklines_3d"
+TIN_EDGES_TABLE = "tin_edges"
+TIN_POLYS_TABLE = "tin_polys"
+TIN_CENTROIDS_TABLE = "tin_centroids"
 
 def main():
   argParser = argparse.ArgumentParser(description="runs a group of catchment delineation processing tools")
@@ -85,6 +91,10 @@ def main():
   elevation_point_table = run_config["input"].get("elevation_point_table")
   elevation_breakline_table = run_config["input"].get("elevation_breakline_table")
 
+  snap_precision_scale = run_config["options"].get("snap_precision_scale", DEFAULT_SNAP_PRECISION_SCALE)
+  snap_grid_spacing = 1.0 / snap_precision_scale #in same unit as the water_feature coordinate reference system (e.g. m for Albers)
+  touches_distance_tolerance = run_config["options"].get("touches_distance_tolerance", snap_grid_spacing/2)
+
   #i/o filenames:
   #----------------------------------------------------------------------------
   water_feature_filename_with_path = run_config["input"]["water_feature_file"]
@@ -102,8 +112,11 @@ def main():
   point_cloud_gpkg_filename = "{}-{}.point-cloud.gpkg".format(test_id, run_id)
   point_cloud_gpkg_filename_with_path = os.path.join(run_out_dir, point_cloud_gpkg_filename)
 
-  point_cloud_3d_gpkg_filename = "{}-{}.point-cloud-3d.gpkg".format(test_id, run_id)
-  point_cloud_3d_gpkg_filename_with_path = os.path.join(run_out_dir, point_cloud_3d_gpkg_filename)
+  breaklines_gpkg_filename = "{}-{}.breaklines.gpkg".format(test_id, run_id)
+  breaklines_gpkg_filename_with_path = os.path.join(run_out_dir, breaklines_gpkg_filename)
+
+  tin_gpkg_filename = "{}-{}.tin.gpkg".format(test_id, run_id)
+  tin_gpkg_filename_with_path = os.path.join(run_out_dir, tin_gpkg_filename)
 
   #----------------------------------------------------------------------------
 
@@ -227,7 +240,7 @@ def main():
     print("---------------------------------------------------")
     print("")  
     
-    cmd2 = "{} -cp {} ca.bc.gov.catchment.scripts.PrepCgalVoronoiInput -i {} -o {} -table {} {}".format(settings.get("java_path"), settings.get("java_classpath"), prep_water_features_input_filename_with_path, voronoi_input_txt_filename_with_path, SEGMENTED_WATER_FEATURES_TABLE)
+    cmd2 = "{} -cp {} ca.bc.gov.catchment.scripts.PrepCgalVoronoiInput -i {} -o {} -table {}".format(settings.get("java_path"), settings.get("java_classpath"), prep_water_features_input_filename_with_path, voronoi_input_txt_filename_with_path, SEGMENTED_WATER_FEATURES_TABLE)
     resp = call(cmd2.split())
     if resp != 0:
       print("Failure.  Pipeline execution stopped early.")
@@ -278,12 +291,30 @@ def main():
     print("---------------------------------------------------")
     print("")  
     
-    cmd5 = "{} -cp {} ca.bc.gov.catchment.scripts.CleanVoronoiOutput -voronoiEdgesFile {} -waterFeaturesFile {} -outFile {} -voronoiEdgesTable {} -waterFeaturesTable {} -startPhase 1".format(settings.get("java_path"), settings.get("java_classpath"), voronoi_output_gpkg_filename_with_path, voronoi_input_gpkg_filename_with_path, voronoi_output_cleaned_gpkg_filename_with_path, VORONOI_EDGES_TABLE, WATER_FEATURES_TABLE)
+    clean_voronoi_input_filename_with_path = voronoi_output_gpkg_filename_with_path
+    if not os.path.exists(voronoi_output_snapped_gpkg_filename_with_path):
+      if run_config["options"].get("snap"):
+        print("Snapping to grid...")
+        precisionScale = run_config["options"].get("snap_precision_scale")
+        if not precisionScale:
+          print("Option 'snap_precision_scale' must be specified in the run config when option 'snap' is true.")
+          print("Failure.  Pipeline execution stopped early.")
+          exit(1)
+        cmd1b = "{} -cp {} ca.bc.gov.catchment.scripts.SnapToGrid -i {} -o {} -tables {} -precisionScale {}".format(settings.get("java_path"), settings.get("java_classpath"), voronoi_output_gpkg_filename_with_path, voronoi_output_snapped_gpkg_filename_with_path, VORONOI_EDGES_TABLE, precisionScale)
+        resp = call(cmd1b.split())
+        if resp != 0:
+          print("Failure.  Pipeline execution stopped early.")
+          exit(1);
+        clean_voronoi_input_filename_with_path = voronoi_output_snapped_gpkg_filename_with_path
+    
+    
+    cmd5 = "{} -cp {} ca.bc.gov.catchment.scripts.CleanVoronoiOutput -voronoiEdgesFile {} -waterFeaturesFile {} -outFile {} -voronoiEdgesTable {} -waterFeaturesTable {} -touchesDistanceTolerance {} -startPhase 1".format(settings.get("java_path"), settings.get("java_classpath"), clean_voronoi_input_filename_with_path, voronoi_input_gpkg_filename_with_path, voronoi_output_cleaned_gpkg_filename_with_path, VORONOI_EDGES_TABLE, SEGMENTED_WATER_FEATURES_TABLE, touches_distance_tolerance)
     resp = call(cmd5.split())
     if resp != 0:
       print("Failure.  Pipeline execution stopped early.")
       exit(1);
-    
+
+    """
     print("Snapping to grid...")
     precisionScale = run_config["options"].get("snap_precision_scale")
     if not precisionScale:
@@ -295,21 +326,65 @@ def main():
     if resp != 0:
       print("Failure.  Pipeline execution stopped early.")
       exit(1);
+    """
 
-  #create point cloud
+
+  #create breaklines
   if args.start_step <= 6 and 6 <= args.last_step:
     print("")  
     print("---------------------------------------------------")
-    print(" Step 6: Create point cloud")
+    print(" Step 6: Prepare break lines")
     print("---------------------------------------------------")
     print("")  
 
     bbox = "-bbox {} -bboxcrs {}".format(data_bbox, data_bbox_crs)
 
+    if not os.path.exists(breaklines_gpkg_filename_with_path):
+      print("Adding water features to break line set")
+      cmd6a = "{} -cp {} ca.bc.gov.catchment.scripts.SegmentAndAppendToSet -i {} -inTable {} -o {} -outTable {} -outLabel {} {}".format(settings.get("java_path"), settings.get("java_classpath"), water_feature_segmented_filename_with_path, SEGMENTED_WATER_FEATURES_TABLE, breaklines_gpkg_filename_with_path, BREAKLINES_TABLE, "water", bbox)
+      resp = call(cmd6a.split())
+      if resp != 0:
+        print("Failure.  Pipeline execution stopped early.")
+        exit(1);
+
+      print("Adding voronoi edges to break line set")
+      cmd6b = "{} -cp {} ca.bc.gov.catchment.scripts.SegmentAndAppendToSet -i {} -inTable {} -o {} -outTable {} -outLabel {} {}".format(settings.get("java_path"), settings.get("java_classpath"), voronoi_output_cleaned_gpkg_filename_with_path, VORONOI_CLEANED_TABLE, breaklines_gpkg_filename_with_path, BREAKLINES_TABLE, "voronoi", bbox)
+      resp = call(cmd6b.split())
+      if resp != 0:
+        print("Failure.  Pipeline execution stopped early.")
+        exit(1);
+
+      has_additional_breakline_data = run_config["input"].get("elevation_file") and run_config["input"].get("elevation_breakline_table") #"additional" means in addition to the water features
+      if has_additional_breakline_data:
+        print("Adding other breaklines")
+        cmd6c = "{} -cp {} ca.bc.gov.catchment.scripts.SegmentAndAppendToSet -i {} -inTable {} -o {} -outTable {} -outLabel {} {}".format(settings.get("java_path"), settings.get("java_classpath"), elevation_file_with_path, elevation_breakline_table, breaklines_gpkg_filename_with_path, BREAKLINES_TABLE, "other", bbox)
+        resp = call(cmd6c.split())
+        if resp != 0:
+          print("Failure.  Pipeline execution stopped early.")
+          exit(1);
+
+    print("Done.")
+
+  #create point cloud
+  if args.start_step <= 7 and 7 <= args.last_step:
+    print("")  
+    print("---------------------------------------------------")
+    print(" Step 7: Create point cloud")
+    print("---------------------------------------------------")
+    print("")  
+
+    bbox = "-bbox {} -bboxcrs {}".format(data_bbox, data_bbox_crs)
+
+    has_elevation_data = run_config["input"].get("elevation_file") and run_config["input"].get("elevation_point_table")
+    if not has_elevation_data:
+      print ("No elevation data provided.  Unable to create point cloud.")
+      exit(1)
+
     if not os.path.exists(point_cloud_gpkg_filename_with_path):
+
       #add elevation points
-      print("Adding 3D elevation points to point cloud")
-      cmd6c = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), elevation_file_with_path, elevation_point_table, "E", point_cloud_gpkg_filename_with_path, bbox)
+      print("Adding elevation points to point cloud")
+      cmd6c = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), elevation_file_with_path, elevation_point_table, "E", point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_PARTIAL_3D, bbox)
       resp = call(cmd6c.split())
       if resp != 0:
         print("Failure.  Pipeline execution stopped early.")
@@ -317,7 +392,7 @@ def main():
 
       #add water features
       print("Adding 2D vertices from water features to point cloud")
-      cmd6a = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), water_feature_segmented_filename_with_path, SEGMENTED_WATER_FEATURES_TABLE, "W", point_cloud_gpkg_filename_with_path, bbox)
+      cmd6a = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), water_feature_segmented_filename_with_path, SEGMENTED_WATER_FEATURES_TABLE, "W", point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_PARTIAL_3D, bbox)
       resp = call(cmd6a.split())
       if resp != 0:
         print("Failure.  Pipeline execution stopped early.")
@@ -331,12 +406,54 @@ def main():
         print("Failure.  Pipeline execution stopped early.")
         exit(1);
   
-  print("Estimating elevation for points in cloud without z-coordinate")
-  cmd6d = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.EstimatePointCloudElevation -i {} -inTable {} -o {} -outTable {} -searchRadius 100".format(settings.get("java_path"), settings.get("java_classpath"), point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_PARTIAL_3D, point_cloud_3d_gpkg_filename_with_path, POINT_CLOUD_TABLE_FULL_3D)
-  resp = call(cmd6d.split())
-  if resp != 0:
-    print("Failure.  Pipeline execution stopped early.")
-    exit(1);
+      #add breaklines
+      print("Adding break lines to point cloud")
+      cmd6b = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), breaklines_gpkg_filename_with_path, BREAKLINES_TABLE, "B", point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_PARTIAL_3D, bbox)
+      resp = call(cmd6b.split())
+      if resp != 0:
+        print("Failure.  Pipeline execution stopped early.")
+        exit(1);
+
+    print("Estimating elevation for points in cloud without z-coordinate")
+    cmd6d = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.EstimatePointCloudElevation -i {} -inTable {} -o {} -outTable {} -searchRadius 200".format(settings.get("java_path"), settings.get("java_classpath"), point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_PARTIAL_3D, point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_FULL_3D)
+    resp = call(cmd6d.split())
+    if resp != 0:
+      print("Failure.  Pipeline execution stopped early.")
+      exit(1);
+
+    print("Converting breaklines to 3D")
+    cmd8 = "{} -cp {} ca.bc.gov.catchment.scripts.AssignElevation -i {} -inTable {} -pointCloud3DFile {} -inPointCloud3DTable {} -o {} -outTable {} -searchRadius {} {}".format(settings.get("java_path"), settings.get("java_classpath"), breaklines_gpkg_filename_with_path, BREAKLINES_TABLE, point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_FULL_3D, breaklines_gpkg_filename_with_path, BREAKLINES_TABLE_3D, touches_distance_tolerance, bbox)
+    resp = call(cmd8.split())
+    if resp != 0:
+      print("Failure.  Pipeline execution stopped early.")
+      exit(1);
+
+  #create point cloud
+  if args.start_step <= 8 and 8 <= args.last_step:
+    print("")  
+    print("---------------------------------------------------")
+    print(" Step 8: Create TIN")
+    print("---------------------------------------------------")
+    print("")  
+
+    bbox = "-bbox {} -bboxcrs {}".format(data_bbox, data_bbox_crs)
+
+    if not os.path.exists(tin_gpkg_filename_with_path):
+      print("Creating TIN edges")
+      cmd8a = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.CreateTIN -pointCloudFile {} -pointCloudTable {} -breakLinesFile {} -breakLinesTable {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_FULL_3D, breaklines_gpkg_filename_with_path, BREAKLINES_TABLE_3D, tin_gpkg_filename_with_path, TIN_EDGES_TABLE, bbox)
+      resp = call(cmd8a.split())
+      if resp != 0:
+        print("Failure.  Pipeline execution stopped early.")
+        exit(1);
+
+    print("Building TIN polygons")
+    cmd8b = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.IdentifyTriangles -i {} -inTable {} -o {} -outPolyTable {} -outCentroidTable {} -touchesDistanceTolerance {} {}".format(settings.get("java_path"), settings.get("java_classpath"), tin_gpkg_filename_with_path, TIN_EDGES_TABLE, tin_gpkg_filename_with_path, TIN_POLYS_TABLE, TIN_CENTROIDS_TABLE, touches_distance_tolerance, bbox)
+    resp = call(cmd8b.split())
+    if resp != 0:
+      print("Failure.  Pipeline execution stopped early.")
+      exit(1);
+
+
 
   """
   -voronoiEdgesTable voronoi_edges  water_features -startPhase 1
