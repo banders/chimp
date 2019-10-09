@@ -49,6 +49,8 @@ import org.opengis.filter.Filter;
 import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
+import ca.bc.gov.catchments.utils.SpatialUtils;
+
 public class SnapToGrid {
 
 	private static final String GEOPKG_ID = "geopkg";
@@ -200,6 +202,7 @@ public class SnapToGrid {
 	            	//geometry has all coordinates snapped to the precision model
 	            	//specified
 	            	Coordinate[] outCoords = new Coordinate[inCoords.length];
+	            	outCoords = SpatialUtils.removeDuplicateCoordinates(outCoords);
 	            	for(int i = 0; i < inCoords.length; i++) {
 	            		Coordinate inCoord = inCoords[i];
 	            		Coordinate outCoord = inCoord.copy();

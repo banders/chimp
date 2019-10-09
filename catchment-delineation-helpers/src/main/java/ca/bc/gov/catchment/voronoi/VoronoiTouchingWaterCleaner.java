@@ -35,6 +35,7 @@ public class VoronoiTouchingWaterCleaner {
 	private static final double MIN_LENGTH_TO_KEEP_IN_VORONOI_UNITS = 0.01; //1 cm
 	private static final int NUM_X_TILES = 1;
 	private static final int NUM_Y_TILES = 1;
+	private static final int TOUCHES_DISTANCE_TOLERANCE = 0;
 	
 	private String keptTypeName;
 	private String discardedTypeName;
@@ -53,15 +54,11 @@ public class VoronoiTouchingWaterCleaner {
 	
 	private Unit<?> distanceUnit;
 	
-	private double touchesDistanceTolerance;
-	
 	public VoronoiTouchingWaterCleaner(SimpleFeatureSource voronoiEdgesFeatureSource, 
 			SimpleFeatureSource waterFeatureSource,
 			String keptTypeName,
-			String discardedTypeName,
-			double touchesDistanceTolerance) throws IOException, FactoryException {
+			String discardedTypeName) throws IOException, FactoryException {
 		
-		this.touchesDistanceTolerance = touchesDistanceTolerance;
 		this.voronoiEdgesFeatureSource = voronoiEdgesFeatureSource;
 
 		//add a spatial index to the water features
@@ -98,7 +95,7 @@ public class VoronoiTouchingWaterCleaner {
 		keptFeatureBuilder = new SimpleFeatureBuilder(keptFeatureType);
 		discardedFeatureBuilder = new SimpleFeatureBuilder(discardedFeatureType);
 		
-		System.out.println("   - Distance tolerance for 'touching' lines is: "+touchesDistanceTolerance + " " +distanceUnit.toString());
+		System.out.println("   - Distance tolerance for 'touching' lines is: "+TOUCHES_DISTANCE_TOLERANCE + " " +distanceUnit.toString());
 		
 	}
 	
@@ -215,7 +212,7 @@ public class VoronoiTouchingWaterCleaner {
 				Filter waterTouchesVoronoiEdgeFilter = filterFactory.dwithin(
 						filterFactory.property(waterFeaturesGeometryPropertyName), 
 						filterFactory.literal(voronoiEdgeGeometry), 
-						touchesDistanceTolerance, 
+						TOUCHES_DISTANCE_TOLERANCE, 
 						distanceUnit.toString());
 				FeatureCollection touchingWaterFeatures = waterFeatureSource.getFeatures(waterTouchesVoronoiEdgeFilter);
 				numTouchingWaterFeatures = touchingWaterFeatures.size();

@@ -1,7 +1,7 @@
 """
 
 Example usage:
-  python catchment_delineation_pipeline.py -run-config run-configs\bc-kotl-1000.json -start-step 1
+  python catchment_delineation_pipeline.py -run-config run-configs\bc-kotl-1000.json -start-step 1 -run-id 2
 
 """
 
@@ -18,7 +18,8 @@ DEFAULT_SNAP_PRECISION_SCALE = 10000 #4 decimal places (e.g. to the nearest 0.00
 WATER_FEATURES_TABLE = "water_features"
 SEGMENTED_WATER_FEATURES_TABLE = "{}_segmented".format(WATER_FEATURES_TABLE)
 VORONOI_EDGES_TABLE = "voronoi_edges"
-VORONOI_CLEANED_TABLE = "voronoi_edges_kept_p3"
+VORONOI_CLEANED_TABLE = "voronoi_edges_kept_p4"
+CATCHMENT_LINES_TABLE = "catchment_lines"
 POINT_CLOUD_TABLE_PARTIAL_3D = "point_cloud"
 POINT_CLOUD_TABLE_FULL_3D = "point_cloud_3d"
 BREAKLINES_TABLE = "breaklines"
@@ -109,6 +110,15 @@ def main():
   voronoi_output_cleaned_gpkg_filename = "{}-{}.voronoi-out.cleaned.gpkg".format(test_id, run_id)
   voronoi_output_cleaned_gpkg_filename_with_path = os.path.join(run_out_dir, voronoi_output_cleaned_gpkg_filename)
 
+  initial_catchments_lines_merged_gpkg_filename = "{}-{}.initial-catchments.lines-merged.gpkg".format(test_id, run_id)
+  initial_catchments_lines_merged_gpkg_filename_with_path = os.path.join(run_out_dir, initial_catchments_lines_merged_gpkg_filename)
+
+  initial_catchments_simp_dens_gpkg_filename = "{}-{}.initial-catchment.simp-dens.gpkg".format(test_id, run_id)
+  initial_catchments_simp_dens_gpkg_filename_with_path = os.path.join(run_out_dir, initial_catchments_simp_dens_gpkg_filename)
+
+  explicit_breaklines_gpkg_filename = "{}-{}.explicit-breaklines.simp-dens.gpkg".format(test_id, run_id)
+  explicit_breaklines_gpkg_filename_with_path = os.path.join(run_out_dir, explicit_breaklines_gpkg_filename)
+
   point_cloud_gpkg_filename = "{}-{}.point-cloud.gpkg".format(test_id, run_id)
   point_cloud_gpkg_filename_with_path = os.path.join(run_out_dir, point_cloud_gpkg_filename)
 
@@ -128,6 +138,36 @@ def main():
   simplify_dist_tolerance = run_config["options"].get("simplify_dist_tolerance", DEFAULT_SIMPLIFY_DISTANCE_TOLERANCE)
   densify_dist_spacing = run_config["options"].get("densify_dist_spacing", DEFAULT_DENSIFY_DISTANCE_SPACING)
 
+  #Check prerequisites
+
+  if not run_config["options"].get("snap"):
+    #snapping is applied to: water features and voronoi output
+    #The voronoi algorithm can leave small precision offsets between line endpoints 
+    #which are intended to touch (e.g. less than 1 cm offset).  These offsets present a problem
+    #to the voronoi output cleaning process (which depends on lines precisely touching).  
+    #To avoid the problem it is necessary to snap the voronoi output to a precision grid 
+    #that is larger than the maximum unintentional offset between vertices.  Because 
+    #snapping is required on the voronoi output, it is also enforced on the water features
+    #so that nexus points exactly touch catchment junctions.
+    print("It is required to enable snapping.  Please enabled and try again.")
+    exit(1)
+
+
+  if not run_config["options"]["simplify"] or not run_config["options"]["densify"]:
+    #simplification and densification are applied to: water features and voronoi output
+    #since simplification and densification are set for all or nothing, they are both
+    #considered to be required (even though not technically required to be applied to water
+    #features.)  Simplification is required for voronoi output to avoid
+    #small distances between adjacent vertices, which can lead to "sliver triangles" during
+    #triangulation.  Densification is required for voronoi output to break up some very 
+    #long lines that reduce flexibility of the catchment adjustment algorithm to move lines.
+    print("It is required to enable both simplification and densification.  Please ensure these are enabled and try again.")
+    exit(1)
+
+  #----------------------------------------------------------------------------
+
+
+  #Start processing
   if args.start_step <= 1 and 1 <= args.last_step:
     print("")  
     print("---------------------------------------------------")
@@ -292,6 +332,7 @@ def main():
     print("")  
     
     clean_voronoi_input_filename_with_path = voronoi_output_gpkg_filename_with_path
+    
     if not os.path.exists(voronoi_output_snapped_gpkg_filename_with_path):
       if run_config["options"].get("snap"):
         print("Snapping to grid...")
@@ -306,27 +347,34 @@ def main():
           print("Failure.  Pipeline execution stopped early.")
           exit(1);
         clean_voronoi_input_filename_with_path = voronoi_output_snapped_gpkg_filename_with_path
+    else:
+      print("skipping snap")
     
-    
+    #remove unwanted edges
     cmd5 = "{} -cp {} ca.bc.gov.catchment.scripts.CleanVoronoiOutput -voronoiEdgesFile {} -waterFeaturesFile {} -outFile {} -voronoiEdgesTable {} -waterFeaturesTable {} -touchesDistanceTolerance {} -startPhase 1".format(settings.get("java_path"), settings.get("java_classpath"), clean_voronoi_input_filename_with_path, voronoi_input_gpkg_filename_with_path, voronoi_output_cleaned_gpkg_filename_with_path, VORONOI_EDGES_TABLE, SEGMENTED_WATER_FEATURES_TABLE, touches_distance_tolerance)
     resp = call(cmd5.split())
     if resp != 0:
       print("Failure.  Pipeline execution stopped early.")
       exit(1);
-
-    """
-    print("Snapping to grid...")
-    precisionScale = run_config["options"].get("snap_precision_scale")
-    if not precisionScale:
-      print("Option 'snap_precision_scale' must be specified in the run config when option 'snap' is true.")
-      print("Failure.  Pipeline execution stopped early.")
-      exit(1)
-    cmd1b = "{} -cp {} ca.bc.gov.catchment.scripts.SnapToGrid -i {} -o {} -tables {} -precisionScale {}".format(settings.get("java_path"), settings.get("java_classpath"), voronoi_output_cleaned_gpkg_filename_with_path, voronoi_output_snapped_gpkg_filename_with_path, VORONOI_CLEANED_TABLE, precisionScale)
-    resp = call(cmd1b.split())
+    
+    #merge segments into linestrings
+    cmd6 = "{} -cp {} ca.bc.gov.catchment.scripts.MergeLines -i {} -inTable {} -o {} -outTable {}".format(settings.get("java_path"), settings.get("java_classpath"), voronoi_output_cleaned_gpkg_filename_with_path, VORONOI_CLEANED_TABLE, initial_catchments_lines_merged_gpkg_filename_with_path, CATCHMENT_LINES_TABLE)
+    resp = call(cmd6.split())
     if resp != 0:
       print("Failure.  Pipeline execution stopped early.")
       exit(1);
-    """
+    
+
+    #simplify and densify the linestrings
+    if run_config["options"]["simplify"] and run_config["options"]["densify"]:
+      print("Simplifying and Densifying...")
+      cmd1 = "{} -cp {} ca.bc.gov.catchment.scripts.SimplifyThenDensity -i {} -o {} -simplify -simplifyDistanceTolerance {} -densify -densifyDistanceSpacing {} -tables {}".format(settings.get("java_path"), settings.get("java_classpath"), initial_catchments_lines_merged_gpkg_filename_with_path, initial_catchments_simp_dens_gpkg_filename_with_path, simplify_dist_tolerance, densify_dist_spacing, CATCHMENT_LINES_TABLE)
+      resp = call(cmd1.split())
+      if resp != 0:
+        print("Failure.  Pipeline execution stopped early.")
+        exit(1);
+
+    
 
 
   #create breaklines
@@ -347,17 +395,28 @@ def main():
         print("Failure.  Pipeline execution stopped early.")
         exit(1);
 
-      print("Adding voronoi edges to break line set")
-      cmd6b = "{} -cp {} ca.bc.gov.catchment.scripts.SegmentAndAppendToSet -i {} -inTable {} -o {} -outTable {} -outLabel {} {}".format(settings.get("java_path"), settings.get("java_classpath"), voronoi_output_cleaned_gpkg_filename_with_path, VORONOI_CLEANED_TABLE, breaklines_gpkg_filename_with_path, BREAKLINES_TABLE, "voronoi", bbox)
+      print("Adding initial catchments to break line set")
+      cmd6b = "{} -cp {} ca.bc.gov.catchment.scripts.SegmentAndAppendToSet -i {} -inTable {} -o {} -outTable {} -outLabel {} {}".format(settings.get("java_path"), settings.get("java_classpath"), initial_catchments_simp_dens_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, breaklines_gpkg_filename_with_path, BREAKLINES_TABLE, "voronoi", bbox)
       resp = call(cmd6b.split())
       if resp != 0:
         print("Failure.  Pipeline execution stopped early.")
         exit(1);
 
+      #explicit breaklines
       has_additional_breakline_data = run_config["input"].get("elevation_file") and run_config["input"].get("elevation_breakline_table") #"additional" means in addition to the water features
       if has_additional_breakline_data:
-        print("Adding other breaklines")
-        cmd6c = "{} -cp {} ca.bc.gov.catchment.scripts.SegmentAndAppendToSet -i {} -inTable {} -o {} -outTable {} -outLabel {} {}".format(settings.get("java_path"), settings.get("java_classpath"), elevation_file_with_path, elevation_breakline_table, breaklines_gpkg_filename_with_path, BREAKLINES_TABLE, "other", bbox)
+
+        #simplify and density the explicit breaklinesbreaklines
+        if run_config["options"]["simplify"] and run_config["options"]["densify"]:
+          print("Simplifying and Densifying...")
+          cmd1 = "{} -cp {} ca.bc.gov.catchment.scripts.SimplifyThenDensity -i {} -o {} -simplify -simplifyDistanceTolerance {} -densify -densifyDistanceSpacing {} -tables {}".format(settings.get("java_path"), settings.get("java_classpath"), elevation_file_with_path, explicit_breaklines_gpkg_filename_with_path, simplify_dist_tolerance, densify_dist_spacing, elevation_breakline_table)
+          resp = call(cmd1.split())
+          if resp != 0:
+            print("Failure.  Pipeline execution stopped early.")
+            exit(1);
+
+        print("Adding explicit breaklines")
+        cmd6c = "{} -cp {} ca.bc.gov.catchment.scripts.SegmentAndAppendToSet -i {} -inTable {} -o {} -outTable {} -outLabel {} {}".format(settings.get("java_path"), settings.get("java_classpath"), explicit_breaklines_gpkg_filename_with_path, elevation_breakline_table, breaklines_gpkg_filename_with_path, BREAKLINES_TABLE, "other", bbox)
         resp = call(cmd6c.split())
         if resp != 0:
           print("Failure.  Pipeline execution stopped early.")
@@ -400,7 +459,7 @@ def main():
 
       #add initial catchments
       print("Adding 2D vertices from initial catchments to point cloud")
-      cmd6b = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), voronoi_output_cleaned_gpkg_filename_with_path, VORONOI_CLEANED_TABLE, "C", point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_PARTIAL_3D, bbox)
+      cmd6b = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), initial_catchments_simp_dens_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, "C", point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_PARTIAL_3D, bbox)
       resp = call(cmd6b.split())
       if resp != 0:
         print("Failure.  Pipeline execution stopped early.")

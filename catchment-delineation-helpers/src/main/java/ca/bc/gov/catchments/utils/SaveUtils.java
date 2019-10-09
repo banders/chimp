@@ -93,16 +93,15 @@ public class SaveUtils {
 			SimpleFeatureCollection fc,
 			boolean append) throws IOException {
 		
+		int srid = 4087; //default
 		CoordinateReferenceSystem crs = fc.getSchema().getGeometryDescriptor().getCoordinateReferenceSystem();
-		if (crs == null) {
-			throw new IllegalArgumentException("Unable to determine CRS of input feature collection");
-		}
-		int srid;
-		try {
-			srid = CRS.lookupEpsgCode(crs, true);
-		} catch (FactoryException e) {
-			throw new IllegalStateException("Unable to determine SRID of input feature collection");
-		}
+		if (crs != null) {
+			try {
+				srid = CRS.lookupEpsgCode(crs, true);
+			} catch (FactoryException e) {
+				//do nothing
+			}	
+		}		
 		
 		GeoPackage gp = openGeoPackage(filename);
 

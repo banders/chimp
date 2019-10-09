@@ -46,6 +46,7 @@ import ca.bc.gov.catchment.voronoi.VoronoiLongLineCleaner;
 import ca.bc.gov.catchment.voronoi.VoronoiTouchingWaterCleaner;
 import ca.bc.gov.catchment.voronoi.VoronoiDanglerCleaner;
 import ca.bc.gov.catchment.voronoi.VoronoiDoubleEdgeCleaner;
+import ca.bc.gov.catchment.voronoi.VoronoiFalseCapCleaner;
 import ca.bc.gov.catchments.utils.FilterUtils;
 import ca.bc.gov.catchments.utils.SaveUtils;
 
@@ -231,6 +232,7 @@ public class CleanVoronoiOutput {
 				phase++;
 			}
 			*/
+			
 			if (phaseNum <= 1) {
 				String phaseKeptTableName = outKeptTableName + "_p"+phaseNum;
 				String phaseDiscardedTableName = outDiscardedTableName + "_p"+phaseNum;
@@ -240,8 +242,8 @@ public class CleanVoronoiOutput {
 				VoronoiDoubleEdgeCleaner phase = new VoronoiDoubleEdgeCleaner(featureSourceForNextPhase, 
 						waterFeatureSource, 
 						phaseKeptTableName, 
-						phaseDiscardedTableName,
-						touchesDistanceTolerance);
+						phaseDiscardedTableName
+						);
 				System.out.println("   - Cleaning...");
 				Date t1 = new Date();
 				KeptAndDiscarded phaseResult = phase.clean();
@@ -268,8 +270,8 @@ public class CleanVoronoiOutput {
 				VoronoiTouchingWaterCleaner phase = new VoronoiTouchingWaterCleaner(featureSourceForNextPhase, 
 						waterFeatureSource, 
 						phaseKeptTableName, 
-						phaseDiscardedTableName,
-						touchesDistanceTolerance);
+						phaseDiscardedTableName
+						);
 				Date t1 = new Date();
 				Persistable kept = new GeoPackagePersistable(outputFilename, phaseKeptTableName);
 				Persistable discarded = new GeoPackagePersistable(outputFilename, phaseDiscardedTableName);
@@ -285,14 +287,42 @@ public class CleanVoronoiOutput {
 				String phaseKeptTableName = outKeptTableName + "_p"+phaseNum;
 				String phaseDiscardedTableName = outDiscardedTableName + "_p"+phaseNum;
 				
+				System.out.println(" - Phase "+phaseNum+": Discard false catchment caps");
+				System.out.println("   - Initializing...");
+				
+				VoronoiFalseCapCleaner phase = new VoronoiFalseCapCleaner(featureSourceForNextPhase, 
+						waterFeatureSource, 
+						phaseKeptTableName, 
+						phaseDiscardedTableName,
+						touchesDistanceTolerance
+						);
+				
+				Date t1 = new Date();
+				KeptAndDiscarded phaseResult = phase.clean();
+				Date t2 = new Date();
+				System.out.println("   - Run time: "+(t2.getTime()-t1.getTime())/1000+ " s");
+							
+	            System.out.println("   - Saving "+phaseResult.getNumKept()+" features to "+phaseKeptTableName+"...");
+	            SaveUtils.saveToGeoPackage(outputFilename, phaseResult.getKept());
+	            System.out.println("   - Saving "+phaseResult.getNumDiscarded()+" features to "+phaseDiscardedTableName+"...");
+	            SaveUtils.saveToGeoPackage(outputFilename, phaseResult.getDiscarded());
+	            System.out.println("   - Phase "+phaseNum+" done");
+	            
+	            featureSourceForNextPhase = DataUtilities.source(phaseResult.getKept());
+	            phaseNum++;
+			}
+			if (phaseNum <= 4) {
+				String phaseKeptTableName = outKeptTableName + "_p"+phaseNum;
+				String phaseDiscardedTableName = outDiscardedTableName + "_p"+phaseNum;
+				
 				System.out.println(" - Phase "+phaseNum+": Discard dangling voronoi edges");
 				System.out.println("   - Initializing...");
 				
 				VoronoiDanglerCleaner phase = new VoronoiDanglerCleaner(featureSourceForNextPhase, 
 						waterFeatureSource, 
 						phaseKeptTableName, 
-						phaseDiscardedTableName, 
-						touchesDistanceTolerance);
+						phaseDiscardedTableName 
+						);
 				
 				Date t1 = new Date();
 				KeptAndDiscarded phaseResult = phase.clean();
