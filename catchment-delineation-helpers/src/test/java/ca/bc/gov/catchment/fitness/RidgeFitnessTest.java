@@ -188,7 +188,7 @@ public class RidgeFitnessTest {
 		
 		//test a segment which is horizontal and a ridge
 		
-		//shared edge
+		//shared edge (horizontal)
 		Coordinate a = new Coordinate(0, 0, 10);
 		Coordinate b = new Coordinate(5, 0, 10);
 		
@@ -206,6 +206,31 @@ public class RidgeFitnessTest {
 		
 		Assert.isTrue(fitness > 0, "fitness on ridge expected to be positive.  found "+fitness);
 	}
+	
+	@Test
+	public void testSegmentVerticalRidge() throws IOException {
+		
+		//test a segment which is vertical and a ridge
+		
+		//shared edge (vertical)
+		Coordinate a = new Coordinate(0, 0, 10);
+		Coordinate b = new Coordinate(0, 5, 10);
+		
+		//triangle 1
+		Coordinate c = new Coordinate(-3, 3, 8);
+		Triangle t1 = new Triangle(a, b, c);
+		
+		//triangle 2
+		Coordinate d = new Coordinate(3, 2, 9);
+		Triangle t2 = new Triangle(a, b, d);
+		
+		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
+		RidgeFitness fitnessFinder = new RidgeFitness(tinPolys);
+		double fitness = fitnessFinder.fitness(a,  b);
+		
+		Assert.isTrue(fitness > 0, "fitness on ridge expected to be positive.  found "+fitness);
+	}
+	
 	
 	@Test
 	public void testAspectsBothParallelToSegment() throws IOException {
