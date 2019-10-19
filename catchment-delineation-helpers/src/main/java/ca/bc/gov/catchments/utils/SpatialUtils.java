@@ -26,6 +26,8 @@ import org.tinfour.common.IQuadEdge;
 import org.tinfour.common.Vertex;
 import org.tinfour.standard.IncrementalTin;
 
+import ca.bc.gov.catchment.algorithms.TrianglesFromEdgesAlg;
+
 public class SpatialUtils {
 
 	public static SimpleFeature copyFeature(SimpleFeature feature, SimpleFeatureType newFeatureType) {
@@ -36,6 +38,22 @@ public class SpatialUtils {
 		return copiedFeature;
 	}
 
+	/**
+	 * Extracts just the geometry from each features, then returns a collection of those geometries
+	 * @param fc
+	 * @return
+	 */
+	public static List<SimpleFeature> simpleFeatureCollectionToFeatList(SimpleFeatureCollection fc) {
+		List<SimpleFeature> features = new ArrayList<SimpleFeature>();
+		SimpleFeatureIterator it = fc.features();
+		while(it.hasNext()) {
+			SimpleFeature feature = it.next();
+			features.add(feature);
+		}
+		it.close();
+		return features;
+	}
+	
 	/**
 	 * Extracts just the geometry from each features, then returns a collection of those geometries
 	 * @param fc
@@ -53,14 +71,21 @@ public class SpatialUtils {
 		return geometries;
 	}
 	
+
+	public static SimpleFeature geomToFeature(Geometry geom, SimpleFeatureType type, int fid) {
+		SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder(type);
+		Object[] attrValues = {geom};
+		SimpleFeature feature = featureBuilder.buildFeature(""+fid++, attrValues);
+		return feature;
+	}
+	
 	public static SimpleFeatureCollection geomCollectionToSimpleFeatureCollection(Collection<Geometry> geometries, SimpleFeatureType featureType) {
 		
 		DefaultFeatureCollection featureCollection = new DefaultFeatureCollection();
-		SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder(featureType);
+		
 		int nextFid = 0;
 		for(Geometry geometry : geometries) {
-			Object[] attrValues = {geometry};
-			SimpleFeature feature = featureBuilder.buildFeature(""+nextFid++, attrValues);
+			SimpleFeature feature = geomToFeature(geometry, featureType, nextFid);			
 			featureCollection.add(feature);
 		}
 		
@@ -81,32 +106,32 @@ public class SpatialUtils {
 		return result;
 	}
 	
-	public static SimpleFeatureSource createDummyTin() throws IOException {
+	public static SimpleFeatureSource createDummyTinEdges() throws IOException {
 	
 		//create a dummy TIN
 		IncrementalTin tin = new IncrementalTin();
-		tin.add(new Vertex(0, 0, 0));
-		tin.add(new Vertex(1, 0, 0));
-		tin.add(new Vertex(3, 2, 0));
-		tin.add(new Vertex(5, 1, 0));
-		tin.add(new Vertex(6, 3, 0));
-		tin.add(new Vertex(7, 1, 0));
-		tin.add(new Vertex(9, 2, 0));
+		tin.add(new Vertex(0, 0, 10));
+		tin.add(new Vertex(1, 0, 11));
+		tin.add(new Vertex(3, 2, 12));
+		tin.add(new Vertex(5, 1, 11));
+		tin.add(new Vertex(6, 3, 12));
+		tin.add(new Vertex(7, 1, 10));
+		tin.add(new Vertex(9, 2, 13));
 		//
-		tin.add(new Vertex(1, 3, 0));
-		tin.add(new Vertex(2, 6, 0));
-		tin.add(new Vertex(4, 6, 0));
-		tin.add(new Vertex(5, 4, 0));
-		tin.add(new Vertex(7, 5, 0));
-		tin.add(new Vertex(8, 5, 0));
+		tin.add(new Vertex(1, 3, 11));
+		tin.add(new Vertex(2, 6, 13));
+		tin.add(new Vertex(4, 6, 12));
+		tin.add(new Vertex(5, 4, 13));
+		tin.add(new Vertex(7, 5, 14));
+		tin.add(new Vertex(8, 5, 12));
 		//
-		tin.add(new Vertex(0, 7, 0));
-		tin.add(new Vertex(2, 8, 0));
-		tin.add(new Vertex(4, 9, 0));
-		tin.add(new Vertex(5, 9, 0));
-		tin.add(new Vertex(6, 8, 0));
-		tin.add(new Vertex(8, 9, 0));
-		tin.add(new Vertex(9, 7, 0));
+		tin.add(new Vertex(0, 7, 12));
+		tin.add(new Vertex(2, 8, 13));
+		tin.add(new Vertex(4, 9, 12));
+		tin.add(new Vertex(5, 9, 14));
+		tin.add(new Vertex(6, 8, 11));
+		tin.add(new Vertex(8, 9, 10));
+		tin.add(new Vertex(9, 7, 12));
 		
 		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
 		DefaultFeatureCollection tinEdges = new DefaultFeatureCollection();
@@ -139,10 +164,84 @@ public class SpatialUtils {
 			tinEdges.add(feature);
 		}
 		
-		
 		SpatialIndexFeatureCollection indexedCollection = new SpatialIndexFeatureCollection(tinEdges);
 		SimpleFeatureSource result = new SpatialIndexFeatureSource(indexedCollection); 
 		return result;
 	}
 	
+	public static SimpleFeatureSource createDummyTinPolys() throws IOException {
+		SimpleFeatureSource tinEdges = createDummyTinEdges();
+		TrianglesFromEdgesAlg alg = new TrianglesFromEdgesAlg(tinEdges, "tin_polys");
+		SimpleFeatureCollection fc = alg.getTriangles();
+		
+		SpatialIndexFeatureCollection indexedCollection = new SpatialIndexFeatureCollection(fc);
+		SimpleFeatureSource result = new SpatialIndexFeatureSource(indexedCollection); 
+		return result;
+	}
+
+	public static LineString toLineString(Coordinate c1, Coordinate c2) {
+		List<Coordinate> coords = new ArrayList<Coordinate>();
+		coords.add(c1);
+		coords.add(c2);
+		return toLineString(coords);
+	}
+	
+	public static LineString toLineString(List<Coordinate> in) {
+		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+		Coordinate[] coords = toCoordinateArray(in);
+		return geometryFactory.createLineString(coords);
+	}
+	
+	public static List<LineString> toSegments(LineString s) {
+		List<LineString> segments = new ArrayList<LineString>();
+		Coordinate prev = null;
+		for(Coordinate c : s.getCoordinates()) {
+			if (prev != null) {
+				LineString segment = toLineString(prev, c);
+				segments.add(segment);
+			}
+			prev = c;
+		}
+		return segments;
+	}
+
+	public static LineString[] toLineStringArray(List<LineString> in) {
+		if (in == null) {
+			return new LineString[0];
+		}
+		
+		LineString[] result = new LineString[in.size()];		
+		int index = 0;
+		for(LineString ls : in) {
+			result[index] = ls;
+			index++;
+		}
+		return result;
+	}
+		
+	public static Coordinate[] toCoordinateArray(List<Coordinate> in) {
+		if (in == null) {
+			return new Coordinate[0];
+		}
+		
+		Coordinate[] coords = new Coordinate[in.size()];		
+		int index = 0;
+		for(Coordinate c : in) {
+			coords[index] = c;
+			index++;
+		}
+		return coords;
+	}
+	
+	public static List<Coordinate> toCoordinateList(Coordinate[] in) {
+		List<Coordinate> coords = new ArrayList<Coordinate>();
+		if (in == null) {
+			return coords;
+		}
+		
+		for(Coordinate c : in) {
+			coords.add(c);
+		}
+		return coords;
+	}
 }

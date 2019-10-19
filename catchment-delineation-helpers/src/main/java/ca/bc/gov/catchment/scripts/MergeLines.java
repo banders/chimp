@@ -2,7 +2,7 @@ package ca.bc.gov.catchment.scripts;
 
 import org.geotools.data.simple.SimpleFeatureCollection;
 
-import algorithms.MergeLinesAlg;
+import ca.bc.gov.catchment.algorithms.MergeLinesAlg;
 
 public class MergeLines extends CLItoAlgorithmBridge {
 

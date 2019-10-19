@@ -37,7 +37,7 @@ import org.opengis.filter.FilterFactory2;
 import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
-import algorithms.MergeLinesAlg;
+import ca.bc.gov.catchment.algorithms.MergeLinesAlg;
 
 public class VoronoiFalseCapCleaner {
 	

@@ -50,13 +50,13 @@ public class Edge {
 			return false;
 		}
 		int numCommonPoints = 0;
-		if (e.getA() == a || e.getA() == b) {
+		if (e.getA().equals(a) || e.getA().equals(b)) {
 			numCommonPoints++;
 		}
-		if(e.getB() == a || e.getB() == b) {
+		if(e.getB().equals(a) || e.getB().equals(b)) {
 			numCommonPoints++;
 		}
-		return numCommonPoints == 0;
+		return numCommonPoints == 1;
 	}
 	
 	public double magnitudeX() {
@@ -83,6 +83,19 @@ public class Edge {
 		return b.getZ() - a.getZ();
 	}
 	
+	/* 
+	 * Angle of vector pointing from A to B, ignoring the z-coordinate.  Unit degrees.  0 means east.  90 means north.
+	 */
+	public double getCompassAngle() {
+		double opp = this.magnitudeWithSignY();
+		double adj = this.magnitudeWithSignX();
+		double angle = Math.toDegrees(Math.atan(opp/adj));
+		if (adj < 0) {
+			angle += 180;
+		}
+		return angle;
+	}
+	
 	public Edge getCrossProduct(Edge other) {
 		Edge a = this;
 		Edge b = other;
@@ -105,10 +118,19 @@ public class Edge {
 				Math.pow(magnitudeZ(), 2)); 
 	}
 	
+
 	public double getLengthOfLongestDimension() {
 		double h = Math.max(magnitudeX(), magnitudeY());
 		double result = Math.max(h, magnitudeZ());
 		return result;
+	}
+	
+	public Coordinate getMidPoint() {
+		double x = (getA().getX() + getB().getX()) / 2;
+		double y = (getA().getY() + getB().getY()) / 2;
+		double z = (getA().getZ() + getB().getZ()) / 2;
+		Coordinate m = new Coordinate(x, y, z);
+		return m;
 	}
 	
 	public Edge oppositeDirection() {
@@ -116,7 +138,23 @@ public class Edge {
 			return new Edge(b, a);
 		}
 		else {
-			return new Edge(a, new Coordinate(-b.getX(), -b.getY(), -b.getZ()));
+			Coordinate B = new Coordinate(-b.getX(), -b.getY(), -b.getZ());
+			
+			//these checks look non-sensical at a glance, but they are needed to prevent us converting
+			//0 to -0.  For some reason a value of -0 can muck up some calculations.  Best to avoid it. 
+			//always convert -0 to 0.
+			if (B.getX() == 0) {
+				B.setX(0);
+			}
+			if (B.getY() == 0) {
+				B.setY(0);
+			}
+			if (B.getZ() == 0) {
+				B.setZ(0);
+			}
+			
+			Edge e = new Edge(a, B);
+			return e;
 		}
 	}
 	
@@ -152,5 +190,32 @@ public class Edge {
 	
 	public String toString() {
 		return a.getX()+","+a.getY()+","+a.getZ()+" "+b.getX()+","+b.getY()+","+b.getZ();
+	}
+	
+	// Static
+	
+	/**
+	 * Given the slope and y-intercept of two lines, calculate the point of intersection.
+	 * 
+	 * @param m1 slope of line 1
+	 * @param b1 y-intercept of line 1
+	 * @param m2 slope of line 2
+	 * @param b2 y-intercept of line 2
+	 * @return
+	 */
+	public static Coordinate intersectionOfLines(double m1, double b1, double m2, double b2) {
+
+		//intersection of the two altitude lines
+		// see: https://www.baeldung.com/java-intersection-of-two-lines
+		
+		if (m1 == m2) {
+	        throw new IllegalStateException("Unable to calculate intersection of lines with equal slopes.");
+	    }
+	 
+	    double x = (b2 - b1) / (m1 - m2);
+	    double y = m1 * x + b1;
+	 
+	    Coordinate orthoCenter = new Coordinate(x, y);
+	    return orthoCenter;
 	}
 }

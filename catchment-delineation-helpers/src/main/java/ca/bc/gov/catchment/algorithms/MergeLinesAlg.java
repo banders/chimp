@@ -1,4 +1,4 @@
-package algorithms;
+package ca.bc.gov.catchment.algorithms;
 
 import java.util.Collection;
 
