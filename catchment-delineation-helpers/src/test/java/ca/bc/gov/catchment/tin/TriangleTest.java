@@ -70,4 +70,25 @@ public class TriangleTest {
 		Assert.isTrue(aspect == 0, "Expected aspect=0.  Found aspect="+aspect);
 	}
 	
+	@Test
+	public void testEqual() {
+		Triangle t1 = new Triangle(
+				new Coordinate(0, 0, 10),
+				new Coordinate(5, 0, 9),
+				new Coordinate(5, 5, 9)
+			);
+		Triangle t2 = new Triangle(
+				new Coordinate(0, 0, 10),
+				new Coordinate(5, 0, 9),
+				new Coordinate(5, 5, 9)
+			);
+		Triangle t3 = new Triangle(
+				new Coordinate(0, 0, 10),
+				new Coordinate(5, 5, 9),
+				new Coordinate(5, 0, 9)
+				
+			);
+		Assert.isTrue(t1.equals(t2), "expected triangles to be equal");
+		Assert.isTrue(t1.equals(t3), "expected triangles to be equal");
+	}
 }

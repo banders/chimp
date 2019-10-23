@@ -171,6 +171,15 @@ public class Triangle {
 		return coords;
 	}
 	
+	public boolean hasCoordinate(Coordinate coordToFind) {
+		for(Coordinate c : this.getCoordinates()) {
+			if (c.equals(coordToFind)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	
 	private Map<Coordinate, Integer> getCoordCount() {
 		Map<Coordinate, Integer> coordCount = new HashMap<Coordinate, Integer>();
 		for(Edge edge: edges) {
@@ -399,8 +408,13 @@ public class Triangle {
 		//}
 		//System.out.println("slope:"+slope);
 		
-		//tangent function always returns a value in quadrant 1 or 4 (i.e. -90 to + 90)
-		double aspect = Math.toDegrees(Math.atan(normal.magnitudeWithSignY()/normal.magnitudeWithSignX()));
+		//if aspect cannot be determined (e.g. when the triangle is flat on the horizontal plane)
+		//then assume aspect is 0.
+		double aspect = 0;
+		if (normal.magnitudeWithSignX() != 0) {
+			//tangent function always returns a value in quadrant 1 or 4 (i.e. -90 to + 90)
+			Math.toDegrees(Math.atan(normal.magnitudeWithSignY()/normal.magnitudeWithSignX()));
+		}
 
 		//System.out.println(magthis);
 		//System.out.println(" slope:"+slope);
@@ -507,6 +521,12 @@ public class Triangle {
 			//triangle
 			spineBaseCoord = Edge.intersectionOfLines(baseSlope, baseYIntercept, spineSlope, spineYIntercept);
  	    }
+		
+		//always provide a z-value for spine coordinates
+		if (Double.isNaN(spineBaseCoord.getZ())) {
+			spineBaseCoord.setZ(0);
+		}
+		
 		Edge spine = new Edge(spineBaseCoord, spinePeakCoord);
 		
 		return spine;
@@ -559,6 +579,17 @@ public class Triangle {
 			s += " Edge: "+e.toString()+"\n";
 		}
 		return s;
+	}
+	
+	public boolean equals(Object other) {
+		Triangle otherTriangle = (Triangle)other;
+		for(Coordinate c: this.getCoordinates()) {
+			if (!otherTriangle.hasCoordinate(c)) {
+				return false;
+			}
+		}
+		
+		return this.getCoordinates().length == otherTriangle.getCoordinates().length;
 	}
 
 }

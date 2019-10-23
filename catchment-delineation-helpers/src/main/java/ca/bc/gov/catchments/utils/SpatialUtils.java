@@ -72,10 +72,10 @@ public class SpatialUtils {
 	}
 	
 
-	public static SimpleFeature geomToFeature(Geometry geom, SimpleFeatureType type, int fid) {
+	public static SimpleFeature geomToFeature(Geometry geom, SimpleFeatureType type, String fid) {
 		SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder(type);
 		Object[] attrValues = {geom};
-		SimpleFeature feature = featureBuilder.buildFeature(""+fid++, attrValues);
+		SimpleFeature feature = featureBuilder.buildFeature(fid, attrValues);
 		return feature;
 	}
 	
@@ -85,8 +85,9 @@ public class SpatialUtils {
 		
 		int nextFid = 0;
 		for(Geometry geometry : geometries) {
-			SimpleFeature feature = geomToFeature(geometry, featureType, nextFid);			
+			SimpleFeature feature = geomToFeature(geometry, featureType, nextFid+"");			
 			featureCollection.add(feature);
+			nextFid++;
 		}
 		
 		return featureCollection;
@@ -106,78 +107,7 @@ public class SpatialUtils {
 		return result;
 	}
 	
-	public static SimpleFeatureSource createDummyTinEdges() throws IOException {
 	
-		//create a dummy TIN
-		IncrementalTin tin = new IncrementalTin();
-		tin.add(new Vertex(0, 0, 10));
-		tin.add(new Vertex(1, 0, 11));
-		tin.add(new Vertex(3, 2, 12));
-		tin.add(new Vertex(5, 1, 11));
-		tin.add(new Vertex(6, 3, 12));
-		tin.add(new Vertex(7, 1, 10));
-		tin.add(new Vertex(9, 2, 13));
-		//
-		tin.add(new Vertex(1, 3, 11));
-		tin.add(new Vertex(2, 6, 13));
-		tin.add(new Vertex(4, 6, 12));
-		tin.add(new Vertex(5, 4, 13));
-		tin.add(new Vertex(7, 5, 14));
-		tin.add(new Vertex(8, 5, 12));
-		//
-		tin.add(new Vertex(0, 7, 12));
-		tin.add(new Vertex(2, 8, 13));
-		tin.add(new Vertex(4, 9, 12));
-		tin.add(new Vertex(5, 9, 14));
-		tin.add(new Vertex(6, 8, 11));
-		tin.add(new Vertex(8, 9, 10));
-		tin.add(new Vertex(9, 7, 12));
-		
-		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
-		DefaultFeatureCollection tinEdges = new DefaultFeatureCollection();
-		
-		SimpleFeatureType outFeatureType = null;
-		try {
-			outFeatureType = DataUtilities.createType("tin_edges", "geometry:LineString");
-		} catch (SchemaException e1) {
-			throw new IllegalStateException("Unable to create feature type for tin edges");
-		}
-		SimpleFeatureBuilder outFeatureBuilder = new SimpleFeatureBuilder(outFeatureType);
-		
-		
-		//get an iterator over the TIN edges
-		Iterator<IQuadEdge> edgeIt = tin.edges().iterator();
-		int nextId = 0;
-		while(edgeIt.hasNext()) {
-			IQuadEdge edge = edgeIt.next();
-			Vertex a = edge.getA();
-			Vertex b = edge.getB();
-			
-			//create a linestring geometry with these two endpoints
-			Coordinate c1 = new Coordinate(a.getX(), a.getY(), a.getZ());
-			Coordinate c2 = new Coordinate(b.getX(), b.getY(), b.getZ());
-			
-			Coordinate[] coordArr = {c1, c2};
-			LineString geometry = geometryFactory.createLineString(coordArr);
-			Object[] values = {geometry};
-			SimpleFeature feature = outFeatureBuilder.buildFeature(""+nextId++, values);
-			tinEdges.add(feature);
-		}
-		
-		SpatialIndexFeatureCollection indexedCollection = new SpatialIndexFeatureCollection(tinEdges);
-		SimpleFeatureSource result = new SpatialIndexFeatureSource(indexedCollection); 
-		return result;
-	}
-	
-	public static SimpleFeatureSource createDummyTinPolys() throws IOException {
-		SimpleFeatureSource tinEdges = createDummyTinEdges();
-		TrianglesFromEdgesAlg alg = new TrianglesFromEdgesAlg(tinEdges, "tin_polys");
-		SimpleFeatureCollection fc = alg.getTriangles();
-		
-		SpatialIndexFeatureCollection indexedCollection = new SpatialIndexFeatureCollection(fc);
-		SimpleFeatureSource result = new SpatialIndexFeatureSource(indexedCollection); 
-		return result;
-	}
 
 	public static LineString toLineString(Coordinate c1, Coordinate c2) {
 		List<Coordinate> coords = new ArrayList<Coordinate>();
@@ -243,5 +173,26 @@ public class SpatialUtils {
 			coords.add(c);
 		}
 		return coords;
+	}
+	
+	public static SimpleFeatureCollection renameFeatureType(SimpleFeatureCollection fc, String tableName) throws SchemaException {
+		SimpleFeatureType originalFeatureType = fc.getSchema();		
+		String spec = DataUtilities.encodeType(originalFeatureType);
+		SimpleFeatureType newFeatureType = DataUtilities.createType(tableName, spec);
+				
+		DefaultFeatureCollection outFc = new DefaultFeatureCollection();
+		
+		SimpleFeatureIterator inIt = fc.features();
+		while(inIt.hasNext()) {
+			SimpleFeature f = inIt.next();
+			SimpleFeature modified = SimpleFeatureBuilder.retype(f, newFeatureType);
+			outFc.add(modified);
+		}
+		inIt.close();
+		
+		
+		return outFc;
+		
+		
 	}
 }

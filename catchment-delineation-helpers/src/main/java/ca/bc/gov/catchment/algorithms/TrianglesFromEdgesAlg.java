@@ -97,7 +97,7 @@ public class TrianglesFromEdgesAlg {
 		SimpleFeatureType outFeatureType = null;
 		try {
 			outFeatureType = DataUtilities.createType(outTable, 
-					"geometry:Polygon:srid="+srid); 
+					"geometry:Polygon:srid="+srid+",triangle_id:int,aspect:int,slope:int"); 
 		} catch (SchemaException e) {
 			throw new IllegalStateException("Unable to create feature type for triangle polygons");
 		}

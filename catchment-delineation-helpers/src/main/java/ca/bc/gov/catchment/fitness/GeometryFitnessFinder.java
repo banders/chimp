@@ -21,7 +21,7 @@ import org.opengis.feature.simple.SimpleFeature;
  * @author Brock
  *
  */
-public abstract class GeometryFitness {
+public abstract class GeometryFitnessFinder {
 
 	public double fitness(SimpleFeatureCollection features) throws IOException {
 		double totalFitness = 0;
@@ -41,13 +41,28 @@ public abstract class GeometryFitness {
 		for(Coordinate coord : geom.getCoordinates()) {
 			if (prev != null) {
 				double fitness = fitness(prev, coord);
-				totalFitness = fitness;
+				totalFitness += fitness;
 			}
 			prev = coord;
 		}
 		return totalFitness;
 	}
 	
+	public void describe(Geometry geom) throws IOException {
+		double totalFitness = 0;
+		Coordinate prev = null;
+		for(Coordinate coord : geom.getCoordinates()) {
+			if (prev != null) {
+				double fitness = fitness(prev, coord);
+				System.out.println("fitness of "+prev +" to "+ coord+": "+fitness);
+				totalFitness += fitness;
+			}
+			prev = coord;
+		}		
+		System.out.println("total fitness: "+totalFitness);
+	}
+	
 	public abstract double fitness(Coordinate c1, Coordinate c2) throws IOException;
 	
+
 }

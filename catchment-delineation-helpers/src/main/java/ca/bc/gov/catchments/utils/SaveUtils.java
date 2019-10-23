@@ -93,7 +93,7 @@ public class SaveUtils {
 			SimpleFeatureCollection fc,
 			boolean append) throws IOException {
 		
-		int srid = 4087; //default
+		int srid = 3005; //default
 		CoordinateReferenceSystem crs = fc.getSchema().getGeometryDescriptor().getCoordinateReferenceSystem();
 		if (crs != null) {
 			try {

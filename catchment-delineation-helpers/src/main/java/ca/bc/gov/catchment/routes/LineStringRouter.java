@@ -59,8 +59,9 @@ public class LineStringRouter {
 	 * @param included
 	 * @return
 	 * @throws IOException
+	 * @throws RouteException 
 	 */
-	public LineString makeRoute(Coordinate[] included) throws IOException {
+	public LineString makeRoute(Coordinate[] included) throws IOException, RouteException {
 		return makeRoute(included, null);		
 	}
 	
@@ -69,8 +70,9 @@ public class LineStringRouter {
 	 * should include a start point and an end point. may also include coordinates
 	 * in between the start and end. all coordinate must exactly match a point in the TIN.
 	 * @throws IOException 
+	 * @throws RouteException 
 	 */
-	public LineString makeRoute(Coordinate[] included, Coordinate[] excluded) throws IOException {
+	public LineString makeRoute(Coordinate[] included, Coordinate[] excluded) throws IOException, RouteException {
 		LineString result = null;
 		Coordinate prev = null;
 		
@@ -95,8 +97,9 @@ public class LineStringRouter {
 	 * @param endCoord
 	 * @return
 	 * @throws IOException
+	 * @throws RouteException 
 	 */
-	public LineString makeRoute(Coordinate startCoord, Coordinate endCoord) throws IOException {
+	public LineString makeRoute(Coordinate startCoord, Coordinate endCoord) throws IOException, RouteException {
 		return makeRoute(startCoord, endCoord, null);
 	}
 	
@@ -106,8 +109,9 @@ public class LineStringRouter {
 	 * @param endCoord
 	 * @return
 	 * @throws IOException
+	 * @throws RouteException 
 	 */
-	public LineString makeRoute(Coordinate startCoord, Coordinate endCoord, Coordinate[] excluded) throws IOException {
+	public LineString makeRoute(Coordinate startCoord, Coordinate endCoord, Coordinate[] excluded) throws IOException, RouteException {
 		List<Coordinate> blacklist = SpatialUtils.toCoordinateList(excluded);
 		return makeRoute(startCoord, endCoord, null, blacklist);
 	}
@@ -118,8 +122,9 @@ public class LineStringRouter {
 	 * @param exclude
 	 * @return
 	 * @throws IOException
+	 * @throws RouteException 
 	 */
-	public List<LineString> alternativeRoutes(LineString route, Coordinate exclude) throws IOException {
+	public List<LineString> alternativeRoutes(LineString route, Coordinate exclude) throws IOException, RouteException {
 		if (exclude == null) {
 			throw new NullPointerException("coordinate to exclude must not be null");
 		}
@@ -162,8 +167,9 @@ public class LineStringRouter {
 	 * @param newEndpoint
 	 * @return
 	 * @throws IOException
+	 * @throws RouteException 
 	 */
-	public List<LineString> moveCommonEndpoint(List<LineString> routes, Coordinate endpointToRemove, Coordinate newEndpoint) throws IOException {
+	public List<LineString> moveCommonEndpoint(List<LineString> routes, Coordinate endpointToRemove, Coordinate newEndpoint) throws IOException, RouteException {
 		
 		//validate input
 		int n = 0;
@@ -261,8 +267,9 @@ public class LineStringRouter {
 	 * @param blacklist a list of coordinates which may not be included in the route.
 	 * @return
 	 * @throws IOException
+	 * @throws RouteException 
 	 */
-	private LineString makeRoute(Coordinate startCoord, Coordinate endCoord, List<Coordinate> previous, List<Coordinate> blacklist) throws IOException {
+	private LineString makeRoute(Coordinate startCoord, Coordinate endCoord, List<Coordinate> previous, List<Coordinate> blacklist) throws IOException, RouteException {
 		List<Coordinate> resultCoords = new ArrayList<Coordinate>();
 		resultCoords.add(startCoord);
 		Coordinate currentCoord = startCoord;
@@ -278,7 +285,7 @@ public class LineStringRouter {
 			//closest to destination
 			Coordinate nextCoord = findEndpointClosestTo(currentCoord, endCoord, routeSoFar, blacklist);
 			if (nextCoord == null || resultCoords.contains(nextCoord)) {
-				throw new IllegalStateException("Unable to find route between the given coordinates");
+				throw new RouteException("Unable to find route between the given coordinates");
 			}
 			resultCoords.add(nextCoord);
 			currentCoord = nextCoord;
@@ -380,7 +387,7 @@ public class LineStringRouter {
 		return result;
 	}
 	
-	private LineString replaceRouteCoordinate(LineString route, Coordinate oldCoord, Coordinate newCoord) throws IOException {
+	private LineString replaceRouteCoordinate(LineString route, Coordinate oldCoord, Coordinate newCoord) throws IOException, RouteException {
 		Coordinate[] blacklist = {oldCoord};
 		List<Coordinate> oldCoords = SpatialUtils.toCoordinateList(route.getCoordinates());
 		LineString newRoute = null;

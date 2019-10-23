@@ -45,7 +45,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitness fitnessFinder = new RidgeFitness(tinPolys);
+		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness > 0, "fitness on ridge expected to be positive.  found "+fitness);
@@ -71,7 +71,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitness fitnessFinder = new RidgeFitness(tinPolys);
+		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness > 0, "fitness on ridge expected to be positive.  found "+fitness);
@@ -97,7 +97,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitness fitnessFinder = new RidgeFitness(tinPolys);
+		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness < 0, "fitness in trough expected to be negative.  found "+fitness);
@@ -123,7 +123,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitness fitnessFinder = new RidgeFitness(tinPolys);
+		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness < 0, "fitness in trough expected to be negative.  found "+fitness);
@@ -150,7 +150,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitness fitnessFinder = new RidgeFitness(tinPolys);
+		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness < 0, "fitness mid-slope expected to be negative.  found "+fitness);
@@ -177,7 +177,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitness fitnessFinder = new RidgeFitness(tinPolys);
+		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness < 0, "fitness mid-slope expected to be negative.  found "+fitness);
@@ -201,7 +201,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitness fitnessFinder = new RidgeFitness(tinPolys);
+		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness > 0, "fitness on ridge expected to be positive.  found "+fitness);
@@ -225,7 +225,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitness fitnessFinder = new RidgeFitness(tinPolys);
+		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness > 0, "fitness on ridge expected to be positive.  found "+fitness);
@@ -252,7 +252,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitness fitnessFinder = new RidgeFitness(tinPolys);
+		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness == 0, "fitness expected to be 0.  found "+fitness);
@@ -279,8 +279,8 @@ public class RidgeFitnessTest {
 		Geometry g1 = t1.toPolygon();
 		Geometry g2 = t2.toPolygon();
 		
-		SimpleFeature f1 = SpatialUtils.geomToFeature(g1, featureType, 1);
-		SimpleFeature f2 = SpatialUtils.geomToFeature(g2, featureType, 2);
+		SimpleFeature f1 = SpatialUtils.geomToFeature(g1, featureType, "1");
+		SimpleFeature f2 = SpatialUtils.geomToFeature(g2, featureType, "2");
 		fc.add(f1);
 		fc.add(f2);
 		

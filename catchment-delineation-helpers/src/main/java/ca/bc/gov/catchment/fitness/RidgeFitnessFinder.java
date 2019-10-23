@@ -34,7 +34,7 @@ import ca.bc.gov.catchments.utils.SpatialUtils;
  * @author Brock
  *
  */
-public class RidgeFitness extends GeometryFitness {
+public class RidgeFitnessFinder extends GeometryFitnessFinder {
 
 	private static final double SLOPE_TO_ASPECT_WEIGHT_RATIO = 0.1; //should be > 0
 	private static final double FITNESS_SCALE_FACTOR = 100;
@@ -44,7 +44,7 @@ public class RidgeFitness extends GeometryFitness {
 	private SimpleFeatureType tinPolysFeatureType;
 	private String tinPolysGeometryProperty;
 	
-	public RidgeFitness(SimpleFeatureSource tinPolys) {
+	public RidgeFitnessFinder(SimpleFeatureSource tinPolys) {
 		this.tinPolys = tinPolys;
 		this.filterFactory = CommonFactoryFinder.getFilterFactory2();
 		this.tinPolysFeatureType = tinPolys.getSchema();
@@ -70,7 +70,10 @@ public class RidgeFitness extends GeometryFitness {
 		//identify the two triangles which share the edge defined by the line segment
 		List<Triangle> touchingTriangles = getTouchingTriangles(segment);
 		if (touchingTriangles.size() != 2) {
-			throw new IllegalArgumentException("Unable to determine fitness of a segment that doesn't have two touching triangles.  This segment has "+touchingTriangles.size()+ " touching triangles.");
+			for(Triangle t : touchingTriangles) {
+				System.out.println(t);
+			}
+			throw new IllegalArgumentException("Unable to determine fitness of a segment that doesn't have two touching triangles.  This segment has "+touchingTriangles.size()+ " touching triangles. Segment is: "+segment );
 		}		
 		Triangle t1 = touchingTriangles.get(0);
 		Triangle t2 = touchingTriangles.get(1);
@@ -102,12 +105,19 @@ public class RidgeFitness extends GeometryFitness {
 		//  negative for all other cases.
 		double fitness = beta1 * beta2 * Math.max(beta1, beta2) * FITNESS_SCALE_FACTOR;
 		
-		//round
-		DecimalFormat df = new DecimalFormat("#.######");
-		fitness = Double.parseDouble(df.format(fitness));
+		//avoid -0
+		if (fitness == 0) {
+			fitness = 0;
+		}
 		
-
+		//round
+		//DecimalFormat df = new DecimalFormat("+#.######;-#.######");
+		//String fitnessStr = df.format(fitness);
+		//System.out.println("fitness: "+fitness+", fitnessStr: "+fitnessStr);
+		//fitness = Double.parseDouble(fitnessStr);
+		
 		/*
+				
 		System.out.println(" segmentAngle: "+segmentAngle);
 		
 		System.out.println("t1:");
@@ -139,8 +149,8 @@ public class RidgeFitness extends GeometryFitness {
 		
 		System.out.println(" fitness: "+fitness);
 		
-		*/
 		
+		*/
 		
 		//weight the fitness based on the length of the line
 		double weightedFitness = segmentLength * fitness;
@@ -169,7 +179,9 @@ public class RidgeFitness extends GeometryFitness {
 			if (!t.isComplete()) {
 				throw new IllegalStateException("Invalid triangle found.");
 			}
-			result.add(t);
+			if (!result.contains(t)) {
+				result.add(t);
+			}
 		}
 		it.close();
 		

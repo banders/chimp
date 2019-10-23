@@ -26,18 +26,20 @@ import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 
 import ca.bc.gov.catchment.routes.LineStringRouter;
+import ca.bc.gov.catchment.synthetic.DummyFactory;
 import ca.bc.gov.catchments.utils.SaveUtils;
 import ca.bc.gov.catchments.utils.SpatialUtils;
 
 public class LineStringRouterTest {
 
+	private static final boolean SAVE_RESULTS = false;
 	private static final String SAVE_DIR = "C:\\Temp\\";
 	
 	private SimpleFeatureSource tinEdges;
 	
 	public LineStringRouterTest() {
 		try {
-			tinEdges = SpatialUtils.createDummyTinEdges();
+			tinEdges = DummyFactory.createDummyTinEdges();
 		} catch (IOException e) {
 			System.out.println("Unable to setup LineStringRouterTest.  Can't create dummy TIN.");
 			e.printStackTrace();
@@ -48,7 +50,7 @@ public class LineStringRouterTest {
 		String testName = "LineStringRouter-test-"+numPoints+"pt";
 		String saveFilename = SAVE_DIR+testName+".gpkg";
 		File saveFile = new File(saveFilename);
-		if (saveFile.exists()) {
+		if (SAVE_RESULTS && saveFile.exists()) {
 			saveFile.delete();
 		}
 		
@@ -72,15 +74,17 @@ public class LineStringRouterTest {
 			Assert.fail("Route doesn't contain the required coordinates");
 		}
 		
-		try {
-			List<LineString> routes = new ArrayList<LineString>();
-			routes.add(route);
-			SimpleFeatureSource routesFs = createLineStringFeatureSource(routes, "routes");
-			save(tinEdges, saveFilename);
-			save(routesFs, saveFilename);
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		if (SAVE_RESULTS) {
+			try {
+				List<LineString> routes = new ArrayList<LineString>();
+				routes.add(route);
+				SimpleFeatureSource routesFs = createLineStringFeatureSource(routes, "routes");
+				save(tinEdges, saveFilename);
+				save(routesFs, saveFilename);
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
 	}
 	
@@ -95,27 +99,32 @@ public class LineStringRouterTest {
 	}
 	
 	@Test
+	public void testMakeRouteFourPoints() {
+		testMakeRoute(4);
+	}
+	
+	//@Test
 	public void testMakeRouteFivePoints() {
 		testMakeRoute(5);
 	}
 	
-	@Test
+	//@Test
 	public void testMakeRouteSixPoints() {
 		testMakeRoute(6);
 	}
 	
-	@Test
+	//@Test
 	public void testMakeRouteSevenPoints() {
 		testMakeRoute(7);
 	}
 	
-	@Test
+	//@Test
 	public void testMakeRouteTenPoints() {
 		testMakeRoute(10);
 	}
 	
 	@Test
-	public void testAlternativeRoutesNewMidpoint() {
+	public void testAlternativeRoutesNewMidpoint() throws RouteException {
 		String testName = "LineStringRouter-test-alternative-midpoint";
 		String saveFilename = SAVE_DIR+testName+".gpkg";
 		LineStringRouter router = new LineStringRouter(tinEdges);
@@ -150,27 +159,29 @@ public class LineStringRouterTest {
 			}
 		}
 		
-		try {
-			List<LineString> routes = new ArrayList<LineString>();
-			routes.add(initialRoute);
-			routes.addAll(alternativeRoutes);
-			SimpleFeatureSource routesFs = createLineStringFeatureSource(routes, "routes");
-			
-			List<Coordinate> coords = new ArrayList<Coordinate>();
-			coords.add(pointToRemove);
-			SimpleFeatureSource pointsFs = createPointFeatureSource(coords);
-			
-			save(tinEdges, saveFilename);
-			save(routesFs, saveFilename);
-			save(pointsFs, saveFilename);
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		if (SAVE_RESULTS) {
+			try {
+				List<LineString> routes = new ArrayList<LineString>();
+				routes.add(initialRoute);
+				routes.addAll(alternativeRoutes);
+				SimpleFeatureSource routesFs = createLineStringFeatureSource(routes, "routes");
+				
+				List<Coordinate> coords = new ArrayList<Coordinate>();
+				coords.add(pointToRemove);
+				SimpleFeatureSource pointsFs = createPointFeatureSource(coords);
+				
+				save(tinEdges, saveFilename);
+				save(routesFs, saveFilename);
+				save(pointsFs, saveFilename);
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
 	}
 	
 	@Test
-	public void testAlternativeRoutesNewEndpointFails() {
+	public void testAlternativeRoutesNewEndpointFails() throws RouteException {
 		LineStringRouter router = new LineStringRouter(tinEdges);
 		LineString initialRoute = null;
 		try {
@@ -207,21 +218,21 @@ public class LineStringRouterTest {
 	}
 	
 	@Test
-	public void testMoveCommonEndpoint() throws IOException {
+	public void testMoveCommonEndpoint() throws IOException, RouteException {
 		String testName = "LineStringRouter-test-move-common-endpoint";
 		String saveFilename = SAVE_DIR+testName+".gpkg";
 		File saveFile = new File(saveFilename);
-		if (saveFile.exists()) {
+		if (SAVE_RESULTS && saveFile.exists()) {
 			saveFile.delete();
 		}
 		
 		LineStringRouter router = new LineStringRouter(tinEdges);
 		List<LineString> initialRoutes = new ArrayList<LineString>();
 		
-		Coordinate[] randomCoords = pickCoordinates(tinEdges, 4);
+		Coordinate[] randomCoords = pickCoordinates(tinEdges, 5);
 		Coordinate commonCoordinate = randomCoords[1];
 		Coordinate[] coordsA = {commonCoordinate, randomCoords[0]};
-		Coordinate[] coordsB = {commonCoordinate, randomCoords[2]};
+		Coordinate[] coordsB = {commonCoordinate, randomCoords[3]};
 		
 		try {
 			initialRoutes.add(router.makeRoute(coordsA));
@@ -264,23 +275,25 @@ public class LineStringRouterTest {
 			System.out.println(route);
 		}
 		
-		try {
-			
-			SimpleFeatureSource initialRoutesFs = createLineStringFeatureSource(initialRoutes, "routes_initial");
-			SimpleFeatureSource updatedRoutesFs = createLineStringFeatureSource(newRoutes, "routes_updated");
-			
-			List<Coordinate> coords = new ArrayList<Coordinate>();
-			coords.add(commonCoordinate);
-			coords.add(newCommonCoordinate);
-			SimpleFeatureSource pointsFs = createPointFeatureSource(coords);
-			
-			save(tinEdges, saveFilename);
-			save(initialRoutesFs, saveFilename);
-			save(updatedRoutesFs, saveFilename);
-			save(pointsFs, saveFilename);
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		if (SAVE_RESULTS) {
+			try {
+				
+				SimpleFeatureSource initialRoutesFs = createLineStringFeatureSource(initialRoutes, "routes_initial");
+				SimpleFeatureSource updatedRoutesFs = createLineStringFeatureSource(newRoutes, "routes_updated");
+				
+				List<Coordinate> coords = new ArrayList<Coordinate>();
+				coords.add(commonCoordinate);
+				coords.add(newCommonCoordinate);
+				SimpleFeatureSource pointsFs = createPointFeatureSource(coords);
+				
+				save(tinEdges, saveFilename);
+				save(initialRoutesFs, saveFilename);
+				save(updatedRoutesFs, saveFilename);
+				save(pointsFs, saveFilename);
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
 		
 		//validate alternative routes
