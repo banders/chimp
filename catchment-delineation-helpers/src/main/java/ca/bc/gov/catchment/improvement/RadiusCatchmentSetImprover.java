@@ -5,10 +5,12 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+import org.geotools.data.DataUtilities;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.factory.CommonFactoryFinder;
+import org.geotools.feature.simple.SimpleFeatureBuilder;
 import org.geotools.geometry.jts.JTSFactoryFinder;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
@@ -24,11 +26,15 @@ import ca.bc.gov.catchment.fitness.CatchmentValidity;
 import ca.bc.gov.catchment.fitness.GeometryFitnessFinder;
 import ca.bc.gov.catchment.routes.LineStringRouter;
 import ca.bc.gov.catchment.routes.RouteException;
+import ca.bc.gov.catchment.water.WaterAnalyzer;
 import ca.bc.gov.catchments.utils.SpatialUtils;
 
 public class RadiusCatchmentSetImprover extends CatchmentSetImprover {
 
+	private static final boolean MOVE_JUNCTIONS = true;
+	
 	private SimpleFeatureSource tinEdges;
+	private SimpleFeatureSource catchmentEdges;
 	private GeometryFitnessFinder fitnessFinder;
 	private LineStringRouter router;
 	private double radius;	
@@ -42,10 +48,12 @@ public class RadiusCatchmentSetImprover extends CatchmentSetImprover {
 	public RadiusCatchmentSetImprover(
 			SimpleFeatureSource waterFeatures, 
 			SimpleFeatureSource tinEdges,
+			SimpleFeatureSource catchmentEdges,
 			GeometryFitnessFinder fitnessFinder, 
 			double radius) {
 		super(waterFeatures);
 		this.tinEdges = tinEdges;
+		this.catchmentEdges = catchmentEdges;
 		this.fitnessFinder = fitnessFinder;
 		this.router = new LineStringRouter(tinEdges);
 		this.radius = radius;		
@@ -63,34 +71,48 @@ public class RadiusCatchmentSetImprover extends CatchmentSetImprover {
 	public SectionModification improve(SimpleFeature section) throws IOException {
 		//System.out.println("improving fid:"+section.getIdentifier().getID());
 		
+		//if any touching sections are suggested to be moved as part of the best route, 
+		//record them here.
+		List<SimpleFeature> movedTouchingSections = new ArrayList<SimpleFeature>();
+		
 		//convenient access to the geometry and coordinates of the original section
 		LineString originalRoute = (LineString)section.getDefaultGeometry();
 		Coordinate[] originalCoords = originalRoute.getCoordinates();
+		
+		//if the catchment section touches a confluence, ensure that processing starts
+		//ad the confluence end (not the junction end)
+		if (!getWaterAnalyzer().isConfluence(originalCoords[0])) {
+			originalRoute = (LineString)originalRoute.reverse();
+			originalCoords = originalRoute.getCoordinates();
+		}
+		
+		boolean sectionTouchesConfluence = getNumEndsTouchingConfluence(originalRoute) > 0;
 		
 		//System.out.println(" original route: "+originalRoute);
 		
 		//objects that store work-in-progress version of the route as it is being built
 		Coordinate[] pickedCoords = new Coordinate[0];
-		LineString pickedRoute = originalRoute;
 		
 		//loop over each coordinate from the original set.  Attempt to improve each
 		for (int originalCoordIndex = 0; originalCoordIndex < originalCoords.length; originalCoordIndex++) {
 			Coordinate originalCoord = originalCoords[originalCoordIndex];
 			
-			boolean isConfluence = endpointTouchesConfluence(originalCoord);
+			boolean isConfluence = getWaterAnalyzer().isConfluence(originalCoord); //endpointTouchesConfluence(originalCoord);
 			boolean isEndPoint = hasEndpoint(originalRoute, originalCoord);
 			
 			//System.out.println(" inspecting coordinate: "+originalCoord + " - endpoint?:"+isEndPoint+", confluence:?"+isConfluence);
-			
+
+			//confluence points don't get moved
 			if (isConfluence) {
-				//System.out.println("  Kept the confluence point in its original position");
 				pickedCoords = addCoordinate(pickedCoords, originalCoord);
+				/*
 				try {
 					pickedRoute = router.makeRoute(pickedCoords);
 				} 
 				catch(RouteException e) {
 					throw new IllegalStateException("improvement algorithm failed.");
 				}
+				*/
 				continue;
 			}
 			
@@ -103,6 +125,8 @@ public class RadiusCatchmentSetImprover extends CatchmentSetImprover {
 			boolean foundImprovementForCurrentCoordinate = false;
 			for(Coordinate alternativeCoord : alternativeCoords) {
 				//System.out.println("   inspecting alternative: "+alternativeCoord);
+				
+				//non-endpoint
 				if (!isEndPoint) {
 					Coordinate[] includedCoords = addCoordinate(pickedCoords, alternativeCoord);
 					Coordinate[] excludedCoords = {originalCoord}; 
@@ -112,9 +136,9 @@ public class RadiusCatchmentSetImprover extends CatchmentSetImprover {
 						//System.out.println("    routeToConsider: "+routeToConsider);
 						
 						if (isValid) {
-							foundImprovementForCurrentCoordinate = true;
 							pickedCoords = includedCoords;
-							pickedRoute = routeToConsider;
+							//pickedRoute = routeToConsider;
+							foundImprovementForCurrentCoordinate = true;
 							//System.out.println("  Moved a point up hill from "+originalCoord+" to "+alternativeCoord);
 							break;
 						}
@@ -123,28 +147,80 @@ public class RadiusCatchmentSetImprover extends CatchmentSetImprover {
 						continue;
 					}
 				}
-				else { //endpoint
-					//System.out.println("  Non-confluence endpoint ("+originalCoord+") not moved.  TODO: move move non-confluence endpoint.");
-					//todo: attempt to find an improvement
+				
+				//endpoint (junction of multiple catchment routes)
+				else if (MOVE_JUNCTIONS && sectionTouchesConfluence) { 
+					
+					try {
+						//identify other sections touching this junction
+						List<SimpleFeature> sectionsTouchingJunction = getSectionsTouchingJunction(originalCoord, originalRoute);
+						//extract only the route (geometry) from the touching sections, keeping these
+						//in a list
+						List<LineString> routesTouchingJunction = new ArrayList<LineString>();
+						for (SimpleFeature touching : sectionsTouchingJunction) {
+							routesTouchingJunction.add((LineString)touching.getDefaultGeometry());
+						}
+						//create a work-in-progress version of the current route
+						Coordinate[] routeCoordsSoFar = addCoordinate(pickedCoords, originalCoord);
+						if (routeCoordsSoFar.length < 2) {
+							routeCoordsSoFar = originalCoords;
+						}
+						LineString routeSoFar = router.makeRoute(routeCoordsSoFar);
+						routesTouchingJunction.add(routeSoFar);
+						//attempt to move the junction point
+						List<LineString> routesWithJunctionMoved = router.moveJunction(routesTouchingJunction, originalCoord, alternativeCoord);
+						//check that all moved routes are valid
+						boolean isValid = catchmentValidityChecker.areRoutesValidWrtWater(routesWithJunctionMoved);
+						if (isValid) {
+							//pop the last item (which is the modified form of the current route)
+							routesWithJunctionMoved.remove(routesWithJunctionMoved.size()-1);
+							System.out.println("# touching: "+routesWithJunctionMoved.size());
+							pickedCoords = addCoordinate(pickedCoords, alternativeCoord);
+							foundImprovementForCurrentCoordinate = true;
+							for (int i = 0; i < routesWithJunctionMoved.size(); i++) {
+								LineString touchingRoute = routesWithJunctionMoved.get(i);
+								SimpleFeature originalTouchingSection = sectionsTouchingJunction.get(i);
+								SimpleFeature copyOftouchingSection = SimpleFeatureBuilder.copy(originalTouchingSection);
+								copyOftouchingSection.setDefaultGeometry(touchingRoute);
+								sectionsTouchingJunction.remove(originalTouchingSection);
+								sectionsTouchingJunction.add(copyOftouchingSection);
+							}
+							movedTouchingSections = sectionsTouchingJunction;
+							System.out.println("function moved to: "+alternativeCoord);
+							System.out.println(" primary route is: "+router.makeRoute(pickedCoords));
+							System.out.println(" touching route is: "+sectionsTouchingJunction.get(0).getDefaultGeometry());
+							break;
+						}
+						
+					} catch (RouteException e) {
+						//router was unable to move the junction
+						continue;
+					}
 					break;
 				}
 			}
 			
+			//if the current coordinate cannot be improved, copy the original value to the 
+			//"pickedCoords" set.
 			if (!foundImprovementForCurrentCoordinate) {
 				pickedCoords = addCoordinate(pickedCoords, originalCoord);
-				try {
-					pickedRoute = router.makeRoute(pickedCoords);
-				} catch (RouteException e) {
-					throw new IllegalStateException("improvement algorithm failed.");
-				}
 			}
 		}
+
+		//convert the picked coordinates into a route
+		LineString pickedRoute = originalRoute;
+		try {
+			pickedRoute = router.makeRoute(pickedCoords);
+		} catch (RouteException e) {
+			throw new IllegalStateException("improvement algorithm failed.");
+		}
 		
-		
-		SectionModification modification = new SectionModification(section);
-		
+		//determine fitness of the original route and the proposed new route
 		double originalRouteFitness = fitnessFinder.fitness(originalRoute);
 		double modifiedRouteFitness = fitnessFinder.fitness(pickedRoute);
+		
+		//prepare the response object describing the modification
+		SectionModification modification = new SectionModification(section);
 		if (modifiedRouteFitness > originalRouteFitness) {
 			System.out.println("fitness improved from "+originalRouteFitness + " to " +modifiedRouteFitness);
 			//add the modified primary line segment to the result object 
@@ -152,9 +228,7 @@ public class RadiusCatchmentSetImprover extends CatchmentSetImprover {
 			String fid = section.getIdentifier().getID();
 			SimpleFeature modifiedSection = SpatialUtils.geomToFeature(pickedRoute, type, fid);
 			modification.setModifiedSection(modifiedSection);
-
-			//todo: add modified touching line segments to the result object
-			System.out.println("TODO: add modified touching lines to result object");
+			modification.setModifiedTouchingSections(movedTouchingSections);
 			
 			System.out.println(" improved route: "+pickedRoute);
 		}
@@ -236,6 +310,29 @@ public class RadiusCatchmentSetImprover extends CatchmentSetImprover {
 		return SpatialUtils.toCoordinateArray(filteredCoords);
 	}
 
+	private List<SimpleFeature> getSectionsTouchingJunction(Coordinate junction, LineString ignore) throws IOException {
+		Point p = geometryFactory.createPoint(junction);
+		List<SimpleFeature> touchingSections = new ArrayList<SimpleFeature>();
+		
+		//find routes from the original catchment set
+		Filter touchesFilter = filterFactory.touches(
+				filterFactory.property(tinEdgesGeometryPropertyName), 
+				filterFactory.literal(p)
+				);
+		SimpleFeatureCollection originalTouchingCatchmentEdges = catchmentEdges.getFeatures(touchesFilter);
+		SimpleFeatureIterator it = originalTouchingCatchmentEdges.features();
+		while(it.hasNext()) {
+			SimpleFeature f = it.next();
+			f = getLatest(f);
+			LineString route = (LineString)f.getDefaultGeometry();
+			if (!route.equals(ignore)) {
+				touchingSections.add(f);
+			}
+		}
+		it.close();
+		return touchingSections;
+	}
+	
 	private List<Coordinate> getTinCoordsInRadius(Coordinate c, double radius) throws IOException  {
 		Point p = geometryFactory.createPoint(c);
 		List<Coordinate> coords = new ArrayList<Coordinate>();

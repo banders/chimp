@@ -18,6 +18,8 @@ import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
 
+import ca.bc.gov.catchment.water.WaterAnalyzer;
+
 /**
  * Defines the interface for an algorithm that improves a catchment "section".
  * Definition: A catchment "section" is a SimpleFeature that represents an n-vertex LineString which is part
@@ -33,6 +35,8 @@ public abstract class CatchmentSetImprover {
 	private SimpleFeatureSource waterFeatures;
 	private SimpleFeatureType waterFeatureType;
 	private String waterGeometryPropertyName;
+	private WaterAnalyzer waterAnalyzer;
+	private DefaultFeatureCollection processedSections;
 	
 	public CatchmentSetImprover(SimpleFeatureSource waterFeatures) {
 		this.waterFeatures = waterFeatures;
@@ -40,6 +44,7 @@ public abstract class CatchmentSetImprover {
 		this.waterGeometryPropertyName = waterFeatureType.getGeometryDescriptor().getLocalName();
 		this.filterFactory = CommonFactoryFinder.getFilterFactory2();
 		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
+		this.waterAnalyzer = new WaterAnalyzer(waterFeatures);
 	}
 	
 	/**
@@ -51,7 +56,7 @@ public abstract class CatchmentSetImprover {
 	 * @throws IOException 
 	 */
 	public SimpleFeatureCollection improve(SimpleFeatureSource sectionSet) throws IOException {
-		DefaultFeatureCollection resultSet = new DefaultFeatureCollection();
+		processedSections = new DefaultFeatureCollection();
 		
 		SimpleFeatureCollection inputSet = sectionSet.getFeatures();
 		
@@ -64,13 +69,15 @@ public abstract class CatchmentSetImprover {
 			if (!isConfluence) {
 				continue; 
 			}
-			sectionToImprove = getLatest(resultSet, sectionToImprove);
+			sectionToImprove = getLatest(sectionToImprove);
 			SectionModification modification = improve(sectionToImprove);
 			
-			addOrUpdate(resultSet, modification.getModifiedSection());
+			addOrUpdate(modification.getModifiedSection());
 			for (SimpleFeature touchingSection : modification.getModifiedTouchingSections()) {
-				addOrUpdate(resultSet, touchingSection);
+				System.out.println(" updated section with fid="+touchingSection.getIdentifier());
+				addOrUpdate(touchingSection);
 			}
+			System.out.println("---");
 		}
 		inputSetIt.close();
 		
@@ -83,17 +90,18 @@ public abstract class CatchmentSetImprover {
 			if (isConfluence) {
 				continue;
 			}
-			sectionToImprove = getLatest(resultSet, sectionToImprove);
+			sectionToImprove = getLatest(sectionToImprove);
 			SectionModification modification = improve(sectionToImprove);
 			
-			addOrUpdate(resultSet, modification.getModifiedSection());
+			addOrUpdate(modification.getModifiedSection());
 			for (SimpleFeature touchingSection : modification.getModifiedTouchingSections()) {
-				addOrUpdate(resultSet, touchingSection);
+				addOrUpdate(touchingSection);
 			}
+			System.out.println("---");
 		}
 		inputSetIt.close();
 		
-		return resultSet;
+		return processedSections;
 	}
 	
 	/**
@@ -106,15 +114,15 @@ public abstract class CatchmentSetImprover {
 	public abstract SectionModification improve(SimpleFeature section) throws IOException;
 	
 	/**
-	 * Checks whether the given feature touches a confluence point
+	 * Counts the number of endpoints of the given route that touch a confluence point
 	 * @throws IOException 
 	 */
 	protected int getNumEndsTouchingConfluence(LineString route) throws IOException {
 		Coordinate[] coords = route.getCoordinates();
 		Coordinate firstCoord = coords[0];
 		Coordinate lastCoord = coords[coords.length-1];
-		int numTouches = endpointTouchesConfluence(firstCoord) ? 1 : 0;
-		numTouches += endpointTouchesConfluence (lastCoord) ? 1 : 0;
+		int numTouches = waterAnalyzer.isConfluence(firstCoord) ? 1 : 0;
+		numTouches += waterAnalyzer.isConfluence (lastCoord) ? 1 : 0;
 		return numTouches;
 	}
 	
@@ -124,6 +132,7 @@ public abstract class CatchmentSetImprover {
 	 * @return
 	 * @throws IOException
 	 */
+	/*
 	protected boolean endpointTouchesConfluence(Coordinate c) throws IOException {
 		Point p = geometryFactory.createPoint(c);
 		
@@ -148,7 +157,7 @@ public abstract class CatchmentSetImprover {
 		boolean result = numWaterWithEndpointTouching > 0;
 		return result;
 	}
-	
+	*/
 
 	
 	
@@ -159,14 +168,16 @@ public abstract class CatchmentSetImprover {
 	 * @param section
 	 * @return
 	 */
-	private SimpleFeature getLatest(SimpleFeatureCollection sectionSet, SimpleFeature section) {
+	protected SimpleFeature getLatest(SimpleFeature section) {
 		Filter fidFilter = filterFactory.id(section.getIdentifier());
-		SimpleFeatureCollection matches = sectionSet.subCollection(fidFilter);
+		SimpleFeatureCollection matches = processedSections.subCollection(fidFilter);
 		SimpleFeatureIterator matchesIt = matches.features();
 		if (matchesIt.hasNext()) {
+			System.out.println("  *using updated section "+section.getIdentifier());
 			SimpleFeature match = matchesIt.next();
 			return match;
 		}
+		
 		return section;
 	}
 	
@@ -178,20 +189,25 @@ public abstract class CatchmentSetImprover {
 	 * @param fc
 	 * @param f
 	 */
-	private void addOrUpdate(DefaultFeatureCollection fc, SimpleFeature f) {
+	private void addOrUpdate(SimpleFeature f) {
 		Filter fidFilter = filterFactory.id(f.getIdentifier());
-		SimpleFeatureCollection matches = fc.subCollection(fidFilter);
+		SimpleFeatureCollection matches = processedSections.subCollection(fidFilter);
 		SimpleFeatureIterator matchesIt = matches.features();
-		
+
 		//if a feature with the same FID as the given feature already exists, 
 		//remove the existing feature (it will be replaced below)
+		SimpleFeature toRemove = null;
 		while(matchesIt.hasNext()) {
 			SimpleFeature match = matchesIt.next();
-			fc.remove(match);
+			toRemove = match;
+		}
+		matchesIt.close();
+		if (toRemove != null) {
+			processedSections.remove(toRemove);
 		}
 		
 		//add the new feature
-		fc.add(f);
+		processedSections.add(f);
 	}
 	
 	/**
@@ -218,5 +234,9 @@ public abstract class CatchmentSetImprover {
 			}
 		}
 		return false;
+	}
+	
+	public WaterAnalyzer getWaterAnalyzer() {
+		return this.waterAnalyzer;
 	}
 }

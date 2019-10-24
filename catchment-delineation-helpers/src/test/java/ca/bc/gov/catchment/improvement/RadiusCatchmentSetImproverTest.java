@@ -36,7 +36,7 @@ public class RadiusCatchmentSetImproverTest {
 		}
 		
 		SimpleFeatureSource waterFeatures = DummyFactory.createDummyWaterFeatures();
-		SimpleFeatureSource catchmentFeatures = DummyFactory.createDummyCatchments();
+		SimpleFeatureSource catchmentEdges = DummyFactory.createDummyCatchments();
 		SimpleFeatureSource tinEdges = DummyFactory.createDummyTinEdges();
 		SimpleFeatureSource tinPolys = DummyFactory.createDummyTinPolys(tinEdges);
 		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
@@ -45,10 +45,11 @@ public class RadiusCatchmentSetImproverTest {
 		CatchmentSetImprover improver = new RadiusCatchmentSetImprover(
 				waterFeatures, 
 				tinEdges, 
+				catchmentEdges,
 				fitnessFinder, 
 				radius);	
 		
-		SimpleFeatureCollection improvedCatchments = improver.improve(catchmentFeatures);
+		SimpleFeatureCollection improvedCatchments = improver.improve(catchmentEdges);
 		improvedCatchments = SpatialUtils.renameFeatureType(improvedCatchments, "catchment_lines_modified");
 		
 		CatchmentValidity validityChecker = new CatchmentValidity(waterFeatures);
@@ -59,7 +60,7 @@ public class RadiusCatchmentSetImproverTest {
 			try {
 				SaveUtils.saveToGeoPackage(saveFilename, tinEdges.getFeatures());
 				SaveUtils.saveToGeoPackage(saveFilename, waterFeatures.getFeatures());
-				SaveUtils.saveToGeoPackage(saveFilename, catchmentFeatures.getFeatures());
+				SaveUtils.saveToGeoPackage(saveFilename, catchmentEdges.getFeatures());
 				SaveUtils.saveToGeoPackage(saveFilename, improvedCatchments);
 			} catch (Exception e) {
 				// TODO Auto-generated catch block

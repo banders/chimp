@@ -76,6 +76,11 @@ public class LineStringRouter {
 		LineString result = null;
 		Coordinate prev = null;
 		
+		//if only one coordinate is included, duplicate it so there can be a 0-length line
+		if (included == null || included.length < 2) {
+			throw new IllegalArgumentException("Must specifiy at least two coordinates.");
+		}
+		
 		for(Coordinate coord: included) {
 			if (prev != null) {
 				List<Coordinate> routeSoFar = null;
@@ -169,14 +174,17 @@ public class LineStringRouter {
 	 * @throws IOException
 	 * @throws RouteException 
 	 */
-	public List<LineString> moveCommonEndpoint(List<LineString> routes, Coordinate endpointToRemove, Coordinate newEndpoint) throws IOException, RouteException {
+	public List<LineString> moveJunction(List<LineString> routes, Coordinate endpointToRemove, Coordinate newEndpoint) throws IOException, RouteException {
 		
 		//validate input
 		int n = 0;
 		for(LineString route: routes) {
 			n++;
+			if (route == null) {
+				throw new NullPointerException("one of the routes provided is null.  null routes are not valid.");
+			}
 			if (!isEndPointOf(endpointToRemove, route)) {
-				throw new IllegalArgumentException("the given endpoint to remove is not an endpoint of route "+n);
+				throw new IllegalArgumentException("the given coordinate to move is not a junction of route "+n);
 			}
 		}
 		
@@ -184,6 +192,10 @@ public class LineStringRouter {
 		for(LineString route : routes) {
 			LineString updatedRoute = replaceRouteCoordinate(route, endpointToRemove, newEndpoint);
 			updatedRoutes.add(updatedRoute);
+		}
+		
+		if (doRoutesOverlap(updatedRoutes)) {
+			throw new RouteException("unable to find a an alternative junction position");
 		}
 		
 		return updatedRoutes;
@@ -437,6 +449,20 @@ public class LineStringRouter {
 		return newRoute;
 	}
 	
-
+	public boolean doRoutesOverlap(List<LineString> routes) {
+		
+		for(LineString route1 : routes) {
+			for(LineString route2 : routes) {
+				if (route1 == route2 ) {
+					continue;
+				}
+				//check whether route SEGMENTS overlap
+				if (route1.contains(route2)) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
 	
 }

@@ -32,6 +32,13 @@ public class SectionModification {
 		this.modifiedTouchingSections.add(touchingSection);
 	}
 	
+	public void setModifiedTouchingSections(List<SimpleFeature> touchingSections) {
+		this.modifiedTouchingSections.clear();
+		for (SimpleFeature f : touchingSections) {
+			this.modifiedTouchingSections.add(f);
+		}
+	}
+	
 	public SimpleFeature getOriginalSection() {
 		return this.originalSection;
 	}

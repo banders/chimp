@@ -264,7 +264,7 @@ public class LineStringRouterTest {
 		List<LineString> newRoutes = null;
 		try {
 			System.out.println("Moving common endpoint");
-			newRoutes = router.moveCommonEndpoint(initialRoutes, commonCoordinate, newCommonCoordinate);
+			newRoutes = router.moveJunction(initialRoutes, commonCoordinate, newCommonCoordinate);
 		} catch (IOException e) {
 			e.printStackTrace();
 			Assert.fail("Unable to move common endpoint");

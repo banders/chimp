@@ -1,13 +1,16 @@
 package ca.bc.gov.catchment.fitness;
 
 import java.io.IOException;
+import java.util.List;
 
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.factory.Hints;
+import org.geotools.feature.DefaultFeatureCollection;
 import org.geotools.geometry.jts.JTSFactoryFinder;
+import org.geotools.referencing.cs.DefaultAffineCS;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
@@ -43,6 +46,16 @@ public class CatchmentValidity {
 		while(catchmentIt.hasNext()) {
 			SimpleFeature catchment = catchmentIt.next();
 			LineString route = (LineString)catchment.getDefaultGeometry();
+			boolean isValid = isRouteValidWrtWater(route);
+			if (!isValid) {
+				return false;
+			}
+		}
+		return true;
+	}
+	
+	public boolean areRoutesValidWrtWater(List<LineString> catchmentRoutes) throws IOException {
+		for(LineString route : catchmentRoutes) {
 			boolean isValid = isRouteValidWrtWater(route);
 			if (!isValid) {
 				return false;
@@ -87,5 +100,4 @@ public class CatchmentValidity {
 		return true;
 	}
 	
-
 }
