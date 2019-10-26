@@ -168,22 +168,26 @@ public class RidgeFitnessFinder extends GeometryFitnessFinder {
 		SimpleFeatureCollection fc = tinPolys.getFeatures(overlapsFilter);
 		
 		SimpleFeatureIterator it = fc.features();
-		while(it.hasNext()) {
-			SimpleFeature f = it.next();
-			Geometry g = (Geometry)f.getDefaultGeometry();
-			Triangle t = new Triangle(g);
-			if (!t.hasEdge(new Edge(segment.getCoordinates()))) {
-				//triangle touches, but doesn't share the specified edge
-				continue;
-			}
-			if (!t.isComplete()) {
-				throw new IllegalStateException("Invalid triangle found.");
-			}
-			if (!result.contains(t)) {
-				result.add(t);
+		try {
+			while(it.hasNext()) {
+				SimpleFeature f = it.next();
+				Geometry g = (Geometry)f.getDefaultGeometry();
+				Triangle t = new Triangle(g);
+				if (!t.hasEdge(new Edge(segment.getCoordinates()))) {
+					//triangle touches, but doesn't share the specified edge
+					continue;
+				}
+				if (!t.isComplete()) {
+					throw new IllegalStateException("Invalid triangle found.");
+				}
+				if (!result.contains(t)) {
+					result.add(t);
+				}
 			}
 		}
-		it.close();
+		finally {
+			it.close();
+		}
 		
 		return result;
 	}

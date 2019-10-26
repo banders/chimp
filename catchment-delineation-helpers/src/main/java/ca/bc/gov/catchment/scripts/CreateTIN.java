@@ -376,7 +376,7 @@ public class CreateTIN {
 				breakLineIt.close();
 				
 				System.out.println("Adding "+constraints.size()+" breakline constraints");
-				boolean restoreDelaunayConforming = true;
+				boolean restoreDelaunayConforming = false;
 				tin.addConstraints(constraints, restoreDelaunayConforming);
 			}
 			

@@ -71,7 +71,7 @@ public class DummyFactory {
 		tin.add(new Vertex(5, 9, 14));
 		tin.add(new Vertex(6, 8, 11));
 		tin.add(new Vertex(RIVER_MAIN_END.getX(), RIVER_MAIN_END.getY(), RIVER_MAIN_END.getZ()));
-		tin.add(new Vertex(9, 7, 12));
+		tin.add(new Vertex(9, 7, 10));
 		tin.add(new Vertex(10, 9, 12));
 		tin.add(new Vertex(13, 7, 13));
 		tin.add(new Vertex(14, 8, 14));

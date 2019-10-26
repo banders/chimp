@@ -128,6 +128,10 @@ def main():
   tin_gpkg_filename = "{}-{}.tin.gpkg".format(test_id, run_id)
   tin_gpkg_filename_with_path = os.path.join(run_out_dir, tin_gpkg_filename)
 
+  improved_catchments_gpkg_filename = "{}-{}.improved-catchments.gpkg".format(test_id, run_id)
+  improved_catchments_gpkg_filename_with_path = os.path.join(run_out_dir, improved_catchments_gpkg_filename)
+
+
   #----------------------------------------------------------------------------
 
   tables = run_config["input"]["tables"]
@@ -406,7 +410,7 @@ def main():
       has_additional_breakline_data = run_config["input"].get("elevation_file") and run_config["input"].get("elevation_breakline_table") #"additional" means in addition to the water features
       if has_additional_breakline_data:
 
-        #simplify and density the explicit breaklinesbreaklines
+        #simplify and density the explicit breaklines
         if run_config["options"]["simplify"] and run_config["options"]["densify"]:
           print("Simplifying and Densifying...")
           cmd1 = "{} -cp {} ca.bc.gov.catchment.scripts.SimplifyThenDensity -i {} -o {} -simplify -simplifyDistanceTolerance {} -densify -densifyDistanceSpacing {} -tables {}".format(settings.get("java_path"), settings.get("java_classpath"), elevation_file_with_path, explicit_breaklines_gpkg_filename_with_path, simplify_dist_tolerance, densify_dist_spacing, elevation_breakline_table)
@@ -512,7 +516,27 @@ def main():
       print("Failure.  Pipeline execution stopped early.")
       exit(1);
 
+  #improve catchments
+  if args.start_step <= 9 and 9 <= args.last_step:
+    print("")  
+    print("---------------------------------------------------")
+    print(" Step 9: Improve Catchments")
+    print("---------------------------------------------------")
+    print("")  
 
+    data_bbox = "1680546.3,501755.5,1682284.9,503082.5"
+    data_bbox_crs = "EPSG:3005"
+    print("NOTE: custom bbox: {}".format(data_bbox))
+
+    bbox = "-bbox {} -bboxcrs {}".format(data_bbox, data_bbox_crs)
+
+    if not os.path.exists(improved_catchments_gpkg_filename_with_path):
+      print("Creating TIN edges")
+      cmd9 = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.ImproveCatchments -catchmentsFile {} -catchmentsTable {} -waterFile {} -waterTable {} -tinEdgesFile {} -tinEdgesTable {} -tinPolysFile {} -tinPolysTable {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), initial_catchments_simp_dens_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, water_feature_segmented_filename_with_path, SEGMENTED_WATER_FEATURES_TABLE, tin_gpkg_filename_with_path, TIN_EDGES_TABLE, tin_gpkg_filename_with_path, TIN_POLYS_TABLE, improved_catchments_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, bbox)
+      resp = call(cmd9.split())
+      if resp != 0:
+        print("Failure.  Pipeline execution stopped early.")
+        exit(1);
 
   """
   -voronoiEdgesTable voronoi_edges  water_features -startPhase 1

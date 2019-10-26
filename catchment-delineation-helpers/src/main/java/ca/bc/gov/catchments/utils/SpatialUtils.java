@@ -20,6 +20,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.Point;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.tinfour.common.IQuadEdge;
@@ -191,8 +192,23 @@ public class SpatialUtils {
 		inIt.close();
 		
 		
-		return outFc;
-		
-		
+		return outFc;	
+	}
+	
+	public static boolean hasCoordinate(Geometry g, Coordinate c) {
+		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+		Point p = geometryFactory.createPoint(c);
+		boolean hasCoordinate = g.distance(p) == 0;
+		return hasCoordinate;		
+	}
+	
+	public static boolean is3D(Geometry g) {
+		Coordinate[] coords = g.getCoordinates();
+		for(Coordinate coord : coords) {
+			if (Double.isNaN(coord.getZ())) {
+				return false;
+			}
+		}
+		return true;
 	}
 }

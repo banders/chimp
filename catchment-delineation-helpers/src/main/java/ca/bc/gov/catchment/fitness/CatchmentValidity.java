@@ -8,10 +8,9 @@ import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.factory.Hints;
-import org.geotools.feature.DefaultFeatureCollection;
 import org.geotools.geometry.jts.JTSFactoryFinder;
-import org.geotools.referencing.cs.DefaultAffineCS;
 import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Point;
@@ -19,6 +18,7 @@ import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
+import org.opengis.filter.identity.FeatureId;
 
 import ca.bc.gov.catchment.water.WaterAnalyzer;
 
@@ -43,13 +43,18 @@ public class CatchmentValidity {
 	
 	public boolean areRoutesValidWrtWater(SimpleFeatureCollection catchments) throws IOException {
 		SimpleFeatureIterator catchmentIt = catchments.features();
-		while(catchmentIt.hasNext()) {
-			SimpleFeature catchment = catchmentIt.next();
-			LineString route = (LineString)catchment.getDefaultGeometry();
-			boolean isValid = isRouteValidWrtWater(route);
-			if (!isValid) {
-				return false;
+		try {
+			while(catchmentIt.hasNext()) {
+				SimpleFeature catchment = catchmentIt.next();
+				LineString route = (LineString)catchment.getDefaultGeometry();
+				boolean isValid = isRouteValidWrtWater(route);
+				if (!isValid) {
+					return false;
+				}
 			}
+		} 
+		finally {
+			catchmentIt.close();
 		}
 		return true;
 	}
@@ -75,10 +80,10 @@ public class CatchmentValidity {
 		
 		//identify route line SEGMENTS that cover water line SEGMENTS
 		//i.e a route segment with both endpoints the same as a water segment
-		Filter crossesFilter = filterFactory2D.contains(
+		Filter containsFilter = filterFactory2D.contains(
 				filterFactory2D.property(waterGeometryPropertyName), 
 				filterFactory2D.literal(route));
-		SimpleFeatureCollection nonEndpointCrossings = waterFeatures.getFeatures(crossesFilter);
+		SimpleFeatureCollection nonEndpointCrossings = waterFeatures.getFeatures(containsFilter);
 		if (nonEndpointCrossings.size() > 0) {
 			return false;
 		}
@@ -87,9 +92,13 @@ public class CatchmentValidity {
 		for(Coordinate c : route.getCoordinates()) {
 			if (!waterAnalyzer.isConfluence(c)) {
 				Point p = geometryFactory.createPoint(c);
-				Filter touchesFilter = filterFactory2D.touches(
-						filterFactory2D.property(waterGeometryPropertyName), 
-						filterFactory2D.literal(p));
+				
+				Filter touchesFilter = filterFactory2D.dwithin(
+						filterFactory2D.property(waterGeometryPropertyName),
+						filterFactory2D.literal(p),
+						0,
+						"meters"
+						);
 				SimpleFeatureCollection touchingWaterFeatures = waterFeatures.getFeatures(touchesFilter);
 				if (touchingWaterFeatures.size() > 0) {
 					return false;
@@ -98,6 +107,45 @@ public class CatchmentValidity {
 		}
 		
 		return true;
+	}
+	
+	public boolean isRouteValidWrtCatchments(Geometry route, SimpleFeatureCollection catchments) throws IOException {
+		return isRouteValidWrtCatchments(route, catchments, null);
+	}
+	
+	public boolean isRouteValidWrtCatchments(Geometry route, SimpleFeatureCollection catchments, FeatureId fidToIgnore) throws IOException {
+		String catchmentGeometryPropertyName = "geometry"; //catchments.getSchema().getGeometryDescriptor().getLocalName();
+		Coordinate[] routeCoords = route.getCoordinates();
+
+		//filter to confirm that segments don't overlap other catchments
+		Filter filter = filterFactory2D.overlaps(
+				filterFactory2D.property(catchmentGeometryPropertyName),
+				filterFactory2D.literal(route)
+				);
+		if (routeCoords.length > 2) {
+			//apply a second filter to confirm non-endpoints don't touch other catchments.
+			Coordinate[] coordsWithoutEnds = new Coordinate[routeCoords.length]; 
+			for(int i = 1; i < routeCoords.length-1; i++) {
+				coordsWithoutEnds[i-1] = routeCoords[i]; 
+			}
+			Geometry routeWithoutEnds = geometryFactory.createMultiPointFromCoords(coordsWithoutEnds);
+			Filter filterB = filterFactory2D.intersects(
+					filterFactory2D.property(catchmentGeometryPropertyName),
+					filterFactory2D.literal(routeWithoutEnds)
+					);
+			filter = filterFactory2D.or(filter, filterB);
+		}
+		if (fidToIgnore != null) {
+			//apply filter to ignore the given fid
+			Filter filterC = filterFactory2D.not(filterFactory2D.id(fidToIgnore));
+			filter = filterFactory2D.and(filter, filterC);
+		}
+		
+		SimpleFeatureCollection matches = catchments.subCollection(filter);
+		
+		return matches.size() < 1;
+
+		//return true;
 	}
 	
 }

@@ -26,11 +26,16 @@ public abstract class GeometryFitnessFinder {
 	public double fitness(SimpleFeatureCollection features) throws IOException {
 		double totalFitness = 0;
 		SimpleFeatureIterator it = features.features();
-		while(it.hasNext()) {
-			SimpleFeature f = it.next();
-			Geometry g = (Geometry)f.getDefaultGeometry();
-			double fitness = fitness(g);
-			totalFitness += fitness;
+		try {
+			while(it.hasNext()) {
+				SimpleFeature f = it.next();
+				Geometry g = (Geometry)f.getDefaultGeometry();
+				double fitness = fitness(g);
+				totalFitness += fitness;
+			}
+		}
+		finally {
+			it.close();
 		}
 		return totalFitness;
 	}

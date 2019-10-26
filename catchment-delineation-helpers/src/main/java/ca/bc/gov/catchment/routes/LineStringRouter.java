@@ -78,7 +78,7 @@ public class LineStringRouter {
 		
 		//if only one coordinate is included, duplicate it so there can be a 0-length line
 		if (included == null || included.length < 2) {
-			throw new IllegalArgumentException("Must specifiy at least two coordinates.");
+			throw new RouteException("Must specifiy at least two coordinates.");
 		}
 		
 		for(Coordinate coord: included) {
@@ -225,6 +225,7 @@ public class LineStringRouter {
 			Coordinate connectedCoord = c.equals(coords[0]) ? coords[coords.length-1] : coords[0];
 			results.add(connectedCoord);
 		}
+		touchingIt.close();
 		return results;
 	}
 	
@@ -303,7 +304,12 @@ public class LineStringRouter {
 			currentCoord = nextCoord;
 		}
 		
-		LineString result = SpatialUtils.toLineString(resultCoords);
+		LineString result = null;
+		try {
+			result = SpatialUtils.toLineString(resultCoords);
+		} catch (Exception e) {
+			throw new RouteException("Invalid route. "+e.getMessage());			
+		}
 		return result;
 	}
 	
@@ -405,13 +411,13 @@ public class LineStringRouter {
 		LineString newRoute = null;
 		
 		if (oldCoords.contains(newCoord)) {
-			throw new IllegalArgumentException("new coordinate "+newCoord+" is already part of route.");
+			throw new RouteException("new coordinate "+newCoord+" is already part of route.");
 		}
 	
 		int sliceIndex = oldCoords.indexOf(oldCoord);
 
 		if (sliceIndex < 0) {
-			throw new IllegalArgumentException("old coordinate must be part of route");
+			throw new RouteException("old coordinate must be part of route");
 		}
 		if (sliceIndex == 0) { //first point of string to be replaced
 			List<Coordinate> endSlice = oldCoords.subList(sliceIndex+1, oldCoords.size());
