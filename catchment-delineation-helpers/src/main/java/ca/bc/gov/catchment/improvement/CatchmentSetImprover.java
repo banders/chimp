@@ -43,7 +43,7 @@ public abstract class CatchmentSetImprover {
 	private SimpleFeatureType waterFeatureType;
 	private String waterGeometryPropertyName;
 	private WaterAnalyzer waterAnalyzer;
-	private DefaultFeatureCollection proposedSections;
+	private DefaultFeatureCollection proposedCatchmentSections;
 	
 	public CatchmentSetImprover(SimpleFeatureSource waterFeatures) {
 		this.waterFeatures = waterFeatures;
@@ -63,8 +63,8 @@ public abstract class CatchmentSetImprover {
 	 * @throws IOException 
 	 */
 	public SimpleFeatureCollection improve(SimpleFeatureSource sectionSet) throws IOException {
-		proposedSections = new DefaultFeatureCollection();
-		proposedSections.addAll(sectionSet.getFeatures());
+		proposedCatchmentSections = new DefaultFeatureCollection();
+		proposedCatchmentSections.addAll(sectionSet.getFeatures());
 		
 		SimpleFeatureCollection inputSet = sectionSet.getFeatures();
 		
@@ -101,10 +101,10 @@ public abstract class CatchmentSetImprover {
 			List<Coordinate> coordsToConsider = new ArrayList<Coordinate>();
 			Coordinate firstCoord = coords[0];
 			Coordinate lastCoord = coords[coords.length-1];
-			if (waterAnalyzer.isConfluence(firstCoord)) {
+			if (!waterAnalyzer.isConfluence(firstCoord)) {
 				coordsToConsider.add(firstCoord);
 			}
-			if (waterAnalyzer.isConfluence(lastCoord)) {
+			if (!waterAnalyzer.isConfluence(lastCoord)) {
 				coordsToConsider.add(lastCoord);
 			}
 			
@@ -151,7 +151,7 @@ public abstract class CatchmentSetImprover {
 		}
 		inputSetIt.close();
 		
-		return proposedSections;
+		return proposedCatchmentSections;
 	}
 	
 	/**
@@ -194,7 +194,7 @@ public abstract class CatchmentSetImprover {
 	 */
 	protected SimpleFeature getLatest(SimpleFeature section) {
 		Filter fidFilter = filterFactory.id(section.getIdentifier());
-		SimpleFeatureCollection matches = proposedSections.subCollection(fidFilter);
+		SimpleFeatureCollection matches = proposedCatchmentSections.subCollection(fidFilter);
 		SimpleFeatureIterator matchesIt = matches.features();
 		try {
 			if (matchesIt.hasNext()) {
@@ -218,7 +218,7 @@ public abstract class CatchmentSetImprover {
 	 */
 	private void addOrUpdate(SimpleFeature f) {
 		Filter fidFilter = filterFactory.id(f.getIdentifier());
-		SimpleFeatureCollection matches = proposedSections.subCollection(fidFilter);
+		SimpleFeatureCollection matches = proposedCatchmentSections.subCollection(fidFilter);
 		SimpleFeatureIterator matchesIt = matches.features();
 
 		//if a feature with the same FID as the given feature already exists, 
@@ -234,11 +234,11 @@ public abstract class CatchmentSetImprover {
 			matchesIt.close();
 		}
 		if (toRemove != null) {
-			proposedSections.remove(toRemove);
+			proposedCatchmentSections.remove(toRemove);
 		}
 		
 		//add the new feature
-		proposedSections.add(f);
+		proposedCatchmentSections.add(f);
 	}
 	
 	/**
@@ -294,7 +294,9 @@ public abstract class CatchmentSetImprover {
 		return this.waterAnalyzer;
 	}
 	
-	public SimpleFeatureCollection getProposedSections() {
-		return this.proposedSections;
+	public SimpleFeatureCollection getProposedCatchmentSections() {
+		return this.proposedCatchmentSections;
 	}
+	
+
 }

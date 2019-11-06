@@ -27,19 +27,21 @@ import org.opengis.feature.simple.SimpleFeatureType;
 
 import ca.bc.gov.catchment.routes.LineStringRouter;
 import ca.bc.gov.catchment.synthetic.DummyFactory;
+import ca.bc.gov.catchment.synthetic.TestHelper;
+import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchments.utils.SaveUtils;
 import ca.bc.gov.catchments.utils.SpatialUtils;
 
 public class LineStringRouterTest {
 
-	private static final boolean SAVE_RESULTS = false;
+	private static final boolean SAVE_RESULTS = true;
 	private static final String SAVE_DIR = "C:\\Temp\\";
 	
-	private SimpleFeatureSource tinEdges;
+	private TinEdges tinEdges;
 	
 	public LineStringRouterTest() {
 		try {
-			tinEdges = DummyFactory.createDummyTinEdges();
+			tinEdges = new TinEdges(DummyFactory.createDummyTinEdges());
 		} catch (IOException e) {
 			System.out.println("Unable to setup LineStringRouterTest.  Can't create dummy TIN.");
 			e.printStackTrace();
@@ -78,9 +80,9 @@ public class LineStringRouterTest {
 			try {
 				List<LineString> routes = new ArrayList<LineString>();
 				routes.add(route);
-				SimpleFeatureSource routesFs = createLineStringFeatureSource(routes, "routes");
-				save(tinEdges, saveFilename);
-				save(routesFs, saveFilename);
+				SimpleFeatureSource routesFs = TestHelper.createLineStringFeatureSource(routes, "routes");
+				TestHelper.save(tinEdges.getFeatureSource(), saveFilename);
+				TestHelper.save(routesFs, saveFilename);
 			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -164,15 +166,15 @@ public class LineStringRouterTest {
 				List<LineString> routes = new ArrayList<LineString>();
 				routes.add(initialRoute);
 				routes.addAll(alternativeRoutes);
-				SimpleFeatureSource routesFs = createLineStringFeatureSource(routes, "routes");
+				SimpleFeatureSource routesFs = TestHelper.createLineStringFeatureSource(routes, "routes");
 				
 				List<Coordinate> coords = new ArrayList<Coordinate>();
 				coords.add(pointToRemove);
-				SimpleFeatureSource pointsFs = createPointFeatureSource(coords);
+				SimpleFeatureSource pointsFs = TestHelper.createPointFeatureSource(coords);
 				
-				save(tinEdges, saveFilename);
-				save(routesFs, saveFilename);
-				save(pointsFs, saveFilename);
+				TestHelper.save(tinEdges.getFeatureSource(), saveFilename);
+				TestHelper.save(routesFs, saveFilename);
+				TestHelper.save(pointsFs, saveFilename);
 			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -218,8 +220,8 @@ public class LineStringRouterTest {
 	}
 	
 	@Test
-	public void testMoveCommonEndpoint() throws IOException, RouteException {
-		String testName = "LineStringRouter-test-move-common-endpoint";
+	public void testMoveJunction() throws IOException, RouteException {
+		String testName = "LineStringRouter-test-move-junction";
 		String saveFilename = SAVE_DIR+testName+".gpkg";
 		File saveFile = new File(saveFilename);
 		if (SAVE_RESULTS && saveFile.exists()) {
@@ -247,15 +249,15 @@ public class LineStringRouterTest {
 		for (Coordinate c : connectedCoords) {
 			if (!router.isCoordinateOf(c, initialRoutes.get(0)) && 
 				!router.isCoordinateOf(c, initialRoutes.get(1))) {
-					newCommonCoordinate = c;
-				}
+				newCommonCoordinate = c;
+			}
 		}
 		
 		System.out.println("initial routes");
 		for(LineString route : initialRoutes) {
 			System.out.println(route);
 		}
-		System.out.println("moving common point "+commonCoordinate+" to "+newCommonCoordinate);
+		System.out.println("moving junction "+commonCoordinate+" to "+newCommonCoordinate);
 		
 		if (newCommonCoordinate == null) {
 			throw new IllegalStateException("Unable to find a new coordinate to move the common endpoint to");
@@ -263,11 +265,11 @@ public class LineStringRouterTest {
 		
 		List<LineString> newRoutes = null;
 		try {
-			System.out.println("Moving common endpoint");
-			newRoutes = router.moveJunction(initialRoutes, commonCoordinate, newCommonCoordinate);
+			System.out.println("Moving junction");
+			newRoutes = router.moveJunction(initialRoutes, commonCoordinate, newCommonCoordinate, 1);
 		} catch (IOException e) {
 			e.printStackTrace();
-			Assert.fail("Unable to move common endpoint");
+			Assert.fail("Unable to move junction");
 		}
 		
 		System.out.println("updated routes");
@@ -278,18 +280,18 @@ public class LineStringRouterTest {
 		if (SAVE_RESULTS) {
 			try {
 				
-				SimpleFeatureSource initialRoutesFs = createLineStringFeatureSource(initialRoutes, "routes_initial");
-				SimpleFeatureSource updatedRoutesFs = createLineStringFeatureSource(newRoutes, "routes_updated");
+				SimpleFeatureSource initialRoutesFs = TestHelper.createLineStringFeatureSource(initialRoutes, "routes_initial");
+				SimpleFeatureSource updatedRoutesFs = TestHelper.createLineStringFeatureSource(newRoutes, "routes_updated");
 				
 				List<Coordinate> coords = new ArrayList<Coordinate>();
 				coords.add(commonCoordinate);
 				coords.add(newCommonCoordinate);
-				SimpleFeatureSource pointsFs = createPointFeatureSource(coords);
+				SimpleFeatureSource pointsFs = TestHelper.createPointFeatureSource(coords);
 				
-				save(tinEdges, saveFilename);
-				save(initialRoutesFs, saveFilename);
-				save(updatedRoutesFs, saveFilename);
-				save(pointsFs, saveFilename);
+				TestHelper.save(tinEdges.getFeatureSource(), saveFilename);
+				TestHelper.save(initialRoutesFs, saveFilename);
+				TestHelper.save(updatedRoutesFs, saveFilename);
+				TestHelper.save(pointsFs, saveFilename);
 			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -299,12 +301,10 @@ public class LineStringRouterTest {
 		//validate alternative routes
 		for (LineString route : newRoutes) {
 			Coordinate[] coords = route.getCoordinates();
-			List<Coordinate> coordList = SpatialUtils.toCoordinateList(coords);
-			if (!coordList.contains(newCommonCoordinate)) {
-				Assert.fail("Route isn't correct.  It doesn't contain the new coordinate "+newCommonCoordinate);
-			}
-			if (coordList.contains(commonCoordinate)) {
-				Assert.fail("Route isn't correct.  It should not contain the old common coordinate "+commonCoordinate);
+			Coordinate first = coords[0];
+			Coordinate last = coords[coords.length-1];
+			if (!first.equals(newCommonCoordinate) && !last.equals(newCommonCoordinate) ) {
+				Assert.fail("Route isn't correct.  It doesn't end at the new junction coordinate "+newCommonCoordinate);
 			}
 			if (!router.doesRouteFollowTinEdges(route)) {
 				Assert.fail("Route doesn't follow TIN: "+route);
@@ -324,7 +324,7 @@ public class LineStringRouterTest {
 	}
 	
 	
-	private Coordinate[] pickCoordinates(SimpleFeatureSource tinEdges, int n) throws IOException {
+	private Coordinate[] pickCoordinates(TinEdges tinEdges, int n) throws IOException {
 		Collection<Coordinate> resultCollection = new ArrayList<Coordinate>();
 		SimpleFeatureCollection fc = tinEdges.getFeatures();
 		SimpleFeatureIterator it = fc.features();
@@ -366,6 +366,7 @@ public class LineStringRouterTest {
 		}
 		throw new IllegalStateException("Unable to find "+n+" unique coordinates.");
 	}
+	
 	/**
 	 * returns true if the given linestring contains all the given coordinates
 	 * @param route
@@ -382,54 +383,7 @@ public class LineStringRouterTest {
 		return true;
 	}
 	
-	private void save(SimpleFeatureSource fs, String filename) throws IOException {
-		SaveUtils.saveToGeoPackage(filename, fs.getFeatures());
-	}
-	
-	private SimpleFeatureSource createLineStringFeatureSource(List<LineString> routes, String tableName) { 
-	
-		//save route
-		DefaultFeatureCollection routeFc = new DefaultFeatureCollection();
-		SimpleFeatureType routeFeatType = null;
-		try {
-			routeFeatType = DataUtilities.createType(tableName, "geometry:LineString");
-		} catch (SchemaException e1) {
-			System.out.println("Unable to create feature type "+tableName);
-			System.exit(1);
-		}
-		SimpleFeatureBuilder routeFeatBuilder = new SimpleFeatureBuilder(routeFeatType);
-		int nextId = 0;
-		for(LineString route: routes) {
-			Object[] values = {route};
-			routeFc.add(routeFeatBuilder.buildFeature(""+nextId++, values));
-		}
-		CollectionFeatureSource fs = new CollectionFeatureSource(routeFc);
-		return fs;
-	}
-	
-	private SimpleFeatureSource createPointFeatureSource(List<Coordinate> coords) { 
-		
-		//save route
-		DefaultFeatureCollection fc = new DefaultFeatureCollection();
-		SimpleFeatureType featType = null;
-		try {
-			featType = DataUtilities.createType("key_points", "geometry:Point");
-		} catch (SchemaException e1) {
-			System.out.println("Unable to create feature type "+"key_points");
-			System.exit(1);
-		}
-		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory(); 
-		SimpleFeatureBuilder routeFeatBuilder = new SimpleFeatureBuilder(featType);
-		int nextId = 0;
-		for(Coordinate c: coords) {
-			Geometry g = geometryFactory.createPoint(c);
-			Object[] values = {g};
-			fc.add(routeFeatBuilder.buildFeature(""+nextId++, values));
-		}
-		CollectionFeatureSource fs = new CollectionFeatureSource(fc);
-		return fs;
-	}
-	
+
 	
 	
 }

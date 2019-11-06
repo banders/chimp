@@ -85,7 +85,9 @@ import ca.bc.gov.catchment.fitness.ElevationFitnessFinder;
 import ca.bc.gov.catchment.fitness.GeometryFitnessFinder;
 import ca.bc.gov.catchment.fitness.RidgeFitnessFinder;
 import ca.bc.gov.catchment.improvement.CatchmentSetImprover;
-import ca.bc.gov.catchment.improvement.RadiusCatchmentSetImprover;
+import ca.bc.gov.catchment.improvement.SimulatedAnnealingCatchmentSetImprover;
+import ca.bc.gov.catchment.improvement.ZipperCatchmentSetImprover;
+import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchments.utils.SaveUtils;
 import ca.bc.gov.catchments.utils.SpatialUtils;
 
@@ -344,13 +346,25 @@ public class ImproveCatchments {
 			//GeometryFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolysFeatureSource);
 			GeometryFitnessFinder fitnessFinder = new ElevationFitnessFinder(tinPolysFeatureSource);
 			
-			CatchmentSetImprover improver = new RadiusCatchmentSetImprover(
+			TinEdges tinEdges = new TinEdges(tinEdgesFeatureSource);
+			
+			CatchmentSetImprover improver = new SimulatedAnnealingCatchmentSetImprover(
 					waterFeatureSource,
-					tinEdgesFeatureSource,
+					tinEdges,
 					catchmentsFeatureSource,
 					fitnessFinder,
-					200 //radius
+					100 //radius
 					);
+			
+			/*
+			CatchmentSetImprover improver = new ZipperCatchmentSetImprover(
+					waterFeatureSource,
+					tinEdges,
+					catchmentsFeatureSource,
+					fitnessFinder,
+					100 //radius
+					);
+					*/
 			
 			//convert all catchment coords to 3D
 			//TODO: offload this responsibility to a separate script that should be run before

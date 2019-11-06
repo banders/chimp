@@ -27,6 +27,7 @@ import org.tinfour.standard.IncrementalTin;
 import ca.bc.gov.catchment.algorithms.TrianglesFromEdgesAlg;
 import ca.bc.gov.catchment.routes.LineStringRouter;
 import ca.bc.gov.catchment.routes.RouteException;
+import ca.bc.gov.catchment.tin.TinEdges;
 
 public class DummyFactory {
 	
@@ -135,7 +136,7 @@ public class DummyFactory {
 	}
 	
 	public static SimpleFeatureSource createDummyWaterFeatures() throws IOException, RouteException {
-		SimpleFeatureSource tinEdges = createDummyTinEdges();
+		TinEdges tinEdges = new TinEdges(createDummyTinEdges());
 		LineStringRouter router = new LineStringRouter(tinEdges);
 		
 		List<LineString> routes = new ArrayList<LineString>();
@@ -172,7 +173,7 @@ public class DummyFactory {
 	}
 	
 	public static SimpleFeatureSource createDummyCatchments() throws IOException, RouteException {
-		SimpleFeatureSource tinEdges = createDummyTinEdges();
+		TinEdges tinEdges = new TinEdges(createDummyTinEdges());
 		LineStringRouter router = new LineStringRouter(tinEdges);
 		
 		List<Geometry> catchmentSections = new ArrayList<Geometry>();

@@ -19,6 +19,7 @@ import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
 
+import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchments.utils.SpatialUtils;
 
 /**
@@ -29,7 +30,7 @@ import ca.bc.gov.catchments.utils.SpatialUtils;
  */
 public class LineStringRouter {
 
-	private SimpleFeatureSource tinEdges;
+	private TinEdges tinEdges;
 	private SimpleFeatureType tinEdgesFeatureType;
 	private String tinEdgesGeometryProperty;
 	private GeometryFactory geometryFactory; 
@@ -37,7 +38,7 @@ public class LineStringRouter {
 	private boolean allowSelfIntersection;
 	private boolean allowRepeatedCoords;
 	
-	public LineStringRouter(SimpleFeatureSource tinEdges) {
+	public LineStringRouter(TinEdges tinEdges) {
 		this.tinEdges = tinEdges;
 		this.allowSelfIntersection = true;
 		this.allowRepeatedCoords = false;
@@ -164,17 +165,26 @@ public class LineStringRouter {
 	// Public Helpers
 	// ------------------------------------------------------------------------
 	
+	public List<LineString> moveJunction(List<LineString> routes, Coordinate endpointToRemove, Coordinate newEndpoint) throws IOException, RouteException {
+		return moveJunction(routes, endpointToRemove, newEndpoint, 1);
+	}
+	
 	/**
 	 * Given an list of linestrings which share one common endpoint, move the common endpoint to another point.  
 	 * The result is a list of new linestrings which reflect the change.
 	 * @param routes
 	 * @param endpointToRemove
 	 * @param newEndpoint
+	 * @param numLooseVertices the number of vertices to allow to move when the junction point changes.  counted from the junction end. 
 	 * @return
 	 * @throws IOException
 	 * @throws RouteException 
 	 */
-	public List<LineString> moveJunction(List<LineString> routes, Coordinate endpointToRemove, Coordinate newEndpoint) throws IOException, RouteException {
+	public List<LineString> moveJunction(List<LineString> routes, Coordinate endpointToRemove, Coordinate newEndpoint, int numLooseVertices) throws IOException, RouteException {
+		
+		if (numLooseVertices < 1) {
+			throw new IllegalArgumentException("numLooseVertices must be >= 1");
+		}
 		
 		//validate input
 		int n = 0;
@@ -189,16 +199,61 @@ public class LineStringRouter {
 		}
 		
 		List<LineString> updatedRoutes = new ArrayList<LineString>();
+		//System.out.println("proposed new routes");
 		for(LineString route : routes) {
-			LineString updatedRoute = replaceRouteCoordinate(route, endpointToRemove, newEndpoint);
+			//allow the last 'numLooseVertices' to move.  to achieve this, we remove those vertices
+			//from the 'included' set when we create the updated route
+			int numVerticiesToRemove = Math.min(numLooseVertices, route.getNumPoints()-1); 
+			List<Coordinate> included = truncateCoordinates(route.getCoordinates(), endpointToRemove, numVerticiesToRemove);
+			boolean junctionAtStart = route.getCoordinateN(0).equals(endpointToRemove);
+			if (junctionAtStart) {
+				included.add(0, newEndpoint);
+			}
+			else {
+				included.add(newEndpoint);
+			}
+			Coordinate[] excluded = {};
+			LineString updatedRoute = makeRoute(SpatialUtils.toCoordinateArray(included), excluded);
+			//LineString updatedRoute = replaceRouteCoordinate(route, endpointToRemove, newEndpoint);
+			//System.out.println(updatedRoute);
 			updatedRoutes.add(updatedRoute);
 		}
 		
 		if (doRoutesOverlap(updatedRoutes)) {
-			throw new RouteException("unable to find a an alternative junction position");
+			throw new RouteException("unable to find an alternative junction position that is valid for all routes");
 		}
 		
 		return updatedRoutes;
+	}
+	
+	public List<Coordinate> truncateCoordinates(Coordinate[] coords, Coordinate startFromCoord, int numCoordsToRemove) {	
+		int maxNumCoordsToRemove = coords.length - 1;
+		if (numCoordsToRemove > maxNumCoordsToRemove) {
+			throw new IllegalArgumentException("unable to remove "+numCoordsToRemove+ " from route with "+coords.length);
+		}		
+		
+		int newLength = coords.length-numCoordsToRemove;
+		Coordinate[] resultCoords = new Coordinate[newLength];
+		
+		//truncate from beginning
+		if (coords[0].equals(startFromCoord)) {
+			for(int i = 0; i < newLength; i++) {
+				resultCoords[i] = coords[i+numCoordsToRemove];
+			}
+		}
+		
+		//truncate from end
+		else if (coords[coords.length-1].equals(startFromCoord)) {
+			for(int i = 0; i < newLength; i++) {
+				resultCoords[i] = coords[i];
+			}
+		}
+		
+		else {
+			throw new IllegalArgumentException("route must start or end with the specified coordinate");
+		}
+		
+		return SpatialUtils.toCoordinateList(resultCoords);
 	}
 	
 	/**
@@ -229,7 +284,7 @@ public class LineStringRouter {
 		return results;
 	}
 	
-	public boolean isEndPointOf(Coordinate c, LineString route) {
+	public static boolean isEndPointOf(Coordinate c, LineString route) {
 		Coordinate c1 = route.getCoordinateN(0);
 		Coordinate cn = route.getCoordinateN(route.getNumPoints()-1);
 		if (c.equals(c1) || c.equals(cn)) {
@@ -238,12 +293,22 @@ public class LineStringRouter {
 		return false;
 	}
 	
-	public boolean isCoordinateOf(Coordinate c, LineString route) {
+	public static boolean isCoordinateOf(Coordinate c, LineString route) {
 		List<Coordinate> coords = SpatialUtils.toCoordinateList(route.getCoordinates());
 		if (coords.contains(c)) {
 			return true;
 		}
 		return false;
+	}
+	
+	public static int getIndex(LineString route, Coordinate coord) {
+		for(int i = 0; i < route.getNumPoints(); i++) {
+			Coordinate c = route.getCoordinateN(i);
+			if (c.equals(coord)) {
+				return i;
+			}
+		}
+		return -1;
 	}
 	
 	public boolean doesRouteFollowTinEdges(LineString s) throws IOException {
@@ -455,6 +520,11 @@ public class LineStringRouter {
 		return newRoute;
 	}
 	
+	/**
+	 * checks for overlapping segments and non-endpoint touchings
+	 * @param routes
+	 * @return
+	 */
 	public boolean doRoutesOverlap(List<LineString> routes) {
 		
 		for(LineString route1 : routes) {
@@ -463,12 +533,50 @@ public class LineStringRouter {
 					continue;
 				}
 				//check whether route SEGMENTS overlap
-				if (route1.contains(route2)) {
-					return false;
+				if (route1.contains(route2) || route1.contains(route2.reverse())) {
+					return true;
+				}
+				
+				//remove endpoints, then check for TOUCHES of vertices
+				if (touchesAtNonEndpoints(route1, route2)) {
+					return true;
 				}
 			}
 		}
-		return true;
+		
+		return false;
+	}
+	
+	private boolean touchesAtNonEndpoints(LineString route1, LineString route2) {
+		Coordinate[] coords1 = removeEndpoints(route1.getCoordinates());
+		Coordinate[] coords2 = removeEndpoints(route2.getCoordinates());
+		
+		for (Coordinate c1 : coords1) {
+			for (Coordinate c2 : coords2) {
+				if (c1 != null && c1.equals(c2)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+	
+	private Coordinate[] removeEndpoints(Coordinate[] coords) {
+		Coordinate[] result = new Coordinate[coords.length - 1];
+		for (int i = 1; i < coords.length-2; i++) {
+			result[i-1] = coords[i];
+		}
+		return result;
+	}
+	
+	private LineString removeEndpoints(LineString route) {
+		Coordinate[] coords = route.getCoordinates();
+		if (coords.length < 4 ) {
+			throw new IllegalArgumentException("route must have least 4 coordinates");
+		}
+		Coordinate[] updatedCoords = removeEndpoints(coords);
+		LineString result = geometryFactory.createLineString(updatedCoords);
+		return result;
 	}
 	
 }

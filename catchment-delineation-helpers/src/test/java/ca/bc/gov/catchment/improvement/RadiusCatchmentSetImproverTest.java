@@ -17,6 +17,7 @@ import org.locationtech.jts.util.Assert;
 import ca.bc.gov.catchment.fitness.CatchmentValidity;
 import ca.bc.gov.catchment.fitness.RidgeFitnessFinder;
 import ca.bc.gov.catchment.synthetic.DummyFactory;
+import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchments.utils.SaveUtils;
 import ca.bc.gov.catchments.utils.SpatialUtils;
 
@@ -37,12 +38,12 @@ public class RadiusCatchmentSetImproverTest {
 		
 		SimpleFeatureSource waterFeatures = DummyFactory.createDummyWaterFeatures();
 		SimpleFeatureSource catchmentEdges = DummyFactory.createDummyCatchments();
-		SimpleFeatureSource tinEdges = DummyFactory.createDummyTinEdges();
-		SimpleFeatureSource tinPolys = DummyFactory.createDummyTinPolys(tinEdges);
+		TinEdges tinEdges = new TinEdges(DummyFactory.createDummyTinEdges());
+		SimpleFeatureSource tinPolys = DummyFactory.createDummyTinPolys(tinEdges.getFeatureSource());
 		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double radius = 4;
 		
-		CatchmentSetImprover improver = new RadiusCatchmentSetImprover(
+		CatchmentSetImprover improver = new ZipperCatchmentSetImprover(
 				waterFeatures, 
 				tinEdges, 
 				catchmentEdges,

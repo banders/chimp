@@ -11,11 +11,13 @@ public class JunctionModification {
 	private Coordinate originalJunction;
 	private Coordinate modifiedJunction;
 	private List<SimpleFeature> modifiedSections;
+	private List<SimpleFeature> originalSections;
 	
-	public JunctionModification(Coordinate originalJunction) {
+	public JunctionModification(Coordinate originalJunction, List<SimpleFeature> originalSections) {
 		this.originalJunction = originalJunction;
 		this.modifiedJunction = originalJunction;
 		this.modifiedSections = new ArrayList<SimpleFeature>();
+		this.originalSections = originalSections;
 	}
 	
 	public void setModifiedJunction(Coordinate modifiedJunction) {
@@ -36,5 +38,9 @@ public class JunctionModification {
 	
 	public List<SimpleFeature> getModifiedSections() {
 		return this.modifiedSections;
+	}
+	
+	public List<SimpleFeature> getOriginalSections() {
+		return this.originalSections;
 	}
 }
