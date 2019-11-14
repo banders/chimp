@@ -100,15 +100,20 @@ public class Tin {
 		double maxZ = 0;
 		SimpleFeatureCollection all = featureSource.getFeatures();
 		SimpleFeatureIterator allIt = all.features();
-		while(allIt.hasNext()) {
-			SimpleFeature f = allIt.next();
-			Geometry g = (Geometry)f.getDefaultGeometry();
-			Coordinate[] coords = g.getCoordinates();
-			for(Coordinate c : coords) {
-				if (c.getZ() > maxZ) {
-					maxZ = c.getZ();
+		try {
+			while(allIt.hasNext()) {
+				SimpleFeature f = allIt.next();
+				Geometry g = (Geometry)f.getDefaultGeometry();
+				Coordinate[] coords = g.getCoordinates();
+				for(Coordinate c : coords) {
+					if (c.getZ() > maxZ) {
+						maxZ = c.getZ();
+					}
 				}
 			}
+		}
+		finally {
+			allIt.close();
 		}
 		return maxZ;
 	}
@@ -117,21 +122,26 @@ public class Tin {
 		double maxLen = 0;
 		SimpleFeatureCollection all = featureSource.getFeatures();
 		SimpleFeatureIterator allIt = all.features();
-		while(allIt.hasNext()) {
-			SimpleFeature f = allIt.next();
-			Geometry g = (Geometry)f.getDefaultGeometry();
-			Coordinate[] coords = g.getCoordinates();
-			Coordinate prev = null;
-			for(Coordinate c : coords) {
-				if (prev != null) {
-					LineString segment = SpatialUtils.toLineString(prev, c);
-					double len = segment.getLength();
-					if (len > maxLen) {
-						maxLen = len;
+		try {
+			while(allIt.hasNext()) {
+				SimpleFeature f = allIt.next();
+				Geometry g = (Geometry)f.getDefaultGeometry();
+				Coordinate[] coords = g.getCoordinates();
+				Coordinate prev = null;
+				for(Coordinate c : coords) {
+					if (prev != null) {
+						LineString segment = SpatialUtils.toLineString(prev, c);
+						double len = segment.getLength();
+						if (len > maxLen) {
+							maxLen = len;
+						}
 					}
+					prev = c;
 				}
-				prev = c;
 			}
+		}
+		finally {
+			allIt.close();
 		}
 		return maxLen;
 	}
