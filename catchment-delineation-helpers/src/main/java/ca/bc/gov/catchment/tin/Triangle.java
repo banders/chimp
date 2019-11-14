@@ -389,7 +389,8 @@ public class Triangle {
 	}
 	
 	/**
-	 * slope is a first-quadrant number (angle 0-90 degrees).  0 means horizontal.  90 means vertical.
+	 * slope is an angle (0-90 degrees) downwards from the horizontal in the direction of the aspect.  
+	 * 0 means horizontal.  90 means vertical.
 	 * aspect is a number 0-360 indicating the downhill direction.  0 means east, 90 means north, 180 means west, 270 means south
 	 * @return
 	 */
@@ -408,14 +409,22 @@ public class Triangle {
 		//}
 		//System.out.println("slope:"+slope);
 		
-		//if aspect cannot be determined (e.g. when the triangle is flat on the horizontal plane)
-		//then assume aspect is 0.
-		double aspect = 0;
-		if (normal.magnitudeWithSignX() != 0) {
-			//tangent function always returns a value in quadrant 1 or 4 (i.e. -90 to + 90)
-			Math.toDegrees(Math.atan(normal.magnitudeWithSignY()/normal.magnitudeWithSignX()));
+		//because we cannot divide by a x magnitude of 0 in the aspect calculation below
+		double normalMagnitudeWithSignX = normal.magnitudeWithSignX();
+		if (normalMagnitudeWithSignX == 0) {
+			normalMagnitudeWithSignX = 0.0000001; //almost 0, but not quite (so we don't get a divide-by-zero error below)
 		}
+		
+		//tangent function always returns a value in quadrant 1 or 4 (i.e. -90 to + 90)
+		double aspect = Math.toDegrees(Math.atan(normal.magnitudeWithSignY()/normalMagnitudeWithSignX));
 
+		if (normal.magnitudeWithSignX() == 0) {
+			int sign = aspect < 0 ? -1 : 1;
+			aspect = 90 * sign;
+		}
+			
+			
+		
 		//System.out.println(magthis);
 		//System.out.println(" slope:"+slope);
 		//System.out.println(" aspect:"+aspect);
@@ -430,6 +439,25 @@ public class Triangle {
 				
 		return result;
 		
+	}
+	
+	/**
+	 * gets a slope value which is negative if the aspect is downward *from the base*, and which is
+	 * positive if the aspect is upward *from the base*
+	 * @param baseEdge
+	 * @return
+	 */
+	public double getSlopeRelativeToBaseEdge(Edge baseEdge) {
+		Edge spine = getSpineEdge(baseEdge);
+		double spineAngle = spine.getCompassAngle() % 360;
+		double aspect = getAspect() % 360;
+		double slopeRelativeToBase = getSlope();
+		double diff = Math.abs(spineAngle - aspect);
+		
+		if (diff < 90) {
+			slopeRelativeToBase *= -1;
+		}
+		return slopeRelativeToBase;
 	}
 	
 	private double containsCoordinateHelper (Coordinate c1, Coordinate c2, Coordinate c3)

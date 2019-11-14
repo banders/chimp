@@ -16,6 +16,7 @@ import org.locationtech.jts.util.Assert;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 
+import ca.bc.gov.catchment.synthetic.DummyFactory;
 import ca.bc.gov.catchment.tin.Triangle;
 import ca.bc.gov.catchments.utils.SpatialUtils;
 
@@ -44,7 +45,7 @@ public class RidgeFitnessTest {
 		Coordinate d = new Coordinate(3, 2, 9);
 		Triangle t2 = new Triangle(a, b, d);
 		
-		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
+		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
 		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
@@ -70,7 +71,7 @@ public class RidgeFitnessTest {
 		Coordinate d = new Coordinate(2, -3, 8);
 		Triangle t2 = new Triangle(a, b, d);
 		
-		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
+		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
 		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
@@ -96,7 +97,7 @@ public class RidgeFitnessTest {
 		Coordinate d = new Coordinate(3, 2, 11);
 		Triangle t2 = new Triangle(a, b, d);
 		
-		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
+		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
 		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
@@ -122,7 +123,7 @@ public class RidgeFitnessTest {
 		Coordinate d = new Coordinate(3, -3, 12);
 		Triangle t2 = new Triangle(a, b, d);
 		
-		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
+		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
 		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
@@ -149,7 +150,7 @@ public class RidgeFitnessTest {
 		Coordinate d = new Coordinate(3, -1, 9);
 		Triangle t2 = new Triangle(a, b, d);
 		
-		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
+		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
 		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
@@ -176,7 +177,7 @@ public class RidgeFitnessTest {
 		Coordinate d = new Coordinate(2, -2, 12);
 		Triangle t2 = new Triangle(a, b, d);
 		
-		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
+		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
 		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
@@ -200,7 +201,7 @@ public class RidgeFitnessTest {
 		Coordinate d = new Coordinate(3, -3, 9);
 		Triangle t2 = new Triangle(a, b, d);
 		
-		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
+		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
 		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
@@ -224,7 +225,7 @@ public class RidgeFitnessTest {
 		Coordinate d = new Coordinate(3, 2, 9);
 		Triangle t2 = new Triangle(a, b, d);
 		
-		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
+		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
 		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
@@ -251,42 +252,12 @@ public class RidgeFitnessTest {
 		Coordinate d = new Coordinate(4, -1, 9);
 		Triangle t2 = new Triangle(a, b, d);
 		
-		SimpleFeatureSource tinPolys = createTinPolys(t1, t2, "tin_polygons");
+		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
 		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness == 0, "fitness expected to be 0.  found "+fitness);
 	}
 	
-	/**
-	 * A convenience function that create a TIN polygon feature source from two triangles.
-	 * @param t1
-	 * @param t2
-	 * @param tableName
-	 * @return
-	 * @throws IOException
-	 */
-	private SimpleFeatureSource createTinPolys(Triangle t1, Triangle t2, String tableName) throws IOException {
-		DefaultFeatureCollection fc = new DefaultFeatureCollection();
-		
-		SimpleFeatureType featureType = null;
-		try {
-			featureType = DataUtilities.createType(tableName, "geometry:Polygon");
-		} catch (SchemaException e1) {
-			throw new IllegalStateException("Unable to create feature type "+tableName);
-		}
-		
-		Geometry g1 = t1.toPolygon();
-		Geometry g2 = t2.toPolygon();
-		
-		SimpleFeature f1 = SpatialUtils.geomToFeature(g1, featureType, "1");
-		SimpleFeature f2 = SpatialUtils.geomToFeature(g2, featureType, "2");
-		fc.add(f1);
-		fc.add(f2);
-		
-		SpatialIndexFeatureCollection indexedFc = new SpatialIndexFeatureCollection(fc);
-		SpatialIndexFeatureSource result = new SpatialIndexFeatureSource(indexedFc);
-		return result;
-	}
-	
+
 }

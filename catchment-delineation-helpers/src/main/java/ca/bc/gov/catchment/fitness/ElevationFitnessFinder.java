@@ -47,13 +47,13 @@ public class ElevationFitnessFinder extends GeometryFitnessFinder {
 	
 	@Override
 	public double fitness(Coordinate c1, Coordinate c2) throws IOException {
-		double avgZ = (c1.getZ() + c2.getZ())/2;
+		double sumZ = (c1.getZ() + c2.getZ());
 		
 		Coordinate[] coords = {c1, c2};
 		LineString segment = geometryFactory.createLineString(coords);
 		double length = segment.getLength();
 		
-		double fitness = avgZ / length;
+		double fitness = sumZ / length;
 		return fitness;
 	}
 

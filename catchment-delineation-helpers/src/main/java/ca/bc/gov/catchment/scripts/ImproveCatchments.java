@@ -84,10 +84,12 @@ import ca.bc.gov.catchment.algorithms.NearestNeighbour3DMaker;
 import ca.bc.gov.catchment.fitness.ElevationFitnessFinder;
 import ca.bc.gov.catchment.fitness.GeometryFitnessFinder;
 import ca.bc.gov.catchment.fitness.RidgeFitnessFinder;
+import ca.bc.gov.catchment.fitness.SondheimFitnessFinder;
 import ca.bc.gov.catchment.improvement.CatchmentSetImprover;
 import ca.bc.gov.catchment.improvement.SimulatedAnnealingCatchmentSetImprover;
 import ca.bc.gov.catchment.improvement.ZipperCatchmentSetImprover;
 import ca.bc.gov.catchment.tin.TinEdges;
+import ca.bc.gov.catchment.tin.TinPolys;
 import ca.bc.gov.catchments.utils.SaveUtils;
 import ca.bc.gov.catchments.utils.SpatialUtils;
 
@@ -343,8 +345,10 @@ public class ImproveCatchments {
 			SpatialIndexFeatureCollection indexedFc = new SpatialIndexFeatureCollection(inCatchmentFeatureCollection);
 			SimpleFeatureSource catchmentsFeatureSource = new SpatialIndexFeatureSource(indexedFc);
 			
+			TinPolys tinPolys = new TinPolys(tinPolysFeatureSource);
 			//GeometryFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolysFeatureSource);
-			GeometryFitnessFinder fitnessFinder = new ElevationFitnessFinder(tinPolysFeatureSource);
+			//GeometryFitnessFinder fitnessFinder = new ElevationFitnessFinder(tinPolysFeatureSource);
+			GeometryFitnessFinder fitnessFinder = new SondheimFitnessFinder(tinPolys);
 			
 			TinEdges tinEdges = new TinEdges(tinEdgesFeatureSource);
 			

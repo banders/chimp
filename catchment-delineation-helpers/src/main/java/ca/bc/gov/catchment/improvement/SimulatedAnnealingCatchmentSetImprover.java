@@ -194,7 +194,7 @@ public class SimulatedAnnealingCatchmentSetImprover extends CatchmentSetImprover
 			int pivotIndex = (int)(Math.random() * route.getNumPoints());
 			Coordinate oldCoord = route.getCoordinateN(pivotIndex);
 			Coordinate newCoord = tinEdges.getRandomCoordInRadius(oldCoord, radius, true);
-			int freedom = (int)(Math.random() * route.getNumPoints() / 2);
+			int freedom = (int)(Math.random() * route.getNumPoints());
 			try {
 				LineString neighbourRoute = router.reroute(route, oldCoord, newCoord, freedom);
 				return neighbourRoute;

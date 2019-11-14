@@ -28,6 +28,8 @@ import ca.bc.gov.catchment.algorithms.TrianglesFromEdgesAlg;
 import ca.bc.gov.catchment.routes.LineStringRouter;
 import ca.bc.gov.catchment.routes.RouteException;
 import ca.bc.gov.catchment.tin.TinEdges;
+import ca.bc.gov.catchment.tin.Triangle;
+import ca.bc.gov.catchments.utils.SpatialUtils;
 
 public class DummyFactory {
 	
@@ -224,4 +226,59 @@ public class DummyFactory {
 		return fs;
 		
 	}
+	
+	/**
+	 * Creates a TIN polygon feature source from two triangles.
+	 * @param t1
+	 * @param t2
+	 * @param tableName
+	 * @return
+	 * @throws IOException
+	 */
+	public static SimpleFeatureSource createTinPolys(Triangle t1, Triangle t2, String tableName) throws IOException {
+		DefaultFeatureCollection fc = new DefaultFeatureCollection();
+		
+		SimpleFeatureType featureType = null;
+		try {
+			featureType = DataUtilities.createType(tableName, "geometry:Polygon");
+		} catch (SchemaException e1) {
+			throw new IllegalStateException("Unable to create feature type "+tableName);
+		}
+		
+		Geometry g1 = t1.toPolygon();
+		Geometry g2 = t2.toPolygon();
+		
+		SimpleFeature f1 = SpatialUtils.geomToFeature(g1, featureType, "1");
+		SimpleFeature f2 = SpatialUtils.geomToFeature(g2, featureType, "2");
+		fc.add(f1);
+		fc.add(f2);
+		
+		SpatialIndexFeatureCollection indexedFc = new SpatialIndexFeatureCollection(fc);
+		SpatialIndexFeatureSource result = new SpatialIndexFeatureSource(indexedFc);
+		return result;
+	}
+	
+	public static SimpleFeatureSource createTinPolys(List<Triangle> triangles, String tableName) throws IOException {
+		DefaultFeatureCollection fc = new DefaultFeatureCollection();
+		
+		SimpleFeatureType featureType = null;
+		try {
+			featureType = DataUtilities.createType(tableName, "geometry:Polygon");
+		} catch (SchemaException e1) {
+			throw new IllegalStateException("Unable to create feature type "+tableName);
+		}
+		
+		int index = 0;
+		for(Triangle t : triangles) {
+			Geometry g = t.toPolygon();		
+			SimpleFeature f = SpatialUtils.geomToFeature(g, featureType, ""+index);		
+			fc.add(f);
+			index++;
+		}
+		
+		SpatialIndexFeatureCollection indexedFc = new SpatialIndexFeatureCollection(fc);
+		SpatialIndexFeatureSource result = new SpatialIndexFeatureSource(indexedFc);
+		return result;
+	}
+	
 }
