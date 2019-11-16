@@ -203,4 +203,22 @@ public class CatchmentValidityTest {
 		Assert.isTrue(!isValid, "catchment is expected to be invalid");
 	}
 	
+	@Test
+	public void testCatchmentsOverlap3() throws ParseException, IOException {
+		
+		//the route to test
+		LineString route = (LineString)TestHelper.geometryFromWkt("LINESTRING (1680223.7 501053.1, 1680224.5499999998 501092.5, 1680225.4 501131.9, 1680227.5 501145.2, 1680235.4 501181.9, 1680240.4 501198.1, 1680253.7 501230.4, 1680265.989187424 501242.87018021615, 1680278.3 501272.2, 1680308.1 501316.1, 1680325.8 501339.5, 1680349.1 501365.5, 1680367.3 501389.8, 1680387.3 501442, 1680410.5 501509.2, 1680428.8 501544.95, 1680447.1 501580.7, 1680466.7 501607.7, 1680519.680191284 501626.9823013358, 1680594.5873247585 501625.5000060415, 1680657.855284939 501699.09276466817, 1680648.942223093 501776.5320969075)");
+		
+		//a set of catchments which are invalid w.r.t. the route above
+		LineString catchmentSection1 = (LineString)TestHelper.geometryFromWkt("LINESTRING (1680648.942223093 501776.5320969075, 1680718.1 501809.9, 1680793.616995315 501790.0359208649, 1680842.8 501809.2, 1680883.55 501813.75, 1680924.3 501818.3, 1680977.9 501835.1, 1681031.5 501851.9, 1681073.4 501868.6, 1681111.6 501916.9, 1681149.4 501955.1, 1681191.9 501994.25, 1681234.4 502033.4)");
+		LineString catchmentSection2 = (LineString)TestHelper.geometryFromWkt("LINESTRING (1680648.942223093 501776.5320969075, 1680626 501817.4, 1680616.9 501859.4, 1680607.8 501901.4, 1680603.65 501947.25, 1680565.9616340916 501998.6205098685, 1680598.4 502056.8, 1680599.6 502101.6, 1680604.5 502149.5, 1680613.6 502176.9, 1680636.4 502225.3, 1680662.2 502267.5, 1680688 502309.7, 1680710.1 502343.9, 1680732.2 502378.1, 1680752.975 502430.89999999997, 1680773.75 502483.69999999995, 1680794.525 502536.5, 1680815.3 502589.3)");
+		List<LineString> catchmentSections = new ArrayList<LineString>();
+		catchmentSections.add(catchmentSection1);
+		catchmentSections.add(catchmentSection2);
+		SimpleFeatureSource catchments = TestHelper.createLineStringFeatureSource(catchmentSections, "catchments");
+		
+		boolean isValid = validityChecker.isRouteValidWrtCatchments(route, catchments.getFeatures());
+		Assert.isTrue(isValid, "catchment is expected to be valid");
+	}
+	
 }

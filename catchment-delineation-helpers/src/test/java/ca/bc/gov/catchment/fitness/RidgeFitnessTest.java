@@ -46,7 +46,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
+		RidgeSectionFitness fitnessFinder = new RidgeSectionFitness(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness > 0, "fitness on ridge expected to be positive.  found "+fitness);
@@ -72,7 +72,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
+		RidgeSectionFitness fitnessFinder = new RidgeSectionFitness(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness > 0, "fitness on ridge expected to be positive.  found "+fitness);
@@ -98,7 +98,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
+		RidgeSectionFitness fitnessFinder = new RidgeSectionFitness(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness < 0, "fitness in trough expected to be negative.  found "+fitness);
@@ -124,7 +124,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
+		RidgeSectionFitness fitnessFinder = new RidgeSectionFitness(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness < 0, "fitness in trough expected to be negative.  found "+fitness);
@@ -151,7 +151,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
+		RidgeSectionFitness fitnessFinder = new RidgeSectionFitness(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness < 0, "fitness mid-slope expected to be negative.  found "+fitness);
@@ -178,7 +178,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
+		RidgeSectionFitness fitnessFinder = new RidgeSectionFitness(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness < 0, "fitness mid-slope expected to be negative.  found "+fitness);
@@ -202,7 +202,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
+		RidgeSectionFitness fitnessFinder = new RidgeSectionFitness(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness > 0, "fitness on ridge expected to be positive.  found "+fitness);
@@ -226,7 +226,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
+		RidgeSectionFitness fitnessFinder = new RidgeSectionFitness(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness > 0, "fitness on ridge expected to be positive.  found "+fitness);
@@ -253,7 +253,7 @@ public class RidgeFitnessTest {
 		Triangle t2 = new Triangle(a, b, d);
 		
 		SimpleFeatureSource tinPolys = DummyFactory.createTinPolys(t1, t2, "tin_polygons");
-		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
+		RidgeSectionFitness fitnessFinder = new RidgeSectionFitness(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
 		
 		Assert.isTrue(fitness == 0, "fitness expected to be 0.  found "+fitness);

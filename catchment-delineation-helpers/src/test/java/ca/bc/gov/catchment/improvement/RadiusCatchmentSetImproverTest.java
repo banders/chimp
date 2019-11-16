@@ -14,8 +14,9 @@ import org.junit.Test;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.util.Assert;
 
+import ca.bc.gov.catchment.CatchmentLines;
 import ca.bc.gov.catchment.fitness.CatchmentValidity;
-import ca.bc.gov.catchment.fitness.RidgeFitnessFinder;
+import ca.bc.gov.catchment.fitness.RidgeSectionFitness;
 import ca.bc.gov.catchment.synthetic.DummyFactory;
 import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchments.utils.SaveUtils;
@@ -38,19 +39,20 @@ public class RadiusCatchmentSetImproverTest {
 		
 		SimpleFeatureSource waterFeatures = DummyFactory.createDummyWaterFeatures();
 		SimpleFeatureSource catchmentEdges = DummyFactory.createDummyCatchments();
+		CatchmentLines catchmentLines = new CatchmentLines(catchmentEdges);
 		TinEdges tinEdges = new TinEdges(DummyFactory.createDummyTinEdges());
 		SimpleFeatureSource tinPolys = DummyFactory.createDummyTinPolys(tinEdges.getFeatureSource());
-		RidgeFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolys);
+		RidgeSectionFitness fitnessFinder = new RidgeSectionFitness(tinPolys);
 		double radius = 4;
 		
 		CatchmentSetImprover improver = new ZipperCatchmentSetImprover(
 				waterFeatures, 
 				tinEdges, 
-				catchmentEdges,
+				catchmentLines,
 				fitnessFinder, 
 				radius);	
 		
-		SimpleFeatureCollection improvedCatchments = improver.improve(catchmentEdges);
+		SimpleFeatureCollection improvedCatchments = improver.improve();
 		improvedCatchments = SpatialUtils.renameFeatureType(improvedCatchments, "catchment_lines_modified");
 		
 		CatchmentValidity validityChecker = new CatchmentValidity(waterFeatures);

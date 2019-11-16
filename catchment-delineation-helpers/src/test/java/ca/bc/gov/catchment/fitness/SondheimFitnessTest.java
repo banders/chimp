@@ -54,10 +54,11 @@ public class SondheimFitnessTest {
 				new Coordinate(150, 150, maxTinElevation)));
 		
 		TinPolys tinPolys = new TinPolys(DummyFactory.createTinPolys(triangles, "tin_polygons"));
-		SondheimFitnessFinder fitnessFinder = new SondheimFitnessFinder(tinPolys);
+		SondheimSectionFitness fitnessFinder = new SondheimSectionFitness(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
+		double inverseFitness = 1/fitness;
 		double D = segment.getLength() / tinPolys.getMaxEdgeLength();
-		double m = fitness / D;
+		double m = inverseFitness / D;
 		
 		Assert.isTrue(m > 3.6 && m < 3.7, "'measure' expected to be approximately 3.6889.  found "+m);
 	}
@@ -96,10 +97,11 @@ public class SondheimFitnessTest {
 				new Coordinate(150, 150, maxTinElevation)));
 		
 		TinPolys tinPolys = new TinPolys(DummyFactory.createTinPolys(triangles, "tin_polygons"));
-		SondheimFitnessFinder fitnessFinder = new SondheimFitnessFinder(tinPolys);
+		SondheimSectionFitness fitnessFinder = new SondheimSectionFitness(tinPolys);
 		double fitness = fitnessFinder.fitness(a,  b);
+		double inverseFitness = 1/fitness;
 		double D = segment.getLength() / tinPolys.getMaxEdgeLength();
-		double m = fitness / D;
+		double m = inverseFitness / D;
 		
 		Assert.isTrue(m > 0.63 && m < 0.64, "'measure' expected to be approximately 0.6376.  found "+m);
 	}

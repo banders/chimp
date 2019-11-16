@@ -29,7 +29,7 @@ import ca.bc.gov.catchments.utils.SpatialUtils;
  * @author Brock
  *
  */
-public class ElevationFitnessFinder extends GeometryFitnessFinder {
+public class ElevationSectionFitness extends SectionFitness {
 
 	private GeometryFactory geometryFactory;
 	private SimpleFeatureSource tinPolys;
@@ -37,7 +37,7 @@ public class ElevationFitnessFinder extends GeometryFitnessFinder {
 	private SimpleFeatureType tinPolysFeatureType;
 	private String tinPolysGeometryProperty;
 	
-	public ElevationFitnessFinder(SimpleFeatureSource tinPolys) {
+	public ElevationSectionFitness(SimpleFeatureSource tinPolys) {
 		this.tinPolys = tinPolys;
 		this.filterFactory = CommonFactoryFinder.getFilterFactory2();
 		this.tinPolysFeatureType = tinPolys.getSchema();
@@ -46,15 +46,22 @@ public class ElevationFitnessFinder extends GeometryFitnessFinder {
 	}
 	
 	@Override
-	public double fitness(Coordinate c1, Coordinate c2) throws IOException {
-		double sumZ = (c1.getZ() + c2.getZ());
-		
+	public double fitness(Geometry geom) throws IOException {
+		double len = geom.getLength();
+		double sumZ = 0;
+		for(Coordinate coord : geom.getCoordinates()) {
+			sumZ += coord.getZ();
+		}
+		//double avgZ = sumZ / geom.getNumPoints();
+		double fitness = sumZ / len;
+		return fitness;
+	}
+	
+	@Override
+	public double fitness(Coordinate c1, Coordinate c2) throws IOException {		
 		Coordinate[] coords = {c1, c2};
 		LineString segment = geometryFactory.createLineString(coords);
-		double length = segment.getLength();
-		
-		double fitness = sumZ / length;
-		return fitness;
+		return fitness(segment);
 	}
 
 	

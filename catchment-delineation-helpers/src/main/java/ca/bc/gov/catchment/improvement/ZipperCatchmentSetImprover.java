@@ -26,8 +26,9 @@ import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
 
+import ca.bc.gov.catchment.CatchmentLines;
 import ca.bc.gov.catchment.fitness.CatchmentValidity;
-import ca.bc.gov.catchment.fitness.GeometryFitnessFinder;
+import ca.bc.gov.catchment.fitness.SectionFitness;
 import ca.bc.gov.catchment.routes.LineStringRouter;
 import ca.bc.gov.catchment.routes.RouteException;
 import ca.bc.gov.catchment.tin.TinEdges;
@@ -39,8 +40,8 @@ public class ZipperCatchmentSetImprover extends CatchmentSetImprover {
 	private static final boolean MOVE_JUNCTIONS = true;
 	
 	private TinEdges tinEdges;
-	private SimpleFeatureSource catchmentEdges;
-	private GeometryFitnessFinder fitnessFinder;
+	private CatchmentLines catchmentLines;
+	private SectionFitness fitnessFinder;
 	private LineStringRouter router;
 	private double radius;	
 	
@@ -53,12 +54,11 @@ public class ZipperCatchmentSetImprover extends CatchmentSetImprover {
 	public ZipperCatchmentSetImprover(
 			SimpleFeatureSource waterFeatures, 
 			TinEdges tinEdges,
-			SimpleFeatureSource catchmentEdges,
-			GeometryFitnessFinder fitnessFinder, 
+			CatchmentLines catchmentLines,
+			SectionFitness fitnessFinder, 
 			double radius) {
-		super(waterFeatures);
+		super(waterFeatures, catchmentLines);
 		this.tinEdges = tinEdges;
-		this.catchmentEdges = catchmentEdges;
 		this.fitnessFinder = fitnessFinder;
 		this.router = new LineStringRouter(tinEdges);
 		this.radius = radius;		
@@ -190,7 +190,7 @@ public class ZipperCatchmentSetImprover extends CatchmentSetImprover {
 		try {
 			pickedRoute = router.makeRoute(pickedCoords);
 			boolean isValidWrtWater = catchmentValidityChecker.isRouteValidWrtWater(pickedRoute);
-			boolean isValidWrtCatchments = catchmentValidityChecker.isRouteValidWrtCatchments(pickedRoute, getProposedCatchmentSections(), section.getIdentifier());
+			boolean isValidWrtCatchments = catchmentValidityChecker.isRouteValidWrtCatchments(pickedRoute, catchmentLines.getUpdatedFeatures(), section.getIdentifier());
 			
 			if (!isValidWrtWater) {
 				throw new RouteException("route touches water");
@@ -247,9 +247,8 @@ public class ZipperCatchmentSetImprover extends CatchmentSetImprover {
 
 		SortedMap<Double, JunctionModification> improvedJunctions = new TreeMap<Double, JunctionModification>();
 		
-		
 		//identify other sections touching this junction
-		List<SimpleFeature> sectionsTouchingJunction = getSectionsTouchingJunction(originalJunction);
+		List<SimpleFeature> sectionsTouchingJunction = catchmentLines.getSectionsTouchingJunction(originalJunction);
 		
 		//extract only the route (geometry) from the touching sections, keeping these
 		//in a list
@@ -429,34 +428,6 @@ public class ZipperCatchmentSetImprover extends CatchmentSetImprover {
 		
 		return SpatialUtils.toCoordinateArray(filteredCoords);
 	}
-
-	private List<SimpleFeature> getSectionsTouchingJunction(Coordinate junction) throws IOException {
-		Point p = geometryFactory.createPoint(junction);
-		List<SimpleFeature> touchingSections = new ArrayList<SimpleFeature>();
-		
-		//find routes from the original catchment set
-		Filter touchesFilter = filterFactory.touches(
-				filterFactory.property(tinEdgesGeometryPropertyName), 
-				filterFactory.literal(p)
-				);
-		
-		SimpleFeatureCollection originalTouchingCatchmentEdges = catchmentEdges.getFeatures(touchesFilter);
-		SimpleFeatureIterator it = originalTouchingCatchmentEdges.features();
-		try {
-			while(it.hasNext()) {
-				SimpleFeature f = it.next();
-				f = getLatest(f);
-				touchingSections.add(f);
-			}
-		} finally {
-			it.close();	
-		}
-		
-		return touchingSections;
-	}
-	
-
-	
 	
 	private Coordinate[] addCoordinate(Coordinate[] coords, Coordinate newCoord) {
 		

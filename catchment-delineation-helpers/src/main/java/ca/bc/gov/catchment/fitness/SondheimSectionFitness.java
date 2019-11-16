@@ -30,14 +30,14 @@ import ca.bc.gov.catchments.utils.SpatialUtils;
  * @author Brock
  *
  */
-public class SondheimFitnessFinder extends GeometryFitnessFinder {
+public class SondheimSectionFitness extends SectionFitness {
 
 	private TinPolys tinPolys;
 
 	private double r; //maximum elevation in data set
 	private double L; //maximum TIN edge length
 	
-	public SondheimFitnessFinder(TinPolys tinPolys) throws IOException {
+	public SondheimSectionFitness(TinPolys tinPolys) throws IOException {
 		this.tinPolys = tinPolys;
 		r = tinPolys.getMaxElevation();
 		L = tinPolys.getMaxEdgeLength();
@@ -46,6 +46,10 @@ public class SondheimFitnessFinder extends GeometryFitnessFinder {
 	
 	@Override
 	public double fitness(Coordinate coord1, Coordinate coord2) throws IOException {
+		if (Double.isNaN(coord1.getZ()) ||Double.isNaN(coord2.getZ())) {
+			throw new IllegalArgumentException("unable to determine fitness for segment without elevation.  z1: "+coord1.getZ()+", z2: "+coord2.getZ());
+		}
+		
 		LineString segment = SpatialUtils.toLineString(coord1, coord2);
 		Edge baseEdge = new Edge(coord1, coord2);
 		
@@ -84,11 +88,15 @@ public class SondheimFitnessFinder extends GeometryFitnessFinder {
 		double m = Math.pow((numerator/denominator), c2);
 		
 		//fitness
-		double fitness = m * d;
+		double g = m * d;
+		double fitness = 0;
+		if (g != 0) {
+			fitness = 1 / g;	
+		}			
+		
+		//System.out.println("g: "+g+", num:"+numerator+", denom:"+ denominator+", minAngle:"+minAngleRadians+", v:"+v);
 		return fitness;
 	}
-	
-	
 
 	
 	

@@ -1,6 +1,7 @@
 package ca.bc.gov.catchment.fitness;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.geotools.data.simple.SimpleFeatureCollection;
@@ -8,6 +9,7 @@ import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.factory.Hints;
+import org.geotools.feature.DefaultFeatureCollection;
 import org.geotools.geometry.jts.JTSFactoryFinder;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
@@ -69,6 +71,17 @@ public class CatchmentValidity {
 		return true;
 	}
 	
+	public boolean areSectionsValidWrtWater(List<SimpleFeature> catchmentSections) throws IOException {
+		for(SimpleFeature f : catchmentSections) {
+			LineString route = (LineString)f.getDefaultGeometry();
+			boolean isValid = isRouteValidWrtWater(route);
+			if (!isValid) {
+				return false;
+			}
+		}
+		return true;
+	}
+	
 	/**
 	 * checks if a catchment route is valid with respect (w.r.t.) water features. 
 	 * validity depends on:
@@ -110,10 +123,17 @@ public class CatchmentValidity {
 	}
 	
 	public boolean isRouteValidWrtCatchments(Geometry route, SimpleFeatureCollection catchments) throws IOException {
-		return isRouteValidWrtCatchments(route, catchments, null);
+		FeatureId fidToIgnore = null;
+		return isRouteValidWrtCatchments(route, catchments, fidToIgnore);
 	}
 	
 	public boolean isRouteValidWrtCatchments(Geometry route, SimpleFeatureCollection catchments, FeatureId fidToIgnore) throws IOException {
+		List<FeatureId> fidsToIgnore = new ArrayList<FeatureId>();
+		fidsToIgnore.add(fidToIgnore);
+		return isRouteValidWrtCatchments(route, catchments, fidsToIgnore);
+	}
+	
+	public boolean isRouteValidWrtCatchments(Geometry route, SimpleFeatureCollection catchments, List<FeatureId> fidsToIgnore) throws IOException {
 		String catchmentGeometryPropertyName = "geometry"; //catchments.getSchema().getGeometryDescriptor().getLocalName();
 		Coordinate[] routeCoords = route.getCoordinates();
 
@@ -135,9 +155,9 @@ public class CatchmentValidity {
 					);
 			filter = filterFactory2D.or(filter, filterB);
 		}
-		if (fidToIgnore != null) {
+		for (FeatureId featureId : fidsToIgnore) {
 			//apply filter to ignore the given fid
-			Filter filterC = filterFactory2D.not(filterFactory2D.id(fidToIgnore));
+			Filter filterC = filterFactory2D.not(filterFactory2D.id(featureId));
 			filter = filterFactory2D.and(filter, filterC);
 		}
 		
@@ -146,6 +166,36 @@ public class CatchmentValidity {
 		return matches.size() < 1;
 
 		//return true;
+	}
+	
+	public boolean areSectionsValidWrtCatchments(List<SimpleFeature> sections, SimpleFeatureCollection catchments) throws IOException {
+		DefaultFeatureCollection theseSections = new DefaultFeatureCollection();
+		
+		List<FeatureId> ignoreFids = new ArrayList<FeatureId>();
+		for(SimpleFeature f: sections) {
+			ignoreFids.add(f.getIdentifier());
+		}
+		
+		//check against the main catchment set
+		for(SimpleFeature f: sections) {
+			LineString route = (LineString)f.getDefaultGeometry();
+			boolean isValid = isRouteValidWrtCatchments(route, catchments, ignoreFids);
+			if (!isValid) {
+				return false;
+			}
+			theseSections.add(f);
+		}
+		
+		//check against the other features in 'sections'
+		for(SimpleFeature f: sections) {
+			LineString route = (LineString)f.getDefaultGeometry();
+			boolean isValid = isRouteValidWrtCatchments(route, theseSections, f.getIdentifier());
+			if (!isValid) {
+				return false;
+			}
+		}
+		
+		return true;
 	}
 	
 }

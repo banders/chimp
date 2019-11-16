@@ -1,61 +1,52 @@
 package ca.bc.gov.catchment.improvement;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NavigableSet;
 import java.util.TreeMap;
 
-import org.geotools.data.simple.SimpleFeatureCollection;
-import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;
-import org.locationtech.jts.geom.Point;
 import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.filter.Filter;
 
 import ca.bc.gov.catchment.CatchmentLines;
 import ca.bc.gov.catchment.fitness.CatchmentValidity;
 import ca.bc.gov.catchment.fitness.SectionFitness;
-import ca.bc.gov.catchment.routes.LineStringRouter;
 import ca.bc.gov.catchment.routes.RouteException;
 import ca.bc.gov.catchment.routes.WaterAwareCatchmentRouter;
 import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchment.water.WaterAnalyzer;
 import ca.bc.gov.catchments.utils.SpatialUtils;
 
-public class SimulatedAnnealingCatchmentSetImprover extends CatchmentSetImprover {
+public class SimulatedAnnealingSectionImprover extends SectionImprover {
 
 	private static final double MAX_TEMPERATURE = 100;
-	private static final int MAX_STEPS = 50;
 	
 	private CatchmentValidity catchmentValidityChecker;
-	private String catchmentEdgesGeometryPropertyName;
+	private CatchmentLines catchmentLines;
 	private TinEdges tinEdges;
 	private SectionFitness fitnessFinder;
 	private int maxSteps;
 	private double radius;
 	private WaterAwareCatchmentRouter router;
 	
-	@Deprecated
-	public SimulatedAnnealingCatchmentSetImprover(
-			SimpleFeatureSource waterFeatures, 
-			TinEdges tinEdges,
+	public SimulatedAnnealingSectionImprover(
 			CatchmentLines catchmentLines,
+			TinEdges tinEdges,
+			SimpleFeatureSource waterFeatures,
 			SectionFitness fitnessFinder, 
-			double radius) {
-		super(waterFeatures, catchmentLines);
+			double radius,
+			int maxSteps) {
 		this.tinEdges = tinEdges;
-		this.catchmentEdgesGeometryPropertyName = catchmentLines.getSchema().getGeometryDescriptor().getLocalName();
+		this.catchmentLines = catchmentLines;
 		this.fitnessFinder = fitnessFinder;
 		this.catchmentValidityChecker = new CatchmentValidity(waterFeatures);
 		this.router = new WaterAwareCatchmentRouter(tinEdges, new WaterAnalyzer(waterFeatures));
-		this.maxSteps = MAX_STEPS;
+		this.maxSteps = maxSteps;
 		this.radius = radius;
 	}
-
+	
 	@Override
 	public SectionModification improve(SimpleFeature section) throws IOException {
 		
@@ -88,7 +79,7 @@ public class SimulatedAnnealingCatchmentSetImprover extends CatchmentSetImprover
 				continue;
 			}
 			boolean isValidWrtCatchments = 
-					catchmentValidityChecker.isRouteValidWrtCatchments(neighbourRoute, getCatchmentLines().getUpdatedFeatures(), section.getIdentifier());
+					catchmentValidityChecker.isRouteValidWrtCatchments(neighbourRoute, catchmentLines.getUpdatedFeatures(), section.getIdentifier());
 			if (!isValidWrtCatchments) {
 				System.out.println("neighbour rejected.  invalid w.r.t catchments");
 				continue;
@@ -145,106 +136,6 @@ public class SimulatedAnnealingCatchmentSetImprover extends CatchmentSetImprover
 		}
 		return result;
 	}
-
-	@Override
-	public JunctionModification improveJunction(Coordinate originalJunction) throws IOException {
-		//identify other sections touching this junction
-		System.out.println("trying to improve junction: "+originalJunction);
-		
-		List<SimpleFeature> originalTouching = getCatchmentLines().getSectionsTouchingJunction(originalJunction);
-		
-		double originalFit = fitnessFinder.fitness(originalTouching);
-		
-		JunctionModification favouredModification = new JunctionModification(originalJunction, originalTouching);
-		
-		if (originalTouching.size() == 0) {
-			System.out.println(" no sections touch this junction");
-			return favouredModification;
-		}
-		if (originalTouching.size() < 3) {
-			System.out.println(" point is not a complete junction.  expected 3 or more sections to meet here.  found: "+originalTouching.size());
-			return favouredModification;
-		}
-		
-		double favouredFit = originalFit;
-		TreeMap<Double, JunctionModification> modificationsToConsider = new TreeMap<Double, JunctionModification>();
-		modificationsToConsider.put(favouredFit, favouredModification);
-		
-		for(int stepNum = 0; stepNum < maxSteps; stepNum++) {
-			Coordinate neighbourCoord = null;
-			List<SimpleFeature> newSections = null;
-			
-			try {
-				neighbourCoord = tinEdges.getRandomCoordInRadius(favouredModification.getModifiedJunction(), radius, true);
-				int freedom = 5; //(int)(Math.random() * 10) + 1; //10 is max freedom
-				newSections = router.rerouteFeatures(favouredModification.getModifiedSections(), favouredModification.getModifiedJunction(), neighbourCoord, freedom);
-			} catch(IOException e) {
-				System.out.println(" invalid neighbour: "+e);
-				continue;
-			} catch(RouteException e) {
-				System.out.println(" invalid neighbour: "+e);
-				continue;
-			}
-			
-			//validate the new sections.  if invalid, skip the route and try again
-			boolean isValidWrtWater = catchmentValidityChecker.areSectionsValidWrtWater(newSections);
-			if (!isValidWrtWater) {
-				System.out.println(" neighbour rejected.  invalid w.r.t water");
-				continue;
-			}
-			boolean isValidWrtCatchments = 
-					catchmentValidityChecker.areSectionsValidWrtCatchments(newSections, getCatchmentLines().getUpdatedFeatures());
-			if (!isValidWrtCatchments) {
-				System.out.println(" neighbour rejected.  invalid w.r.t catchments");
-				continue;
-			}
-			
-			double neighbourFit = fitnessFinder.fitness(newSections);
-			System.out.println(" neighbourFit:"+neighbourFit+", favouredFit:"+favouredFit);
-			
-			JunctionModification modification = new JunctionModification(originalJunction, originalTouching);
-			modification.setModifiedJunction(neighbourCoord);
-			modification.setModifiedSections(newSections);
-			
-			//if the fit is an improvement, record the route
-			if (neighbourFit > favouredFit) {				
-				modificationsToConsider.put(neighbourFit, modification);
-				favouredFit = neighbourFit;	
-				favouredModification = modification;
-				//System.out.println(" accepted neighbour automatically");
-				continue;
-			}
-			
-			//if the fit is not an improvement, still consider setting it as the favoured route
-			//based on a probability function
-			double fractionOfTimeElapsed = (stepNum+1.0f)/maxSteps;
-			double T = getTemperature(fractionOfTimeElapsed);
-			double p = getProbabilityOfSwitching(favouredFit, neighbourFit, T);
-			double r = Math.random();
-			
-			if (p > r) {
-				favouredFit = neighbourFit;
-				favouredModification = modification;
-				//System.out.println(" accepted neighbour at random");
-				continue;
-			}
-		}
-		 
-		//the chosenModification may be the same as the favouredModification, but not necessarily.
-		//chosenRoute takes into account fitness *and* validity.  
-		//chosenRoute may also be null of no suitable route could be found
-		JunctionModification chosenModification = chooseJunctionModification(modificationsToConsider);
-		if (chosenModification.getOriginalJunction() != chosenModification.getModifiedJunction()) {
-			System.out.println(" improved junction from "+originalFit+" to "+fitnessFinder.fitness(chosenModification.getModifiedSections()));
-		}
-		else {
-			System.out.println(" junction could not be improved");
-		}
-		
-		return chosenModification;
-	}
-	
-	//-------------------------------------------------------------------------
 	
 	/**
 	 * Chooses the route from the given map with the best fit.  
@@ -260,36 +151,6 @@ public class SimulatedAnnealingCatchmentSetImprover extends CatchmentSetImprover
 			double key = it.next();
 			LineString route = routesToConsider.get(key);
 			return route;
-			/*
-			boolean isValidWrtWater = catchmentValidityChecker.isRouteValidWrtWater(route);
-			boolean isValidWrtCatchments = catchmentValidityChecker.isRouteValidWrtCatchments(route, catchmentEdges.getFeatures());
-					;
-			if (isValidWrtWater && isValidWrtCatchments) {
-				System.out.println(" route with fit "+key+" is valid");
-				return route;
-			}
-			else {
-				System.out.println(" route with fit "+key+" is not valid (water?:"+isValidWrtWater+", catchments?:"+isValidWrtCatchments+")");
-			}
-			*/
-		}
-		return null;
-	}
-	
-	/**
-	 * Chooses the JunctionModification from the given map with the best fit.  
-	 * Assumption: all JunctionModification in the given map are valid.  Therefore, the chosen JunctionModification will be a valid JunctionModification.
-	 * @param modificationsToConsider
-	 * @return
-	 * @throws IOException
-	 */
-	private JunctionModification chooseJunctionModification(TreeMap<Double, JunctionModification> modificationsToConsider) throws IOException {
-		NavigableSet<Double> keySet = modificationsToConsider.descendingKeySet();
-		Iterator<Double> it = keySet.iterator(); //ascending order (of the descending key set), which is big to small
-		while(it.hasNext()) {
-			double key = it.next();
-			JunctionModification modification = modificationsToConsider.get(key);
-			return modification;
 		}
 		return null;
 	}
@@ -324,7 +185,11 @@ public class SimulatedAnnealingCatchmentSetImprover extends CatchmentSetImprover
 		throw new RouteException("Unable to find a neighbour route");		
 	}
 	
-	
+	/**
+	 * A function which gives temperature (0-MAX_TEMPERATURE) as a function of the fraction of elapsed time (0-1).
+	 * @param fractionOfTimeElapsed
+	 * @return
+	 */
 	private double getTemperature(double fractionOfTimeElapsed) {
 		if (fractionOfTimeElapsed > 1 || fractionOfTimeElapsed < 0) {
 			throw new IllegalArgumentException("fractionOfTimeElapsed must be in range [0,1]");
@@ -354,7 +219,4 @@ public class SimulatedAnnealingCatchmentSetImprover extends CatchmentSetImprover
 		double p = Math.pow(Math.E, x);
 		return p;
 	}
-
-
-	
 }

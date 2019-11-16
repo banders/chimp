@@ -80,16 +80,26 @@ import org.tinfour.common.LinearConstraint;
 import org.tinfour.common.Vertex;
 import org.tinfour.standard.IncrementalTin;
 
+import ca.bc.gov.catchment.CatchmentLines;
 import ca.bc.gov.catchment.algorithms.NearestNeighbour3DMaker;
-import ca.bc.gov.catchment.fitness.ElevationFitnessFinder;
-import ca.bc.gov.catchment.fitness.GeometryFitnessFinder;
-import ca.bc.gov.catchment.fitness.RidgeFitnessFinder;
-import ca.bc.gov.catchment.fitness.SondheimFitnessFinder;
+import ca.bc.gov.catchment.fitness.ElevationJunctionFitness;
+import ca.bc.gov.catchment.fitness.ElevationSectionFitness;
+import ca.bc.gov.catchment.fitness.JunctionFitness;
+import ca.bc.gov.catchment.fitness.SectionFitness;
+import ca.bc.gov.catchment.fitness.RidgeSectionFitness;
+import ca.bc.gov.catchment.fitness.SondheimSectionFitness;
 import ca.bc.gov.catchment.improvement.CatchmentSetImprover;
+import ca.bc.gov.catchment.improvement.JunctionImprover;
+import ca.bc.gov.catchment.improvement.JunctionModification;
+import ca.bc.gov.catchment.improvement.SectionImprover;
+import ca.bc.gov.catchment.improvement.SectionModification;
 import ca.bc.gov.catchment.improvement.SimulatedAnnealingCatchmentSetImprover;
+import ca.bc.gov.catchment.improvement.SimulatedAnnealingJunctionImprover;
+import ca.bc.gov.catchment.improvement.SimulatedAnnealingSectionImprover;
 import ca.bc.gov.catchment.improvement.ZipperCatchmentSetImprover;
 import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchment.tin.TinPolys;
+import ca.bc.gov.catchment.water.WaterAnalyzer;
 import ca.bc.gov.catchments.utils.SaveUtils;
 import ca.bc.gov.catchments.utils.SpatialUtils;
 
@@ -344,41 +354,91 @@ public class ImproveCatchments {
 			
 			SpatialIndexFeatureCollection indexedFc = new SpatialIndexFeatureCollection(inCatchmentFeatureCollection);
 			SimpleFeatureSource catchmentsFeatureSource = new SpatialIndexFeatureSource(indexedFc);
-			
 			TinPolys tinPolys = new TinPolys(tinPolysFeatureSource);
-			//GeometryFitnessFinder fitnessFinder = new RidgeFitnessFinder(tinPolysFeatureSource);
-			//GeometryFitnessFinder fitnessFinder = new ElevationFitnessFinder(tinPolysFeatureSource);
-			GeometryFitnessFinder fitnessFinder = new SondheimFitnessFinder(tinPolys);
-			
-			TinEdges tinEdges = new TinEdges(tinEdgesFeatureSource);
-			
-			CatchmentSetImprover improver = new SimulatedAnnealingCatchmentSetImprover(
-					waterFeatureSource,
-					tinEdges,
-					catchmentsFeatureSource,
-					fitnessFinder,
-					100 //radius
-					);
-			
-			/*
-			CatchmentSetImprover improver = new ZipperCatchmentSetImprover(
-					waterFeatureSource,
-					tinEdges,
-					catchmentsFeatureSource,
-					fitnessFinder,
-					100 //radius
-					);
-					*/
 			
 			//convert all catchment coords to 3D
 			//TODO: offload this responsibility to a separate script that should be run before
 			//ImproveCatchments
 			System.out.println("converting input to 3D...");
 			NearestNeighbour3DMaker elevationAdder = new NearestNeighbour3DMaker(tinEdgesFeatureSource, 3);
-			catchmentsFeatureSource = elevationAdder.make3dCopy(catchmentsFeatureSource);
+			catchmentsFeatureSource = elevationAdder.make3dCopy(catchmentsFeatureSource);			
+			CatchmentLines catchmentLines = new CatchmentLines(catchmentsFeatureSource);			
 			
+			JunctionFitness junctionFitness = new ElevationJunctionFitness();
+			
+			//GeometryFitnessFinder sectionFitness = new RidgeFitnessFinder(tinPolysFeatureSource);
+			SectionFitness sectionFitness = new ElevationSectionFitness(tinPolysFeatureSource);
+			//GeometryFitnessFinder sectionFitness = new SondheimFitnessFinder(tinPolys);
+			
+			TinEdges tinEdges = new TinEdges(tinEdgesFeatureSource);
+			WaterAnalyzer waterAnalyzer = new WaterAnalyzer(waterFeatureSource);
+			
+			double SEARCH_RADIUS = 150;
+			
+			JunctionImprover junctionImprover = new SimulatedAnnealingJunctionImprover(
+					catchmentLines,
+					tinEdges,	
+					waterFeatureSource,									
+					junctionFitness,
+					SEARCH_RADIUS,
+					50
+					);
+			
+			SectionImprover sectionImprover = new SimulatedAnnealingSectionImprover(
+					catchmentLines, 
+					tinEdges, 
+					waterFeatureSource, 
+					sectionFitness, 
+					SEARCH_RADIUS, 
+					50
+					);
+			
+			//process all junction points
+			//-----------------------------------------------------------------
+			System.out.println("improving junctions...");
+			for(Coordinate junction : catchmentLines.getJunctions(waterAnalyzer)) {	
+				JunctionModification junctionModification = null;
+				try {
+					junctionModification = junctionImprover.improve(junction);
+				}
+				catch(Exception e) {
+					e.printStackTrace();
+					continue;
+				}
+				if (junctionModification.getModifiedJunction() != junctionModification.getOriginalJunction()) {
+					System.out.println("  moved junction "+junctionModification.getOriginalJunction()+" to "+junctionModification.getModifiedJunction());
+					for (SimpleFeature touchingSection : junctionModification.getModifiedSections()) {
+						System.out.println("  updated section with fid="+touchingSection.getIdentifier());
+						catchmentLines.addOrUpdate(touchingSection);
+					}
+				}				
+				System.out.println("---");
+			}
+			
+			//process all catchment sections
+			//-----------------------------------------------------------------
+			/*
 			System.out.println("improving catchments...");
-			SimpleFeatureCollection outFeatureCollection = improver.improve(catchmentsFeatureSource);
+			SimpleFeatureCollection sections = catchmentLines.getUpdatedFeatures();
+			SimpleFeatureIterator sectionIt = sections.features();
+			while(sectionIt.hasNext()) {
+				SimpleFeature section = sectionIt.next();				
+				section = catchmentLines.getLatest(section);
+				SectionModification modification = sectionImprover.improve(section);
+				
+				catchmentLines.addOrUpdate(modification.getModifiedSection());
+				for (SimpleFeature touchingSection : modification.getModifiedTouchingSections()) {
+					System.out.println(" updated section with fid="+touchingSection.getIdentifier());
+					catchmentLines.addOrUpdate(touchingSection);
+				}
+				System.out.println("---");
+			}
+			sectionIt.close();
+			*/
+			
+			//saving
+			//-----------------------------------------------------------------
+			SimpleFeatureCollection outFeatureCollection = catchmentLines.getUpdatedFeatures();
 			outFeatureCollection = SpatialUtils.renameFeatureType(outFeatureCollection, outTable);
 			
 			SaveUtils.saveToGeoPackage(outputGeopackageFilename, outFeatureCollection, true);

@@ -1,6 +1,7 @@
 package ca.bc.gov.catchment.fitness;
 
 import java.io.IOException;
+import java.util.List;
 
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
@@ -21,8 +22,18 @@ import org.opengis.feature.simple.SimpleFeature;
  * @author Brock
  *
  */
-public abstract class GeometryFitnessFinder {
+public abstract class SectionFitness {
 
+	public double fitness(List<SimpleFeature> features) throws IOException {
+		double totalFitness = 0;
+		for(SimpleFeature f : features) {
+			Geometry g = (Geometry)f.getDefaultGeometry();
+			double fitness = fitness(g);
+			totalFitness += fitness;
+		}
+		return totalFitness;
+	}
+	
 	public double fitness(SimpleFeatureCollection features) throws IOException {
 		double totalFitness = 0;
 		SimpleFeatureIterator it = features.features();
@@ -69,5 +80,4 @@ public abstract class GeometryFitnessFinder {
 	
 	public abstract double fitness(Coordinate c1, Coordinate c2) throws IOException;
 	
-
 }

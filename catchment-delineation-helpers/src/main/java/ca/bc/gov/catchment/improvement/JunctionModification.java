@@ -15,9 +15,13 @@ public class JunctionModification {
 	
 	public JunctionModification(Coordinate originalJunction, List<SimpleFeature> originalSections) {
 		this.originalJunction = originalJunction;
+		this.originalSections = originalSections;
+		
+		//modified junction and modified sections are initialized to the original values
 		this.modifiedJunction = originalJunction;
 		this.modifiedSections = new ArrayList<SimpleFeature>();
-		this.originalSections = originalSections;
+		this.modifiedSections.addAll(originalSections);
+		
 	}
 	
 	public void setModifiedJunction(Coordinate modifiedJunction) {

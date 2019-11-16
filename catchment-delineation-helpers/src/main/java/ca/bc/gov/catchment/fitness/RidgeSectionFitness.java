@@ -34,7 +34,7 @@ import ca.bc.gov.catchments.utils.SpatialUtils;
  * @author Brock
  *
  */
-public class RidgeFitnessFinder extends GeometryFitnessFinder {
+public class RidgeSectionFitness extends SectionFitness {
 
 	private static final double SLOPE_TO_ASPECT_WEIGHT_RATIO = 0.1; //should be > 0
 	private static final double FITNESS_SCALE_FACTOR = 100;
@@ -44,7 +44,7 @@ public class RidgeFitnessFinder extends GeometryFitnessFinder {
 	private SimpleFeatureType tinPolysFeatureType;
 	private String tinPolysGeometryProperty;
 	
-	public RidgeFitnessFinder(SimpleFeatureSource tinPolys) {
+	public RidgeSectionFitness(SimpleFeatureSource tinPolys) {
 		this.tinPolys = tinPolys;
 		this.filterFactory = CommonFactoryFinder.getFilterFactory2();
 		this.tinPolysFeatureType = tinPolys.getSchema();
