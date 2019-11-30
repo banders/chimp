@@ -34,7 +34,7 @@ import ca.bc.gov.catchments.utils.SpatialUtils;
 
 public class LineStringRouterTest {
 
-	private static final boolean SAVE_RESULTS = true;
+	private static final boolean SAVE_RESULTS = false;
 	private static final String SAVE_DIR = "C:\\Temp\\";
 	
 	private TinEdges tinEdges;
@@ -132,16 +132,22 @@ public class LineStringRouterTest {
 		LineStringRouter router = new LineStringRouter(tinEdges);
 		LineString initialRoute = null;
 		try {
-			Coordinate[] startAndEnd = pickCoordinates(tinEdges, 2);
+			Coordinate[] startAndEnd = {
+					new Coordinate(3, 2, 12),
+					new Coordinate(9, 10, 10)			
+			};
 			System.out.println("Routing between these points: "+coordinatesToString(startAndEnd));
 			initialRoute = router.makeRoute(startAndEnd);
+			System.out.println("Initial route: "+initialRoute);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-
+		
 		int numCoords = initialRoute.getNumPoints();
 		int middleIndex = numCoords/2;
 		Coordinate pointToRemove = initialRoute.getCoordinateN(middleIndex);
+		System.out.println("Routing around: "+pointToRemove);
+		
 		List<LineString> alternativeRoutes = null;
 		try {
 			System.out.println("Generating alternatives");
@@ -232,9 +238,9 @@ public class LineStringRouterTest {
 		List<LineString> initialRoutes = new ArrayList<LineString>();
 		
 		Coordinate[] randomCoords = pickCoordinates(tinEdges, 5);
-		Coordinate commonCoordinate = randomCoords[1];
-		Coordinate[] coordsA = {commonCoordinate, randomCoords[0]};
-		Coordinate[] coordsB = {commonCoordinate, randomCoords[3]};
+		Coordinate commonCoordinate = randomCoords[2];
+		Coordinate[] coordsA = {commonCoordinate, randomCoords[1]};
+		Coordinate[] coordsB = {commonCoordinate, randomCoords[4]};
 		
 		try {
 			initialRoutes.add(router.makeRoute(coordsA));
@@ -257,6 +263,28 @@ public class LineStringRouterTest {
 		for(LineString route : initialRoutes) {
 			System.out.println(route);
 		}
+		
+		if (SAVE_RESULTS) {
+			try {
+				
+				SimpleFeatureSource initialRoutesFs = TestHelper.createLineStringFeatureSource(initialRoutes, "routes_initial");
+				//SimpleFeatureSource updatedRoutesFs = TestHelper.createLineStringFeatureSource(newRoutes, "routes_updated");
+				
+				List<Coordinate> coords = new ArrayList<Coordinate>();
+				coords.add(commonCoordinate);
+				coords.add(newCommonCoordinate);
+				SimpleFeatureSource pointsFs = TestHelper.createPointFeatureSource(coords);
+				
+				TestHelper.save(tinEdges.getFeatureSource(), saveFilename);
+				TestHelper.save(initialRoutesFs, saveFilename);
+				TestHelper.save(pointsFs, saveFilename);				
+				//TestHelper.save(updatedRoutesFs, saveFilename);
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
 		System.out.println("moving junction "+commonCoordinate+" to "+newCommonCoordinate);
 		
 		if (newCommonCoordinate == null) {
@@ -267,7 +295,7 @@ public class LineStringRouterTest {
 		try {
 			System.out.println("Moving junction");
 			newRoutes = router.moveJunction(initialRoutes, commonCoordinate, newCommonCoordinate, 1);
-		} catch (IOException e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 			Assert.fail("Unable to move junction");
 		}
@@ -279,19 +307,8 @@ public class LineStringRouterTest {
 		
 		if (SAVE_RESULTS) {
 			try {
-				
-				SimpleFeatureSource initialRoutesFs = TestHelper.createLineStringFeatureSource(initialRoutes, "routes_initial");
 				SimpleFeatureSource updatedRoutesFs = TestHelper.createLineStringFeatureSource(newRoutes, "routes_updated");
-				
-				List<Coordinate> coords = new ArrayList<Coordinate>();
-				coords.add(commonCoordinate);
-				coords.add(newCommonCoordinate);
-				SimpleFeatureSource pointsFs = TestHelper.createPointFeatureSource(coords);
-				
-				TestHelper.save(tinEdges.getFeatureSource(), saveFilename);
-				TestHelper.save(initialRoutesFs, saveFilename);
 				TestHelper.save(updatedRoutesFs, saveFilename);
-				TestHelper.save(pointsFs, saveFilename);
 			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();

@@ -9,6 +9,7 @@ import org.geotools.data.DataUtilities;
 import org.geotools.data.collection.SpatialIndexFeatureCollection;
 import org.geotools.data.collection.SpatialIndexFeatureSource;
 import org.geotools.data.simple.SimpleFeatureCollection;
+import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.feature.DefaultFeatureCollection;
 import org.geotools.feature.SchemaException;
@@ -18,6 +19,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.Point;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.tinfour.common.IQuadEdge;
@@ -41,56 +43,20 @@ public class DummyFactory {
 	
 	public static SimpleFeatureSource createDummyTinEdges() throws IOException {
 		
+		SimpleFeatureSource pointCloud3d = createDummyPointCloud3d();
+		
 		//create a dummy TIN
 		IncrementalTin tin = new IncrementalTin();
-		tin.add(new Vertex(0, 0, 10));
-		tin.add(new Vertex(1, 0, 11));
-		tin.add(new Vertex(3, 2, 12));
-		tin.add(new Vertex(5, 1, 11));
-		tin.add(new Vertex(6, 3, 10));
-		tin.add(new Vertex(RIVER_CONFLUENCE.getX(), RIVER_CONFLUENCE.getY(), RIVER_CONFLUENCE.getZ()));
-		tin.add(new Vertex(RIVER_UPSTREAM_1_START.getX(), RIVER_UPSTREAM_1_START.getY(), RIVER_UPSTREAM_1_START.getZ()));
-		tin.add(new Vertex(RIVER_UPSTREAM_2_START.getX(), RIVER_UPSTREAM_2_START.getY(), RIVER_UPSTREAM_2_START.getZ()));
-		tin.add(new Vertex(9, 2, 13));
-		tin.add(new Vertex(11, 3, 14));
-		tin.add(new Vertex(12, 2, 15));
-		tin.add(new Vertex(13, 3, 15));
-		tin.add(new Vertex(15, 2, 14));
-		//
-		tin.add(new Vertex(1, 3, 11));
-		tin.add(new Vertex(2, 6, 13));
-		tin.add(new Vertex(4, 6, 12));
-		tin.add(new Vertex(5, 4, 13));
-		tin.add(new Vertex(7, 5, 10));
-		tin.add(new Vertex(8, 5, 10));
-		tin.add(new Vertex(10, 4, 14));
-		tin.add(new Vertex(11, 6, 16));
-		tin.add(new Vertex(13, 5, 15));
-		tin.add(new Vertex(14, 4, 15));
-		//
-		tin.add(new Vertex(0, 7, 12));
-		tin.add(new Vertex(2, 8, 13));
-		tin.add(new Vertex(4, 9, 12));
-		tin.add(new Vertex(5, 9, 14));
-		tin.add(new Vertex(6, 8, 11));
-		tin.add(new Vertex(RIVER_MAIN_END.getX(), RIVER_MAIN_END.getY(), RIVER_MAIN_END.getZ()));
-		tin.add(new Vertex(9, 7, 10));
-		tin.add(new Vertex(10, 9, 12));
-		tin.add(new Vertex(13, 7, 13));
-		tin.add(new Vertex(14, 8, 14));
-		tin.add(new Vertex(15, 7, 13));
-		//
-		tin.add(new Vertex(0, 10, 13));
-		tin.add(new Vertex(1, 12, 12));
-		tin.add(new Vertex(2, 10, 12));
-		tin.add(new Vertex(4, 11, 14));
-		tin.add(new Vertex(5, 11, 12));
-		tin.add(new Vertex(7, 12, 10));
-		tin.add(new Vertex(9, 10, 10));
-		tin.add(new Vertex(11, 10, 11));
-		tin.add(new Vertex(12, 12, 13));
-		tin.add(new Vertex(13, 13, 12));
-		tin.add(new Vertex(14, 11, 13));
+		SimpleFeatureCollection pointCloudFc = pointCloud3d.getFeatures();
+		SimpleFeatureIterator pointCloudIt = pointCloudFc.features();
+		while(pointCloudIt.hasNext()) {
+			SimpleFeature feature = pointCloudIt.next();
+			Point point = (Point)feature.getDefaultGeometry();
+			Coordinate coord = point.getCoordinate();
+			Vertex vertex = new Vertex(coord.getX(), coord.getY(), coord.getZ());
+			tin.add(vertex);
+		}
+		pointCloudIt.close();		
 		
 		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
 		DefaultFeatureCollection tinEdges = new DefaultFeatureCollection();
@@ -193,10 +159,15 @@ public class DummyFactory {
 				new Coordinate(5,1, 11),
 				middleSectionIncludes[0]
 		};
+		Coordinate[] endSectionIncludes = {
+				middleSectionIncludes[middleSectionIncludes.length-1],
+				new Coordinate(13, 5, 15),
+				RIVER_CONFLUENCE
+		};
 		
 		LineString catchmentSection1 = router.makeRoute(startSectionIncludes);
 		LineString catchmentSection2 = router.makeRoute(middleSectionIncludes, middleSectionExcludes);
-		LineString catchmentSection3 = router.makeRoute(middleSectionIncludes[middleSectionIncludes.length-1], RIVER_CONFLUENCE);
+		LineString catchmentSection3 = router.makeRoute(endSectionIncludes);
 		catchmentSections.add(catchmentSection1);
 		catchmentSections.add(catchmentSection2);
 		catchmentSections.add(catchmentSection3);		
@@ -279,6 +250,87 @@ public class DummyFactory {
 		SpatialIndexFeatureCollection indexedFc = new SpatialIndexFeatureCollection(fc);
 		SpatialIndexFeatureSource result = new SpatialIndexFeatureSource(indexedFc);
 		return result;
+	}
+	
+	
+	public static SimpleFeatureSource createDummyPointCloud3d() throws IOException {
+		
+		Coordinate[] coords = {
+			new Coordinate(0, 0, 10),
+			new Coordinate(1, 0, 11),
+			new Coordinate(3, 2, 12),
+			new Coordinate(5, 1, 11),
+			new Coordinate(6, 3, 10),
+			new Coordinate(RIVER_CONFLUENCE.getX(), RIVER_CONFLUENCE.getY(), RIVER_CONFLUENCE.getZ()),
+			new Coordinate(RIVER_UPSTREAM_1_START.getX(), RIVER_UPSTREAM_1_START.getY(), RIVER_UPSTREAM_1_START.getZ()),
+			new Coordinate(RIVER_UPSTREAM_2_START.getX(), RIVER_UPSTREAM_2_START.getY(), RIVER_UPSTREAM_2_START.getZ()),
+			new Coordinate(9, 2, 13),
+			new Coordinate(11, 3, 14),
+			new Coordinate(12, 2, 15),
+			new Coordinate(13, 3, 15),
+			new Coordinate(15, 2, 14),
+			//
+			new Coordinate(1, 3, 11),
+			new Coordinate(2, 6, 13),
+			new Coordinate(4, 6, 1),
+			new Coordinate(5, 4, 13),
+			new Coordinate(7, 5, 10),
+			new Coordinate(8, 5, 10),
+			new Coordinate(10, 4, 14),
+			new Coordinate(11, 6, 16),
+			new Coordinate(13, 5, 15),
+			new Coordinate(14, 4, 15),
+			//
+			new Coordinate(0, 7, 12),
+			new Coordinate(2, 8, 13),
+			new Coordinate(4, 9, 12),
+			new Coordinate(5, 9, 14),
+			new Coordinate(6, 8, 11),
+			new Coordinate(RIVER_MAIN_END.getX(), RIVER_MAIN_END.getY(), RIVER_MAIN_END.getZ()),
+			new Coordinate(9, 7, 10),
+			new Coordinate(10, 9, 12),
+			new Coordinate(13, 7, 13),
+			new Coordinate(14, 8, 14),
+			new Coordinate(15, 7, 13),
+			//
+			new Coordinate(0, 10, 13),
+			new Coordinate(1, 12, 12),
+			new Coordinate(2, 10, 12),
+			new Coordinate(4, 11, 14),
+			new Coordinate(5, 11, 12),
+			new Coordinate(7, 12, 10),
+			new Coordinate(9, 10, 10),
+			new Coordinate(11, 10, 11),
+			new Coordinate(12, 12, 13),
+			new Coordinate(13, 13, 12),
+			new Coordinate(14, 11, 13)
+		};
+				
+		SimpleFeatureType outFeatureType = null;
+		try {
+			outFeatureType = DataUtilities.createType("point_cloud_3d", "geometry:Point:srid="+SRID);
+		} catch (SchemaException e1) {
+			throw new IllegalStateException("Unable to create feature type for point_cloud_3d");
+		}
+		SimpleFeatureBuilder outFeatureBuilder = new SimpleFeatureBuilder(outFeatureType);
+		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+		
+		//convert geometries to features, then add to a collection
+		DefaultFeatureCollection fc = new DefaultFeatureCollection();
+		int fid = 1;
+		for (Coordinate coord : coords) {
+			Point point = geometryFactory.createPoint(coord);
+			Object[] values = {point};
+			SimpleFeature feature = outFeatureBuilder.buildFeature(""+fid++, values);
+			fc.add(feature);
+		}
+		
+		//convert collection to feature source
+		SpatialIndexFeatureCollection indexedFc = new SpatialIndexFeatureCollection(fc);
+		SpatialIndexFeatureSource fs = new SpatialIndexFeatureSource(indexedFc);
+		
+		return fs;
+		
 	}
 	
 }

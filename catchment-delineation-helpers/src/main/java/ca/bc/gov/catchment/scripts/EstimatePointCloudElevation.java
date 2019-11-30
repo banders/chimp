@@ -92,9 +92,10 @@ import org.opengis.referencing.crs.CoordinateReferenceSystem;
  *  - is_confluence (boolean)
  * When the input data contains multiple points at the same 2D location
  * @author Brock
- *
+ * @Deprecated use EstimateElevation elevation instead. it is more versatile.
  */
 
+@Deprecated
 public class EstimatePointCloudElevation {
 
 	private static final String GEOPKG_ID = "geopkg";

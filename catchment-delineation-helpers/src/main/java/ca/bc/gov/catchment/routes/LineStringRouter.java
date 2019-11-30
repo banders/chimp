@@ -147,6 +147,10 @@ public class LineStringRouter {
 		List<Coordinate> connected = getConnectedCoords(exclude);
 		for (Coordinate alternativeCoord : connected) {
 			try {
+				boolean alternativeCoordAlreadyInRoute = origCoordinates.contains(alternativeCoord);
+				if (alternativeCoordAlreadyInRoute) {
+					continue;
+				}
 				LineString newRoute = replaceRouteCoordinate(route, exclude, alternativeCoord);
 				boolean duplicateRoute = route.equals(newRoute) || alternativeRoutes.contains(newRoute);
 				if (!duplicateRoute) {	
@@ -155,7 +159,10 @@ public class LineStringRouter {
 			}
 			catch(IllegalArgumentException e) {
 				//e.printStackTrace();
-			}			
+			}
+			catch(RouteException e) {
+				//skip this route
+			}
 		}
 		
 		return alternativeRoutes;
@@ -532,6 +539,7 @@ public class LineStringRouter {
 				if (route1 == route2 ) {
 					continue;
 				}
+				
 				//check whether route SEGMENTS overlap
 				if (route1.contains(route2) || route1.contains(route2.reverse())) {
 					return true;
@@ -553,6 +561,7 @@ public class LineStringRouter {
 		
 		for (Coordinate c1 : coords1) {
 			for (Coordinate c2 : coords2) {
+				System.out.println(c1+" ==? "+c2);
 				if (c1 != null && c1.equals(c2)) {
 					return true;
 				}
@@ -562,8 +571,11 @@ public class LineStringRouter {
 	}
 	
 	private Coordinate[] removeEndpoints(Coordinate[] coords) {
-		Coordinate[] result = new Coordinate[coords.length - 1];
-		for (int i = 1; i < coords.length-2; i++) {
+		if (coords.length < 2) {
+			return new Coordinate[0];
+		}
+		Coordinate[] result = new Coordinate[coords.length - 2];
+		for (int i = 1; i < coords.length-1; i++) {
 			result[i-1] = coords[i];
 		}
 		return result;

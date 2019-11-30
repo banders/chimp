@@ -122,18 +122,59 @@ public class CatchmentValidity {
 		return true;
 	}
 	
-	public boolean isRouteValidWrtCatchments(Geometry route, SimpleFeatureCollection catchments) throws IOException {
+	public boolean isRouteValidWrtCatchments(LineString route, SimpleFeatureCollection catchments) throws IOException {
 		FeatureId fidToIgnore = null;
 		return isRouteValidWrtCatchments(route, catchments, fidToIgnore);
 	}
 	
-	public boolean isRouteValidWrtCatchments(Geometry route, SimpleFeatureCollection catchments, FeatureId fidToIgnore) throws IOException {
+	public boolean isRouteValidWrtCatchments(LineString route, SimpleFeatureCollection catchments, FeatureId fidToIgnore) throws IOException {
 		List<FeatureId> fidsToIgnore = new ArrayList<FeatureId>();
 		fidsToIgnore.add(fidToIgnore);
 		return isRouteValidWrtCatchments(route, catchments, fidsToIgnore);
 	}
 	
-	public boolean isRouteValidWrtCatchments(Geometry route, SimpleFeatureCollection catchments, List<FeatureId> fidsToIgnore) throws IOException {
+	public boolean isRouteValidWrtCatchments(LineString route, SimpleFeatureCollection catchments, List<FeatureId> fidsToIgnore) throws IOException {
+		String catchmentGeometryPropertyName = "geometry"; //catchments.getSchema().getGeometryDescriptor().getLocalName();
+
+		//get a list of catchments that touch the given route
+		Filter filter = filterFactory2D.intersects(
+				filterFactory2D.property(catchmentGeometryPropertyName),
+				filterFactory2D.literal(route)
+				);
+		SimpleFeatureCollection matches = catchments.subCollection(filter);
+		System.out.println("matches.size:"+matches.size());
+		
+		//if no catchment sections touch, the route is definately valid
+		if (matches.size() == 0) {
+			return true;
+		}
+		
+		//of any catchment sections intersect the route, then the route is only valid
+		//if it intersects those catchment sections only at endpoints
+		SimpleFeatureIterator matchesIt = matches.features();
+		while (matchesIt.hasNext()) {
+			SimpleFeature feature = matchesIt.next();
+			LineString g = (LineString)feature.getDefaultGeometry();
+			
+			//identify where the route intersects this catchment section
+			Geometry intersection = route.intersection(g);
+			System.out.println("intersection: "+intersection);
+			
+			//if the intersection is not an endpoint of either the catchment section
+			//OR the route then, it is not a valid intsections 
+			if (!isEndpointOf(intersection, route) || !isEndpointOf(intersection, g)) {
+				
+				return false;
+			}
+		}
+		matchesIt.close();
+		
+		return true;
+		
+	}
+	
+	@Deprecated
+	public boolean isRouteValidWrtCatchmentsOld(LineString route, SimpleFeatureCollection catchments, List<FeatureId> fidsToIgnore) throws IOException {
 		String catchmentGeometryPropertyName = "geometry"; //catchments.getSchema().getGeometryDescriptor().getLocalName();
 		Coordinate[] routeCoords = route.getCoordinates();
 
@@ -143,6 +184,7 @@ public class CatchmentValidity {
 				filterFactory2D.literal(route)
 				);
 		if (routeCoords.length > 2) {
+			System.out.println("midpoint filter touches");
 			//apply a second filter to confirm non-endpoints don't touch other catchments.
 			Coordinate[] coordsWithoutEnds = new Coordinate[routeCoords.length]; 
 			for(int i = 1; i < routeCoords.length-1; i++) {
@@ -156,12 +198,14 @@ public class CatchmentValidity {
 			filter = filterFactory2D.or(filter, filterB);
 		}
 		for (FeatureId featureId : fidsToIgnore) {
+			System.out.println("fid filter");
 			//apply filter to ignore the given fid
 			Filter filterC = filterFactory2D.not(filterFactory2D.id(featureId));
 			filter = filterFactory2D.and(filter, filterC);
 		}
 		
 		SimpleFeatureCollection matches = catchments.subCollection(filter);
+		System.out.println("matches.size:"+matches.size());
 		
 		return matches.size() < 1;
 
@@ -196,6 +240,22 @@ public class CatchmentValidity {
 		}
 		
 		return true;
+	}
+	
+	/**
+	 * checks whether possibleEndpoint is an endpoint of route
+	 * @param possibleEndpoint
+	 * @param route
+	 * @return
+	 */
+	private boolean isEndpointOf(Geometry possibleEndpoint, LineString route) {
+		Point first = geometryFactory.createPoint(route.getCoordinateN(0));
+		Point last = geometryFactory.createPoint(route.getCoordinateN(route.getNumPoints()-1));
+		System.out.println(" first: "+first+", last: "+last);
+		if (first.equals(possibleEndpoint) || last.equals(possibleEndpoint)) {
+			return true;
+		}
+		return false;
 	}
 	
 }

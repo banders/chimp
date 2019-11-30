@@ -20,6 +20,7 @@ import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
 
 import ca.bc.gov.catchment.tin.Edge;
+import ca.bc.gov.catchment.tin.TinPolys;
 import ca.bc.gov.catchment.tin.Triangle;
 import ca.bc.gov.catchments.utils.SpatialUtils;
 
@@ -39,12 +40,12 @@ public class RidgeSectionFitness extends SectionFitness {
 	private static final double SLOPE_TO_ASPECT_WEIGHT_RATIO = 0.1; //should be > 0
 	private static final double FITNESS_SCALE_FACTOR = 100;
 	
-	private SimpleFeatureSource tinPolys;
+	private TinPolys tinPolys;
 	private FilterFactory2 filterFactory;
 	private SimpleFeatureType tinPolysFeatureType;
 	private String tinPolysGeometryProperty;
 	
-	public RidgeSectionFitness(SimpleFeatureSource tinPolys) {
+	public RidgeSectionFitness(TinPolys tinPolys) {
 		this.tinPolys = tinPolys;
 		this.filterFactory = CommonFactoryFinder.getFilterFactory2();
 		this.tinPolysFeatureType = tinPolys.getSchema();

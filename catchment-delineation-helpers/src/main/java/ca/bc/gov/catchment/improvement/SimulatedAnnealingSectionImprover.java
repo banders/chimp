@@ -174,7 +174,7 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 			Coordinate newCoord = tinEdges.getRandomCoordInRadius(oldCoord, radius, true);
 			int freedom = (int)(Math.random() * route.getNumPoints());
 			try {
-				LineString neighbourRoute = router.reroute(route, oldCoord, newCoord, freedom);
+				LineString neighbourRoute = router.reroute(route, oldCoord, newCoord, freedom, false);
 				return neighbourRoute;
 			} catch (Exception e) {
 				//neighbour routes won't be possible for all pivotCoords.  

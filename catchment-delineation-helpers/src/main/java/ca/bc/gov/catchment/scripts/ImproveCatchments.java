@@ -82,12 +82,15 @@ import org.tinfour.standard.IncrementalTin;
 
 import ca.bc.gov.catchment.CatchmentLines;
 import ca.bc.gov.catchment.algorithms.NearestNeighbour3DMaker;
+import ca.bc.gov.catchment.fitness.AvgElevationSectionFitness;
 import ca.bc.gov.catchment.fitness.ElevationJunctionFitness;
 import ca.bc.gov.catchment.fitness.ElevationSectionFitness;
+import ca.bc.gov.catchment.fitness.ElevationLenghPenaltySectionFitness;
 import ca.bc.gov.catchment.fitness.JunctionFitness;
 import ca.bc.gov.catchment.fitness.SectionFitness;
 import ca.bc.gov.catchment.fitness.RidgeSectionFitness;
 import ca.bc.gov.catchment.fitness.SondheimSectionFitness;
+import ca.bc.gov.catchment.fitness.TouchingJunctionFitness;
 import ca.bc.gov.catchment.improvement.CatchmentSetImprover;
 import ca.bc.gov.catchment.improvement.JunctionImprover;
 import ca.bc.gov.catchment.improvement.JunctionModification;
@@ -113,6 +116,14 @@ import ca.bc.gov.catchments.utils.SpatialUtils;
 public class ImproveCatchments {
 
 	private static final String GEOPKG_ID = "geopkg";
+	private static final int MAX_ITERATIONS = 1;
+	private static final double SEARCH_RADIUS = 200;
+	
+	private static TinEdges tinEdges;
+	private static TinPolys tinPolys;
+	private static SimpleFeatureSource tinPolysFeatureSource;
+	private static WaterAnalyzer waterAnalyzer;
+	private static SimpleFeatureSource waterFeatureSource;
 
 	public static void main(String[] args) {
 		
@@ -262,7 +273,7 @@ public class ImproveCatchments {
 			System.exit(1);
 		}
 		
-		SimpleFeatureSource waterFeatureSource = null;
+		waterFeatureSource = null;
 		try {
 			waterFeatureSource = waterDatastore.getFeatureSource(waterTable);
 		} catch (IOException e1) {
@@ -322,7 +333,7 @@ public class ImproveCatchments {
 			System.exit(1);
 		}
 		
-		SimpleFeatureSource tinPolysFeatureSource = null;
+		tinPolysFeatureSource = null;
 		try {
 			tinPolysFeatureSource = tinPolysDatastore.getFeatureSource(tinPolysTable);
 		} catch (IOException e1) {
@@ -354,87 +365,36 @@ public class ImproveCatchments {
 			
 			SpatialIndexFeatureCollection indexedFc = new SpatialIndexFeatureCollection(inCatchmentFeatureCollection);
 			SimpleFeatureSource catchmentsFeatureSource = new SpatialIndexFeatureSource(indexedFc);
-			TinPolys tinPolys = new TinPolys(tinPolysFeatureSource);
+			tinPolys = new TinPolys(tinPolysFeatureSource);
 			
 			//convert all catchment coords to 3D
 			//TODO: offload this responsibility to a separate script that should be run before
 			//ImproveCatchments
+			/*
 			System.out.println("converting input to 3D...");
 			NearestNeighbour3DMaker elevationAdder = new NearestNeighbour3DMaker(tinEdgesFeatureSource, 3);
 			catchmentsFeatureSource = elevationAdder.make3dCopy(catchmentsFeatureSource);			
-			CatchmentLines catchmentLines = new CatchmentLines(catchmentsFeatureSource);			
-			
-			JunctionFitness junctionFitness = new ElevationJunctionFitness();
-			
-			//GeometryFitnessFinder sectionFitness = new RidgeFitnessFinder(tinPolysFeatureSource);
-			SectionFitness sectionFitness = new ElevationSectionFitness(tinPolysFeatureSource);
-			//GeometryFitnessFinder sectionFitness = new SondheimFitnessFinder(tinPolys);
-			
-			TinEdges tinEdges = new TinEdges(tinEdgesFeatureSource);
-			WaterAnalyzer waterAnalyzer = new WaterAnalyzer(waterFeatureSource);
-			
-			double SEARCH_RADIUS = 150;
-			
-			JunctionImprover junctionImprover = new SimulatedAnnealingJunctionImprover(
-					catchmentLines,
-					tinEdges,	
-					waterFeatureSource,									
-					junctionFitness,
-					SEARCH_RADIUS,
-					50
-					);
-			
-			SectionImprover sectionImprover = new SimulatedAnnealingSectionImprover(
-					catchmentLines, 
-					tinEdges, 
-					waterFeatureSource, 
-					sectionFitness, 
-					SEARCH_RADIUS, 
-					50
-					);
-			
-			//process all junction points
-			//-----------------------------------------------------------------
-			System.out.println("improving junctions...");
-			for(Coordinate junction : catchmentLines.getJunctions(waterAnalyzer)) {	
-				JunctionModification junctionModification = null;
-				try {
-					junctionModification = junctionImprover.improve(junction);
-				}
-				catch(Exception e) {
-					e.printStackTrace();
-					continue;
-				}
-				if (junctionModification.getModifiedJunction() != junctionModification.getOriginalJunction()) {
-					System.out.println("  moved junction "+junctionModification.getOriginalJunction()+" to "+junctionModification.getModifiedJunction());
-					for (SimpleFeature touchingSection : junctionModification.getModifiedSections()) {
-						System.out.println("  updated section with fid="+touchingSection.getIdentifier());
-						catchmentLines.addOrUpdate(touchingSection);
-					}
-				}				
-				System.out.println("---");
-			}
-			
-			//process all catchment sections
-			//-----------------------------------------------------------------
-			/*
-			System.out.println("improving catchments...");
-			SimpleFeatureCollection sections = catchmentLines.getUpdatedFeatures();
-			SimpleFeatureIterator sectionIt = sections.features();
-			while(sectionIt.hasNext()) {
-				SimpleFeature section = sectionIt.next();				
-				section = catchmentLines.getLatest(section);
-				SectionModification modification = sectionImprover.improve(section);
-				
-				catchmentLines.addOrUpdate(modification.getModifiedSection());
-				for (SimpleFeature touchingSection : modification.getModifiedTouchingSections()) {
-					System.out.println(" updated section with fid="+touchingSection.getIdentifier());
-					catchmentLines.addOrUpdate(touchingSection);
-				}
-				System.out.println("---");
-			}
-			sectionIt.close();
 			*/
+			CatchmentLines catchmentLines = new CatchmentLines(catchmentsFeatureSource);	
+			
+			tinEdges = new TinEdges(tinEdgesFeatureSource);
+			waterAnalyzer = new WaterAnalyzer(waterFeatureSource);
+			
+			for(int iterationNum = 0; iterationNum < MAX_ITERATIONS; iterationNum++) {
+				improveJunctions(catchmentLines, 15);
+				
+				String outFilename1 = outputGeopackageFilename.replace(".gpkg", "-j"+iterationNum+".gpkg");
+				SimpleFeatureCollection outFeatureCollection1 = catchmentLines.getUpdatedFeatures();
+				outFeatureCollection1 = SpatialUtils.renameFeatureType(outFeatureCollection1, outTable);
+				SaveUtils.saveToGeoPackage(outFilename1, outFeatureCollection1, true);
+				
+				improveSections(catchmentLines, 50);
+				
+				String outFilename2 = outputGeopackageFilename.replace(".gpkg", "-s"+iterationNum+".gpkg");
+				SimpleFeatureCollection outFeatureCollection2 = catchmentLines.getUpdatedFeatures();
+				outFeatureCollection2 = SpatialUtils.renameFeatureType(outFeatureCollection2, outTable);
+				SaveUtils.saveToGeoPackage(outFilename2, outFeatureCollection2, true);
+			}
 			
 			//saving
 			//-----------------------------------------------------------------
@@ -455,5 +415,82 @@ public class ImproveCatchments {
 		
 	}
 	
+	private static CatchmentLines improveJunctions(CatchmentLines catchmentLines, int numSteps) throws IOException {
+		SectionFitness sectionFitness = new AvgElevationSectionFitness(tinPolys);
+		JunctionFitness junctionFitness = new TouchingJunctionFitness(sectionFitness);
+		
+		JunctionImprover junctionImprover = new SimulatedAnnealingJunctionImprover(
+				catchmentLines,
+				tinEdges,
+				waterFeatureSource,									
+				junctionFitness,
+				SEARCH_RADIUS,
+				numSteps
+				);
+		
+		System.out.println("improving junctions...");
+		for(Coordinate junction : catchmentLines.getJunctions(waterAnalyzer)) {	
+			JunctionModification junctionModification = null;
+			try {
+				junctionModification = junctionImprover.improve(junction);
+			}
+			catch(Exception e) {
+				e.printStackTrace();
+				continue;
+			}
+			if (junctionModification.getModifiedJunction() != junctionModification.getOriginalJunction()) {
+				System.out.println("  moved junction "+junctionModification.getOriginalJunction()+" to "+junctionModification.getModifiedJunction());
+				for (SimpleFeature touchingSection : junctionModification.getModifiedSections()) {
+					//System.out.println("  updated section with fid="+touchingSection.getIdentifier());
+					catchmentLines.addOrUpdate(touchingSection);
+				}
+			}				
+			System.out.println("---");
+		}
+		
+		return catchmentLines;
+	}
+	
+	private static CatchmentLines improveSections(CatchmentLines catchmentLines, int numSteps) throws IOException {
+		//SectionFitness sectionFitness = new RidgeSectionFitness(tinPolys);
+		SectionFitness sectionFitness = new ElevationLenghPenaltySectionFitness(tinPolys);
+		//SectionFitness sectionFitness = new SondheimSectionFitness(tinPolys);
+		
+		SectionImprover sectionImprover = new SimulatedAnnealingSectionImprover(
+				catchmentLines, 
+				tinEdges, 
+				waterFeatureSource, 
+				sectionFitness, 
+				SEARCH_RADIUS, 
+				numSteps
+				);
+		
+		System.out.println("improving sections...");
+		SimpleFeatureCollection sections = catchmentLines.getOriginalFeatures();
+		SimpleFeatureIterator sectionIt = sections.features();
+		while(sectionIt.hasNext()) {
+			SimpleFeature section = sectionIt.next();				
+			section = catchmentLines.getLatest(section);
+			SectionModification modification = null;
+			try {
+				modification = sectionImprover.improve(section);
+			} 
+			catch (Exception e) {
+				continue;
+			}
+			
+			catchmentLines.addOrUpdate(modification.getModifiedSection());
+			for (SimpleFeature touchingSection : modification.getModifiedTouchingSections()) {
+				//System.out.println(" updated section with fid="+touchingSection.getIdentifier());
+				catchmentLines.addOrUpdate(touchingSection);
+				throw new IllegalStateException("This should never occur -- touching sections don't get modified by SectionImprover");
+			}
+			System.out.println("---");
+		}
+		sectionIt.close();		
+		
+		
+		return catchmentLines;
+	}
 	
 }

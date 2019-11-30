@@ -28,7 +28,7 @@ import ca.bc.gov.catchments.utils.SpatialUtils;
 
 public class WaterAwareCatchmentRouterTest {
 
-	private static final boolean SAVE_RESULTS = true;
+	private static final boolean SAVE_RESULTS = false;
 	private static final String SAVE_DIR = "C:\\Temp\\";
 	
 	private TinEdges tinEdges;
@@ -67,7 +67,7 @@ public class WaterAwareCatchmentRouterTest {
 		WaterAnalyzer waterAnalyzer = new WaterAnalyzer(water);
 		
 		WaterAwareCatchmentRouter catchmentRouter = new WaterAwareCatchmentRouter(tinEdges, waterAnalyzer);
-		LineString modifiedRoute = catchmentRouter.reroute(originalRoute, coordToMove, coordToReplaceWith, 1);
+		LineString modifiedRoute = catchmentRouter.reroute(originalRoute, coordToMove, coordToReplaceWith, 1, false);
 
 		Assert.assertTrue("modified route expected to be not null", modifiedRoute != null);
 		Assert.assertTrue("modified route expected to be different from original route", !originalRoute.equals(modifiedRoute));

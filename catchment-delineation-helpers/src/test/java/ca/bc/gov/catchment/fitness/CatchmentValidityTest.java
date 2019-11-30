@@ -24,6 +24,9 @@ import ca.bc.gov.catchment.synthetic.TestHelper;
 
 public class CatchmentValidityTest {
 
+	private static final boolean SAVE_RESULTS = false;
+	private static final String SAVE_DIR = "C:\\Temp\\";
+	
 	private GeometryFactory geometryFactory;
 	private SimpleFeatureSource waterFeatures;
 	private CatchmentValidity validityChecker;
@@ -36,8 +39,21 @@ public class CatchmentValidityTest {
 	
 	@Test
 	public void testSyntheticCatchmentsAreValid() throws IOException, RouteException {
+		String testName = "CatchmentValidityTest-testSyntheticCatchmentsAreValid";
+		String saveFilename = SAVE_DIR+testName+".gpkg";
+		
 		SimpleFeatureSource catchments = DummyFactory.createDummyCatchments();
 				
+		if (SAVE_RESULTS) {
+			try {
+				TestHelper.save(catchments, saveFilename);
+				TestHelper.save(waterFeatures, saveFilename);				
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
 		SimpleFeatureCollection catchmentsFc = catchments.getFeatures();
 		SimpleFeatureIterator catchmentIt = catchmentsFc.features();
 		while(catchmentIt.hasNext()) {
@@ -119,6 +135,9 @@ public class CatchmentValidityTest {
 	
 	@Test
 	public void testCatchmentOverlapsOtherCatchment2() throws IOException, RouteException {
+		String testName = "CatchmentValidityTest-testCatchmentOverlapsOtherCatchment2";
+		String saveFilename = SAVE_DIR+testName+".gpkg";		
+		
 		SimpleFeatureSource catchments = DummyFactory.createDummyCatchments();
 		//invalid (touches at one point)
 		Coordinate[] route2Coords = {
@@ -126,10 +145,22 @@ public class CatchmentValidityTest {
 				new Coordinate(2, 10, 12),
 				new Coordinate(4, 9, 12),
 				new Coordinate(4, 11, 14),
-				new Coordinate(5, 11, 12)
+				new Coordinate(5, 9, 14) //existing catchment midpoint
 		};		
 		LineString route2 = geometryFactory.createLineString(route2Coords);
 		boolean isValid2 = validityChecker.isRouteValidWrtCatchments(route2, catchments.getFeatures());
+				
+		if (SAVE_RESULTS) {
+			try {
+				SimpleFeatureSource routes = TestHelper.createLineStringFeatureSource(route2, "routes");				
+				TestHelper.save(catchments, saveFilename);
+				TestHelper.save(routes, saveFilename);				
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}		
+		
 		Assert.isTrue(!isValid2, "synthetic catchment is expected to be invalid");
 	}
 	
@@ -150,16 +181,32 @@ public class CatchmentValidityTest {
 	
 	@Test
 	public void testCatchmentOverlapsOtherCatchment4() throws IOException, RouteException {
+		String testName = "CatchmentValidityTest-testCatchmentOverlapsOtherCatchment4";
+		String saveFilename = SAVE_DIR+testName+".gpkg";	
+		
 		SimpleFeatureSource catchments = DummyFactory.createDummyCatchments();
 		//invalid (crosses at a point)
 		Coordinate[] route4Coords = {
 				new Coordinate(2, 8, 13),
 				new Coordinate(2, 10, 12),
 				new Coordinate(4, 9, 12),
+				new Coordinate(5, 9, 14), //existing catchment coordinate
 				new Coordinate(6, 8, 11)
 		};		
 		LineString route4 = geometryFactory.createLineString(route4Coords);
 		boolean isValid4 = validityChecker.isRouteValidWrtCatchments(route4, catchments.getFeatures());
+		
+		if (SAVE_RESULTS) {
+			try {
+				SimpleFeatureSource routes = TestHelper.createLineStringFeatureSource(route4, "routes");				
+				TestHelper.save(catchments, saveFilename);
+				TestHelper.save(routes, saveFilename);				
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}	
+		
 		Assert.isTrue(!isValid4, "synthetic catchment is expected to be invalid");
 	}
 	

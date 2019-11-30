@@ -153,7 +153,7 @@ public class SimulatedAnnealingCatchmentSetImprover extends CatchmentSetImprover
 		
 		List<SimpleFeature> originalTouching = getCatchmentLines().getSectionsTouchingJunction(originalJunction);
 		
-		double originalFit = fitnessFinder.fitness(originalTouching);
+		double originalFit = fitnessFinder.fitnessSum(originalTouching);
 		
 		JunctionModification favouredModification = new JunctionModification(originalJunction, originalTouching);
 		
@@ -199,7 +199,7 @@ public class SimulatedAnnealingCatchmentSetImprover extends CatchmentSetImprover
 				continue;
 			}
 			
-			double neighbourFit = fitnessFinder.fitness(newSections);
+			double neighbourFit = fitnessFinder.fitnessSum(newSections);
 			System.out.println(" neighbourFit:"+neighbourFit+", favouredFit:"+favouredFit);
 			
 			JunctionModification modification = new JunctionModification(originalJunction, originalTouching);
@@ -235,7 +235,7 @@ public class SimulatedAnnealingCatchmentSetImprover extends CatchmentSetImprover
 		//chosenRoute may also be null of no suitable route could be found
 		JunctionModification chosenModification = chooseJunctionModification(modificationsToConsider);
 		if (chosenModification.getOriginalJunction() != chosenModification.getModifiedJunction()) {
-			System.out.println(" improved junction from "+originalFit+" to "+fitnessFinder.fitness(chosenModification.getModifiedSections()));
+			System.out.println(" improved junction from "+originalFit+" to "+fitnessFinder.fitnessSum(chosenModification.getModifiedSections()));
 		}
 		else {
 			System.out.println(" junction could not be improved");
@@ -313,7 +313,7 @@ public class SimulatedAnnealingCatchmentSetImprover extends CatchmentSetImprover
 			Coordinate newCoord = tinEdges.getRandomCoordInRadius(oldCoord, radius, true);
 			int freedom = (int)(Math.random() * route.getNumPoints());
 			try {
-				LineString neighbourRoute = router.reroute(route, oldCoord, newCoord, freedom);
+				LineString neighbourRoute = router.reroute(route, oldCoord, newCoord, freedom, false);
 				return neighbourRoute;
 			} catch (Exception e) {
 				//neighbour routes won't be possible for all pivotCoords.  

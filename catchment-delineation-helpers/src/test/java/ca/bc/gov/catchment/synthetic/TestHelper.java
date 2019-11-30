@@ -1,10 +1,12 @@
 package ca.bc.gov.catchment.synthetic;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.geotools.data.DataUtilities;
 import org.geotools.data.collection.CollectionFeatureSource;
+import org.geotools.data.collection.SpatialIndexFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.feature.DefaultFeatureCollection;
 import org.geotools.feature.SchemaException;
@@ -23,7 +25,11 @@ import ca.bc.gov.catchments.utils.SaveUtils;
 
 public class TestHelper {
 
-
+	public static SimpleFeatureSource createLineStringFeatureSource(LineString route, String tableName) { 
+		List<LineString> routes = new ArrayList<LineString>();
+		routes.add(route);
+		return createLineStringFeatureSource(routes, tableName);
+	}
 	
 	public static SimpleFeatureSource createLineStringFeatureSource(List<LineString> routes, String tableName) { 
 	

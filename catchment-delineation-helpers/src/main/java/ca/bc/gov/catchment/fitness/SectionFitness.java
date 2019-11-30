@@ -24,7 +24,7 @@ import org.opengis.feature.simple.SimpleFeature;
  */
 public abstract class SectionFitness {
 
-	public double fitness(List<SimpleFeature> features) throws IOException {
+	public double fitnessSum(List<SimpleFeature> features) throws IOException {
 		double totalFitness = 0;
 		for(SimpleFeature f : features) {
 			Geometry g = (Geometry)f.getDefaultGeometry();
@@ -34,7 +34,7 @@ public abstract class SectionFitness {
 		return totalFitness;
 	}
 	
-	public double fitness(SimpleFeatureCollection features) throws IOException {
+	public double fitnessSum(SimpleFeatureCollection features) throws IOException {
 		double totalFitness = 0;
 		SimpleFeatureIterator it = features.features();
 		try {

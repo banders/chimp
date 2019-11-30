@@ -28,25 +28,33 @@ public class NearestNeighbour3DMaker {
 	
 	public NearestNeighbour3DMaker(SimpleFeatureSource features3D, int kNeighbours) {
 		this.kNeighbours = kNeighbours;
-		this.nearestNeighbour = new NearestNeighbour(features3D);
-		
+		this.nearestNeighbour = new NearestNeighbour(features3D);		
+		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
+	}
+	
+	public NearestNeighbour3DMaker(SimpleFeatureSource features3D, int kNeighbours, int searchRadius) {
+		this.kNeighbours = kNeighbours;
+		this.nearestNeighbour = new NearestNeighbour(features3D, searchRadius);		
 		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
 	}
 	
 	public SimpleFeatureSource make3dCopy(SimpleFeatureSource features) throws IOException {
-		DefaultFeatureCollection outFc = new DefaultFeatureCollection();
-		SimpleFeatureCollection inFc = features.getFeatures();
-		SimpleFeatureIterator inIt = inFc.features();
+		SimpleFeatureCollection outFc = make3dCopy(features.getFeatures());
+		SpatialIndexFeatureCollection indexedFc = new SpatialIndexFeatureCollection(outFc);
+		SpatialIndexFeatureSource result = new SpatialIndexFeatureSource(indexedFc);
+		return result;	
+	}
+	
+	public SimpleFeatureCollection make3dCopy(SimpleFeatureCollection inFeatures) throws IOException {
+		DefaultFeatureCollection outFeatures = new DefaultFeatureCollection();
+		SimpleFeatureIterator inIt = inFeatures.features();
 		while(inIt.hasNext()) {
 			SimpleFeature original = inIt.next();
 			SimpleFeature copy3d = make3dCopy(original);
-			outFc.add(copy3d);
+			outFeatures.add(copy3d);
 		}
 		inIt.close();
-		
-		SpatialIndexFeatureCollection indexedFc = new SpatialIndexFeatureCollection(outFc);
-		SpatialIndexFeatureSource result = new SpatialIndexFeatureSource(indexedFc);
-		return result;		
+		return outFeatures;
 	}
 	
 	public SimpleFeature make3dCopy(SimpleFeature f) throws IOException {

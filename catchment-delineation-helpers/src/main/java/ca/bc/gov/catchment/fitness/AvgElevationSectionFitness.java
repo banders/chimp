@@ -27,10 +27,11 @@ import ca.bc.gov.catchment.tin.Triangle;
 import ca.bc.gov.catchments.utils.SpatialUtils;
 
 /**
- * @author Brock
- *
+ * Fitness is equal to the average elevation. 
+ * (i.e. the sum of elevation of each coordinate, divided by the number of coordinates)
+ * @author Brock Anderson
  */
-public class ElevationSectionFitness extends SectionFitness {
+public class AvgElevationSectionFitness extends SectionFitness {
 
 	private GeometryFactory geometryFactory;
 	private TinPolys tinPolys;
@@ -38,7 +39,7 @@ public class ElevationSectionFitness extends SectionFitness {
 	private SimpleFeatureType tinPolysFeatureType;
 	private String tinPolysGeometryProperty;
 	
-	public ElevationSectionFitness(TinPolys tinPolys) {
+	public AvgElevationSectionFitness(TinPolys tinPolys) {
 		this.tinPolys = tinPolys;
 		this.filterFactory = CommonFactoryFinder.getFilterFactory2();
 		this.tinPolysFeatureType = tinPolys.getSchema();
@@ -52,7 +53,7 @@ public class ElevationSectionFitness extends SectionFitness {
 		for(Coordinate coord : geom.getCoordinates()) {
 			sumZ += coord.getZ();
 		}
-		double fitness = sumZ;
+		double fitness = sumZ / geom.getNumPoints();
 		return fitness;
 	}
 	

@@ -30,7 +30,7 @@ import ca.bc.gov.catchments.utils.SpatialUtils;
  * @author Brock
  *
  */
-public class ElevationSectionFitness extends SectionFitness {
+public class ElevationLenghPenaltySectionFitness extends SectionFitness {
 
 	private GeometryFactory geometryFactory;
 	private TinPolys tinPolys;
@@ -38,7 +38,7 @@ public class ElevationSectionFitness extends SectionFitness {
 	private SimpleFeatureType tinPolysFeatureType;
 	private String tinPolysGeometryProperty;
 	
-	public ElevationSectionFitness(TinPolys tinPolys) {
+	public ElevationLenghPenaltySectionFitness(TinPolys tinPolys) {
 		this.tinPolys = tinPolys;
 		this.filterFactory = CommonFactoryFinder.getFilterFactory2();
 		this.tinPolysFeatureType = tinPolys.getSchema();
@@ -48,11 +48,13 @@ public class ElevationSectionFitness extends SectionFitness {
 	
 	@Override
 	public double fitness(Geometry geom) throws IOException {
+		double len = geom.getLength();
 		double sumZ = 0;
 		for(Coordinate coord : geom.getCoordinates()) {
 			sumZ += coord.getZ();
 		}
-		double fitness = sumZ;
+		//double avgZ = sumZ / geom.getNumPoints();
+		double fitness = sumZ / len;
 		return fitness;
 	}
 	

@@ -19,6 +19,7 @@ import ca.bc.gov.catchment.fitness.CatchmentValidity;
 import ca.bc.gov.catchment.fitness.RidgeSectionFitness;
 import ca.bc.gov.catchment.synthetic.DummyFactory;
 import ca.bc.gov.catchment.tin.TinEdges;
+import ca.bc.gov.catchment.tin.TinPolys;
 import ca.bc.gov.catchments.utils.SaveUtils;
 import ca.bc.gov.catchments.utils.SpatialUtils;
 
@@ -28,7 +29,7 @@ public class RadiusCatchmentSetImproverTest {
 	private static final String SAVE_DIR = "C:\\Temp\\";
 	
 	
-	@Test
+	
 	public void testImproveAll() throws Exception {
 		String testName = "test-improve-all";
 		String saveFilename = SAVE_DIR+testName+".gpkg";
@@ -41,7 +42,8 @@ public class RadiusCatchmentSetImproverTest {
 		SimpleFeatureSource catchmentEdges = DummyFactory.createDummyCatchments();
 		CatchmentLines catchmentLines = new CatchmentLines(catchmentEdges);
 		TinEdges tinEdges = new TinEdges(DummyFactory.createDummyTinEdges());
-		SimpleFeatureSource tinPolys = DummyFactory.createDummyTinPolys(tinEdges.getFeatureSource());
+		SimpleFeatureSource tinPolysFeatureSource = DummyFactory.createDummyTinPolys(tinEdges.getFeatureSource());
+		TinPolys tinPolys = new TinPolys(tinPolysFeatureSource);
 		RidgeSectionFitness fitnessFinder = new RidgeSectionFitness(tinPolys);
 		double radius = 4;
 		
