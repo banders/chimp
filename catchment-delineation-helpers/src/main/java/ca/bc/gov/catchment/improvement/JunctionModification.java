@@ -47,4 +47,10 @@ public class JunctionModification {
 	public List<SimpleFeature> getOriginalSections() {
 		return this.originalSections;
 	}
+	
+	public boolean isModified() {
+		boolean isModified = originalJunction.equals(modifiedJunction);
+		return isModified;
+	}
+	
 }

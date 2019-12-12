@@ -55,6 +55,14 @@ public class SpatialUtils {
 		return features;
 	}
 	
+	public static SimpleFeatureCollection featListToSimpleFeatureCollection(List<SimpleFeature> features) {
+		DefaultFeatureCollection df = new DefaultFeatureCollection();
+		for (SimpleFeature feature : features) {
+			df.add(feature);
+		}
+		return df;
+	}
+	
 	/**
 	 * Extracts just the geometry from each features, then returns a collection of those geometries
 	 * @param fc

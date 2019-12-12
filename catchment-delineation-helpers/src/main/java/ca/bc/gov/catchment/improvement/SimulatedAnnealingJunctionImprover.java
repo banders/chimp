@@ -2,8 +2,10 @@ package ca.bc.gov.catchment.improvement;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableSet;
 import java.util.TreeMap;
 
@@ -11,6 +13,7 @@ import org.geotools.data.simple.SimpleFeatureSource;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.opengis.feature.simple.SimpleFeature;
+import org.opengis.filter.identity.FeatureId;
 
 import ca.bc.gov.catchment.CatchmentLines;
 import ca.bc.gov.catchment.fitness.CatchmentValidity;
@@ -32,6 +35,7 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 	private int maxSteps;
 	private double radius;
 	private WaterAwareCatchmentRouter router;
+	private boolean shortCircuitOnFirstImprovement;
 	
 	public SimulatedAnnealingJunctionImprover(
 			CatchmentLines catchmentLines,
@@ -46,16 +50,19 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 		this.catchmentValidityChecker = new CatchmentValidity(waterFeatures);
 		this.router = new WaterAwareCatchmentRouter(tinEdges, new WaterAnalyzer(waterFeatures));
 		this.radius = radius;
-		this.maxSteps = maxSteps;		
+		this.maxSteps = maxSteps;
+		this.shortCircuitOnFirstImprovement = true;
 	}
 	
 	@Override
 	public JunctionModification improve(Coordinate originalJunction) throws IOException {
-	
-		//identify other sections touching this junction
-		System.out.println("trying to improve junction: "+originalJunction);		
+		
+		//identify other sections touching this junction		
 		List<SimpleFeature> originalTouching = catchmentLines.getSectionsTouchingJunction(originalJunction);
+
+		
 		double originalFit = fitnessFinder.fitness(originalJunction, originalTouching);
+		System.out.println("trying to improve junction: "+originalJunction);
 		
 		JunctionModification favouredModification = new JunctionModification(originalJunction, originalTouching);
 		
@@ -80,7 +87,9 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 			List<SimpleFeature> newSections = null;
 			
 			try {
-				neighbourCoord = tinEdges.getRandomCoordInRadius(favouredModification.getModifiedJunction(), radius, true);
+				List<Coordinate> exclude = new ArrayList<Coordinate>();
+				exclude.add(favouredModification.getModifiedJunction());
+				neighbourCoord = tinEdges.getRandomCoordInRadius(favouredModification.getModifiedJunction(), radius, exclude);
 				if (neighboursTested.contains(neighbourCoord)) {
 					continue;
 				}
@@ -96,6 +105,23 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 				continue;
 			}
 			
+			double neighbourFit = fitnessFinder.fitness(neighbourCoord, newSections);
+			boolean fitnessImproved = neighbourFit > favouredFit;
+			boolean acceptWorse = false;
+			if (!fitnessImproved) {
+				//if the fit is not an improvement, still consider setting it as the favoured route
+				//based on a probability function
+				double fractionOfTimeElapsed = (stepNum+1.0f)/maxSteps;
+				double T = getTemperature(fractionOfTimeElapsed);
+				double p = getProbabilityOfSwitching(favouredFit, neighbourFit, T);
+				double r = Math.random();
+				acceptWorse = p > r;
+				if (!acceptWorse) {
+					System.out.println("  rejected.  fit worsened from "+favouredFit+" to "+neighbourFit);
+					continue;
+				}
+			} 
+			
 			//validate the new sections.  if invalid, skip the route and try again
 			boolean isValidWrtWater = catchmentValidityChecker.areSectionsValidWrtWater(newSections);
 			if (!isValidWrtWater) {
@@ -109,30 +135,25 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 				continue;
 			}
 			
-			double neighbourFit = fitnessFinder.fitness(neighbourCoord, newSections);
-			System.out.println("  fit:"+neighbourFit+", favouredFit:"+favouredFit);
-			
 			JunctionModification modification = new JunctionModification(originalJunction, originalTouching);
 			modification.setModifiedJunction(neighbourCoord);
 			modification.setModifiedSections(newSections);
 			
 			//if the fit is an improvement, record the route
-			if (neighbourFit > favouredFit) {				
+			if (fitnessImproved) {
+				System.out.println("  accepted.  fit improved from "+favouredFit+" to "+neighbourFit);
 				modificationsToConsider.put(neighbourFit, modification);
 				favouredFit = neighbourFit;	
 				favouredModification = modification;
 				//System.out.println(" accepted neighbour automatically");
+				if (shortCircuitOnFirstImprovement) {
+					break;
+				}
 				continue;
 			}
 			
-			//if the fit is not an improvement, still consider setting it as the favoured route
-			//based on a probability function
-			double fractionOfTimeElapsed = (stepNum+1.0f)/maxSteps;
-			double T = getTemperature(fractionOfTimeElapsed);
-			double p = getProbabilityOfSwitching(favouredFit, neighbourFit, T);
-			double r = Math.random();
-			
-			if (p > r) {
+			if (acceptWorse) {
+				System.out.println("  accepted. fit worsened from "+favouredFit+" to "+neighbourFit);
 				favouredFit = neighbourFit;
 				favouredModification = modification;
 				//System.out.println(" accepted neighbour at random");
@@ -153,7 +174,22 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 		
 		return chosenModification;
 	}
-
+	
+	public ImprovementCoverage getImprovementCoverage() {
+		return null;
+	}
+	
+	private String getJunctionId(List<SimpleFeature> touchingSections) {
+		String id = "";
+		for(SimpleFeature f : touchingSections) {
+			id += f.getIdentifier().getID();
+		}
+		if (id.equals("")) {
+			return null;
+		}
+		return id;
+	}
+	
 	/**
 	 * Chooses the JunctionModification from the given map with the best fit.  
 	 * Assumption: all JunctionModification in the given map are valid.  Therefore, the chosen JunctionModification will be a valid JunctionModification.

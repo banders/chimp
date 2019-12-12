@@ -29,8 +29,13 @@ public class CatchmentLines {
 	private String geometryPropertyName;
 	private SimpleFeatureSource originalCatchmentLines;
 	private DefaultFeatureCollection updatedCatchmentLines;
+	private Filter defaultFilter;
 	
 	public CatchmentLines(SimpleFeatureSource catchmentLines) throws IOException {
+		this(catchmentLines, null);
+	}
+	
+	public CatchmentLines(SimpleFeatureSource catchmentLines, Filter defaultFilter) throws IOException {
 		this.filterFactory = CommonFactoryFinder.getFilterFactory2();
 		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
 		this.featureType = catchmentLines.getSchema();
@@ -39,6 +44,7 @@ public class CatchmentLines {
 		this.originalCatchmentLines = catchmentLines;
 		this.updatedCatchmentLines = new DefaultFeatureCollection();
 		this.updatedCatchmentLines.addAll(catchmentLines.getFeatures());
+		this.defaultFilter = defaultFilter;
 	}
 	
 	public List<SimpleFeature> getSectionsTouchingJunction(Coordinate junction) throws IOException {
@@ -51,7 +57,7 @@ public class CatchmentLines {
 				filterFactory.literal(p)
 				);
 		
-		SimpleFeatureCollection originalTouchingCatchmentEdges = originalCatchmentLines.getFeatures(touchesFilter);
+		SimpleFeatureCollection originalTouchingCatchmentEdges = getUpdatedFeatures(touchesFilter);
 		SimpleFeatureIterator it = originalTouchingCatchmentEdges.features();
 		try {
 			while(it.hasNext()) {
@@ -66,37 +72,56 @@ public class CatchmentLines {
 		return touchingSections;
 	}
 	
+	public Filter getDefaultFilter() {
+		return this.defaultFilter;
+	}
+	
 	public SimpleFeatureType getSchema() {
 		return this.featureType;
 	}
 	
 	public SimpleFeatureCollection getOriginalFeatures(Filter f) throws IOException {
+		if (defaultFilter != null) {
+			Filter allFilter = filterFactory.and(defaultFilter, f);
+			return originalCatchmentLines.getFeatures(allFilter);
+		}
 		return originalCatchmentLines.getFeatures(f);
 	} 
 	
 	public SimpleFeatureCollection getOriginalFeatures() throws IOException {
-		return this.originalCatchmentLines.getFeatures();
+		if (defaultFilter != null) {
+			return originalCatchmentLines.getFeatures(defaultFilter);
+		}
+		return originalCatchmentLines.getFeatures();
 	}
 	
 	public SimpleFeatureCollection getUpdatedFeatures(Filter f) throws IOException {
+		//if (defaultFilter != null) {
+		//	Filter allFilter = filterFactory.and(defaultFilter, f);
+		//	return updatedCatchmentLines.subCollection(allFilter);
+		//}
 		return updatedCatchmentLines.subCollection(f);
 	} 
 	
 	public SimpleFeatureCollection getUpdatedFeatures() throws IOException {
+		//if (defaultFilter != null) {
+		//	updatedCatchmentLines.subCollection(defaultFilter);
+		//}
 		return this.updatedCatchmentLines;
 	}
 	
 	public List<Coordinate> getJunctions(WaterAnalyzer waterAnalyzer) throws IOException {
 		List<Coordinate> junctions = new ArrayList<Coordinate>();
-		SimpleFeatureCollection fc = originalCatchmentLines.getFeatures();
+		SimpleFeatureCollection fc = getOriginalFeatures();
 		SimpleFeatureIterator it = fc.features();
 		try {
-			while(it.hasNext()) {
+			while(it.hasNext()) {;
 				SimpleFeature f = it.next();
 				f = getLatest(f);
 				LineString route = (LineString)f.getDefaultGeometry();
 				Coordinate end1 = route.getCoordinateN(0);
 				Coordinate end2 = route.getCoordinateN(route.getNumPoints()-1);
+				
 				if (!waterAnalyzer.isConfluence(end1) && !junctions.contains(end1)) {
 					junctions.add(end1);
 				}
@@ -107,6 +132,7 @@ public class CatchmentLines {
 		} finally {
 			it.close();	
 		}
+		System.out.println(junctions.size()+" junctions");
 		return junctions;
 	}
 	
@@ -116,10 +142,11 @@ public class CatchmentLines {
 	 * @param sectionSet
 	 * @param section
 	 * @return
+	 * @throws IOException 
 	 */
-	public SimpleFeature getLatest(SimpleFeature section) {
+	public SimpleFeature getLatest(SimpleFeature section) throws IOException {
 		Filter fidFilter = filterFactory.id(section.getIdentifier());
-		SimpleFeatureCollection matches = updatedCatchmentLines.subCollection(fidFilter);
+		SimpleFeatureCollection matches = getUpdatedFeatures(fidFilter);
 		SimpleFeatureIterator matchesIt = matches.features();
 		try {
 			if (matchesIt.hasNext()) {
@@ -140,10 +167,11 @@ public class CatchmentLines {
 	 * feature collection, it is removed and the updated version is added
 	 * @param fc
 	 * @param f
+	 * @throws IOException 
 	 */
-	public void addOrUpdate(SimpleFeature f) {
+	public void addOrUpdate(SimpleFeature f) throws IOException {
 		Filter fidFilter = filterFactory.id(f.getIdentifier());
-		SimpleFeatureCollection matches = updatedCatchmentLines.subCollection(fidFilter);
+		SimpleFeatureCollection matches = getUpdatedFeatures(fidFilter);
 		SimpleFeatureIterator matchesIt = matches.features();
 
 		//if a feature with the same FID as the given feature already exists, 

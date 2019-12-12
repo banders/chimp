@@ -50,6 +50,16 @@ public abstract class SectionFitness {
 		}
 		return totalFitness;
 	}
+	
+	public double fitnessAvg(List<SimpleFeature> features) throws IOException {
+		double avg = fitnessSum(features) / features.size();
+		return avg;
+	}
+	
+	public double fitnessAvg(SimpleFeatureCollection features) throws IOException {
+		double avg = fitnessSum(features) / features.size();
+		return avg;
+	}
 
 	public double fitness(Geometry geom) throws IOException {
 		double totalFitness = 0;

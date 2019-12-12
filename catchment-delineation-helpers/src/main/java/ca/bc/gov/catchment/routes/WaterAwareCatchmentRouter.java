@@ -71,10 +71,9 @@ public class WaterAwareCatchmentRouter {
 				}
 			}
 		}
-		
 		LineString newRoute = null;
 		try {
-			newRoute = lineStringRouter.makeRoute(SpatialUtils.toCoordinateArray(coordsToIncludeInNewRoute));
+			newRoute = lineStringRouter.makeRoute(SpatialUtils.toCoordinateArray(coordsToIncludeInNewRoute));			
 		} catch(RouteException e) {
 			/*
 			System.out.println("Unable to change route. Diagnosis below:");
@@ -92,7 +91,7 @@ public class WaterAwareCatchmentRouter {
 			*/
 			throw e;
 		}
-
+		
 		//System.out.println(" old route:"+route);
 		//System.out.println(" new route:"+newRoute);
 		return newRoute;

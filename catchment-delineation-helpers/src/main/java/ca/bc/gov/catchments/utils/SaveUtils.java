@@ -112,6 +112,7 @@ public class SaveUtils {
 			entry.setSrid(srid);
 			entry.setBounds(fc.getBounds());
 			entry.setTableName(fc.getSchema().getTypeName());
+			entry.setZ(true);
 			gp.add(entry, fc);
 		} 
 		else { //append

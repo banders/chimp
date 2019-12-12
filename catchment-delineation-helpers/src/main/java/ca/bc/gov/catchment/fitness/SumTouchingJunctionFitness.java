@@ -6,7 +6,7 @@ import java.util.List;
 import org.locationtech.jts.geom.Coordinate;
 import org.opengis.feature.simple.SimpleFeature;
 
-public class TouchingJunctionFitness extends JunctionFitness {
+public class SumTouchingJunctionFitness extends JunctionFitness {
 
 	private SectionFitness sectionFitness;
 	
@@ -14,7 +14,7 @@ public class TouchingJunctionFitness extends JunctionFitness {
 	 * fitness of a junction is calculated as: the sum of fitnesses for each touching section
 	 * @param sectionFitness defines how the fitness of a section is determined
 	 */
-	public TouchingJunctionFitness(SectionFitness sectionFitness) {
+	public SumTouchingJunctionFitness(SectionFitness sectionFitness) {
 		this.sectionFitness = sectionFitness;
 	}
 	

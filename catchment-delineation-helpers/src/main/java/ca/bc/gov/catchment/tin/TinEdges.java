@@ -25,5 +25,8 @@ public class TinEdges extends Tin {
 		super(tinEdges);
 	}
 
+	public TinEdges(SimpleFeatureSource tinEdges, Filter filter)  {
+		super(tinEdges, filter);
+	}
 	
 }

@@ -51,6 +51,7 @@ public class ZipperCatchmentSetImprover extends CatchmentSetImprover {
 	private String tinEdgesGeometryPropertyName;
 	private CatchmentValidity catchmentValidityChecker;
 	
+	@Deprecated
 	public ZipperCatchmentSetImprover(
 			SimpleFeatureSource waterFeatures, 
 			TinEdges tinEdges,

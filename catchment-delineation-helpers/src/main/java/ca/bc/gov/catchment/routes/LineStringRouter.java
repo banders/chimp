@@ -277,7 +277,6 @@ public class LineStringRouter {
 				filterFactory2D.literal(p)
 				);		
 		SimpleFeatureCollection touching = tinEdges.getFeatures(firstCoordTouchesWaterFilter);
-		
 		SimpleFeatureIterator touchingIt = touching.features();
 		List<Coordinate> results = new ArrayList<Coordinate>();
 		while(touchingIt.hasNext()) {

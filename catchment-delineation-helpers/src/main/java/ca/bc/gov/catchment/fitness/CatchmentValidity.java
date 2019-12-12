@@ -141,8 +141,12 @@ public class CatchmentValidity {
 				filterFactory2D.property(catchmentGeometryPropertyName),
 				filterFactory2D.literal(route)
 				);
+		for (FeatureId featureId : fidsToIgnore) {
+			//apply filter to ignore the given fid
+			Filter filterC = filterFactory2D.not(filterFactory2D.id(featureId));
+			filter = filterFactory2D.and(filter, filterC);
+		}
 		SimpleFeatureCollection matches = catchments.subCollection(filter);
-		System.out.println("matches.size:"+matches.size());
 		
 		//if no catchment sections touch, the route is definately valid
 		if (matches.size() == 0) {
@@ -158,7 +162,6 @@ public class CatchmentValidity {
 			
 			//identify where the route intersects this catchment section
 			Geometry intersection = route.intersection(g);
-			System.out.println("intersection: "+intersection);
 			
 			//if the intersection is not an endpoint of either the catchment section
 			//OR the route then, it is not a valid intsections 
@@ -251,7 +254,6 @@ public class CatchmentValidity {
 	private boolean isEndpointOf(Geometry possibleEndpoint, LineString route) {
 		Point first = geometryFactory.createPoint(route.getCoordinateN(0));
 		Point last = geometryFactory.createPoint(route.getCoordinateN(route.getNumPoints()-1));
-		System.out.println(" first: "+first+", last: "+last);
 		if (first.equals(possibleEndpoint) || last.equals(possibleEndpoint)) {
 			return true;
 		}

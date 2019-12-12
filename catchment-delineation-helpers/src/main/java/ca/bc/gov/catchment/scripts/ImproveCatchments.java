@@ -72,6 +72,7 @@ import org.opengis.feature.type.FeatureType;
 import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory;
 import org.opengis.filter.FilterFactory2;
+import org.opengis.filter.identity.FeatureId;
 import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.tinfour.common.IConstraint;
@@ -82,16 +83,19 @@ import org.tinfour.standard.IncrementalTin;
 
 import ca.bc.gov.catchment.CatchmentLines;
 import ca.bc.gov.catchment.algorithms.NearestNeighbour3DMaker;
+import ca.bc.gov.catchment.fitness.AvgElevationLengthPenaltySectionFitness;
 import ca.bc.gov.catchment.fitness.AvgElevationSectionFitness;
 import ca.bc.gov.catchment.fitness.ElevationJunctionFitness;
 import ca.bc.gov.catchment.fitness.ElevationSectionFitness;
 import ca.bc.gov.catchment.fitness.ElevationLenghPenaltySectionFitness;
 import ca.bc.gov.catchment.fitness.JunctionFitness;
+import ca.bc.gov.catchment.fitness.PartialSumTouchingJunctionFitness;
 import ca.bc.gov.catchment.fitness.SectionFitness;
 import ca.bc.gov.catchment.fitness.RidgeSectionFitness;
 import ca.bc.gov.catchment.fitness.SondheimSectionFitness;
-import ca.bc.gov.catchment.fitness.TouchingJunctionFitness;
+import ca.bc.gov.catchment.fitness.SumTouchingJunctionFitness;
 import ca.bc.gov.catchment.improvement.CatchmentSetImprover;
+import ca.bc.gov.catchment.improvement.ImprovementCoverage;
 import ca.bc.gov.catchment.improvement.JunctionImprover;
 import ca.bc.gov.catchment.improvement.JunctionModification;
 import ca.bc.gov.catchment.improvement.SectionImprover;
@@ -116,14 +120,22 @@ import ca.bc.gov.catchments.utils.SpatialUtils;
 public class ImproveCatchments {
 
 	private static final String GEOPKG_ID = "geopkg";
-	private static final int MAX_ITERATIONS = 1;
+	private static final int MAX_JUNCTION_ITERATIONS = 20;
+	private static final int MAX_SECTION_ITERATIONS = 5;
+	private static final float MIN_JUNCTION_IMPROVEMENT_PERCENT = 0.5f;
+	private static final float MIN_SECTION_IMPROVEMENT_PERCENT = MIN_JUNCTION_IMPROVEMENT_PERCENT / 20;	
 	private static final double SEARCH_RADIUS = 200;
+	private static final double BUFFER_DISTANCE_METRES = 200;
+	private static final int MIN_NO_IMPROVEMENT_COUNT_TO_SKIP_SECTION = 1;
 	
 	private static TinEdges tinEdges;
 	private static TinPolys tinPolys;
 	private static SimpleFeatureSource tinPolysFeatureSource;
 	private static WaterAnalyzer waterAnalyzer;
 	private static SimpleFeatureSource waterFeatureSource;
+	private static ImprovementCoverage improvementCoverage;
+	private static SectionFitness sectionFitness;
+	private static Map<FeatureId, Integer> sectionNoImprovementCount;
 
 	public static void main(String[] args) {
 		
@@ -133,12 +145,14 @@ public class ImproveCatchments {
 		options.addOption("waterFile", true, "Input GeoPackage file with water features");
 		options.addOption("tinEdgesFile", true, "Input GeoPackage file with TIN");
 		options.addOption("tinPolysFile", true, "Input GeoPackage file with TIN");
+		options.addOption("outImprovementCoverageFile", true, "Output GeoPackage file for improvement coverage");		
 		options.addOption("o", true, "Output GeoPackage file");
 		options.addOption("catchmentsTable", true, "catchments table name");
 		options.addOption("waterTable", true, "water table name");
 		options.addOption("tinEdgesTable", true, "TIN edges table name");
 		options.addOption("tinPolysTable", true, "TIN polys table name");
 		options.addOption("outTable", true, "output table name");
+		options.addOption("outImprovementCoverageTable", true, "output table name for improvement coverage");
 		options.addOption("bbox", true, "bbox (minx,miny,maxx,maxy)");
 		options.addOption("bboxcrs", true, "e.g. EPSG:3005");
 		CommandLineParser parser = new DefaultParser();
@@ -149,11 +163,13 @@ public class ImproveCatchments {
 		String inTinEdgesFilename = null;
 		String inTinPolysFilename = null;
 		String outputGeopackageFilename = null;
+		String outputImprovementCoverageGeopackageFile = null;
 		String catchmentsTable = null;
 		String waterTable = null;
 		String tinEdgesTable = null;
 		String tinPolysTable = null;
 		String outTable = null;
+		String outImprovementCoverageTable = null;
 		String bboxStr = null;
 		String bboxCrs = null;
 		int bboxSrid = -1;
@@ -166,11 +182,13 @@ public class ImproveCatchments {
 			inTinEdgesFilename = cmd.getOptionValue("tinEdgesFile");
 			inTinPolysFilename = cmd.getOptionValue("tinPolysFile");
 			outputGeopackageFilename = cmd.getOptionValue("o");	
+			outputImprovementCoverageGeopackageFile = cmd.getOptionValue("outImprovementCoverageFile");	
 			catchmentsTable = cmd.getOptionValue("catchmentsTable");
 			waterTable = cmd.getOptionValue("waterTable");
 			tinEdgesTable = cmd.getOptionValue("tinEdgesTable");
 			tinPolysTable = cmd.getOptionValue("tinPolysTable");
 			outTable = cmd.getOptionValue("outTable");
+			outImprovementCoverageTable = cmd.getOptionValue("outImprovementCoverageTable", "improvement_coverage");
 			bboxStr = cmd.getOptionValue("bbox");
 			bboxCrs = cmd.getOptionValue("bboxcrs");
 		} catch (ParseException e2) {
@@ -341,67 +359,141 @@ public class ImproveCatchments {
 			e1.printStackTrace();
 			System.exit(1);
 		}
+	
 		
 		//Processing
 		//---------------------------------------------------------------------		
+		
+		Date start = new Date();
 		
 		Hints filterHints = new Hints( Hints.FEATURE_2D, true ); // force 2D queries
 		FilterFactory2 filterFactory = CommonFactoryFinder.getFilterFactory2(filterHints);
 		
 		try {
 			
-			//limit input catchments to given bbox (if specified)	
-			SimpleFeatureCollection inCatchmentFeatureCollection = null;
+			//define a bbox filter
+			Filter bboxFilter = null;
+			Filter bufferedBboxFilter = null;
 			if (boundsToProcess != null) {
-				System.out.println("Selecting input catchments in bbox...");
-				Filter bboxFilter = filterFactory.bbox(
+				System.out.println("Defining bbox limit...");
+				
+				
+				bboxFilter = filterFactory.bbox(
 						filterFactory.property(inCatchmentGeometryPropertyName), 
 						boundsToProcess);
-				inCatchmentFeatureCollection = inCatchmentFeatureSource.getFeatures(bboxFilter);
-			}
-			else {
-				inCatchmentFeatureCollection = inCatchmentFeatureSource.getFeatures();
-			}
+								
+			}	
 			
-			SpatialIndexFeatureCollection indexedFc = new SpatialIndexFeatureCollection(inCatchmentFeatureCollection);
-			SimpleFeatureSource catchmentsFeatureSource = new SpatialIndexFeatureSource(indexedFc);
-			tinPolys = new TinPolys(tinPolysFeatureSource);
+			SpatialIndexFeatureCollection catchmentFeatureCollection = new SpatialIndexFeatureCollection(inCatchmentFeatureSource.getFeatures(bboxFilter));
+			SpatialIndexFeatureSource fastCatchmentFeatureSource = new SpatialIndexFeatureSource(catchmentFeatureCollection);
 			
-			//convert all catchment coords to 3D
-			//TODO: offload this responsibility to a separate script that should be run before
-			//ImproveCatchments
-			/*
-			System.out.println("converting input to 3D...");
-			NearestNeighbour3DMaker elevationAdder = new NearestNeighbour3DMaker(tinEdgesFeatureSource, 3);
-			catchmentsFeatureSource = elevationAdder.make3dCopy(catchmentsFeatureSource);			
-			*/
-			CatchmentLines catchmentLines = new CatchmentLines(catchmentsFeatureSource);	
+			ReferencedEnvelope bufferedBounds = new ReferencedEnvelope(fastCatchmentFeatureSource.getBounds());
+			bufferedBounds.expandBy(BUFFER_DISTANCE_METRES);
+			bufferedBboxFilter = filterFactory.bbox(
+					filterFactory.property(inCatchmentGeometryPropertyName), 
+					bufferedBounds);
 			
-			tinEdges = new TinEdges(tinEdgesFeatureSource);
-			waterAnalyzer = new WaterAnalyzer(waterFeatureSource);
+			SpatialIndexFeatureCollection waterFeatureCollection = new SpatialIndexFeatureCollection(waterFeatureSource.getFeatures());
+			SpatialIndexFeatureSource fastWaterFeatureSource = new SpatialIndexFeatureSource(waterFeatureCollection);
 			
-			for(int iterationNum = 0; iterationNum < MAX_ITERATIONS; iterationNum++) {
-				improveJunctions(catchmentLines, 15);
+			tinPolys = new TinPolys(tinPolysFeatureSource, bufferedBboxFilter);
+			tinEdges = new TinEdges(tinEdgesFeatureSource, bufferedBboxFilter);
+			waterAnalyzer = new WaterAnalyzer(fastWaterFeatureSource);
+			
+			//fitness functions
+			SectionFitness globalFitness = new AvgElevationSectionFitness(tinPolys);
+
+			CatchmentLines catchmentLines = new CatchmentLines(fastCatchmentFeatureSource, bboxFilter);
+			double initialFitness = globalFitness.fitnessAvg(catchmentLines.getOriginalFeatures());
+			
+			System.out.println("improving junctions...");
+			for(int iterationNum = 1; iterationNum <= MAX_JUNCTION_ITERATIONS; iterationNum++) {
 				
+				double roundStartFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
+				
+				
+				int numImproved = improveJunctions(catchmentLines, 30);
+				
+				/*
 				String outFilename1 = outputGeopackageFilename.replace(".gpkg", "-j"+iterationNum+".gpkg");
 				SimpleFeatureCollection outFeatureCollection1 = catchmentLines.getUpdatedFeatures();
 				outFeatureCollection1 = SpatialUtils.renameFeatureType(outFeatureCollection1, outTable);
 				SaveUtils.saveToGeoPackage(outFilename1, outFeatureCollection1, true);
+				*/
 				
-				improveSections(catchmentLines, 50);
+				double roundEndFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
+				double percentImprovementThisRound = (roundEndFitness - roundStartFitness)/roundEndFitness * 100;
+				System.out.println("junction round "+iterationNum+" complete");
+				System.out.println(" # improved: "+numImproved);
+				System.out.println(" start avg fitness:"+roundStartFitness);
+				System.out.println(" end avg fitness:"+roundEndFitness);
+				System.out.println(" improved by "+percentImprovementThisRound+"%");
 				
+				
+				if (percentImprovementThisRound < MIN_JUNCTION_IMPROVEMENT_PERCENT) {
+					System.out.println("Junction improvements halted because latest improvement < "+MIN_JUNCTION_IMPROVEMENT_PERCENT);
+					break;
+				}
+			}
+				
+			System.out.println("improving sections...");
+			sectionNoImprovementCount = new HashMap<FeatureId, Integer>();
+			for(int iterationNum = 1; iterationNum <= MAX_SECTION_ITERATIONS; iterationNum++) {
+				
+				double roundStartFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
+				
+				int numImproved = improveSections(catchmentLines, 50);
+				
+				/*
 				String outFilename2 = outputGeopackageFilename.replace(".gpkg", "-s"+iterationNum+".gpkg");
 				SimpleFeatureCollection outFeatureCollection2 = catchmentLines.getUpdatedFeatures();
 				outFeatureCollection2 = SpatialUtils.renameFeatureType(outFeatureCollection2, outTable);
 				SaveUtils.saveToGeoPackage(outFilename2, outFeatureCollection2, true);
+				*/
+				
+				double roundEndFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
+				double percentImprovementThisRound = (roundEndFitness - roundStartFitness)/roundEndFitness * 100;			
+				System.out.println("section round "+iterationNum+" complete");
+				System.out.println(" # improved: "+numImproved);
+				System.out.println(" start avg fitness:"+roundStartFitness);
+				System.out.println(" end avg fitness:"+roundEndFitness);
+				System.out.println(" improved by "+percentImprovementThisRound+"%");
+				
+				if (percentImprovementThisRound < MIN_SECTION_IMPROVEMENT_PERCENT) {
+					System.out.println("section improvements halted because latest improvement < "+MIN_SECTION_IMPROVEMENT_PERCENT);
+					break;
+				}
 			}
 			
-			//saving
+			Date end = new Date();
+			
+			//saving improved catchments
 			//-----------------------------------------------------------------
 			SimpleFeatureCollection outFeatureCollection = catchmentLines.getUpdatedFeatures();
 			outFeatureCollection = SpatialUtils.renameFeatureType(outFeatureCollection, outTable);
 			
 			SaveUtils.saveToGeoPackage(outputGeopackageFilename, outFeatureCollection, true);
+			
+			
+			//saving improvement coverage
+			//-----------------------------------------------------------------
+			if (improvementCoverage != null) {
+				System.out.println("improvement coverage fraction (total): "+improvementCoverage.getTotalCoverageFraction());
+				System.out.println("improvement coverage fraction (valid only): "+improvementCoverage.getValidCoverageFraction());
+				if (outputImprovementCoverageGeopackageFile != null) {
+					SimpleFeatureSource improvementCoverageSource = improvementCoverage.toFeatureSource();
+					SimpleFeatureCollection improvementCoverageCollection = improvementCoverageSource.getFeatures();
+					improvementCoverageCollection = SpatialUtils.renameFeatureType(improvementCoverageCollection, outImprovementCoverageTable);				
+					SaveUtils.saveToGeoPackage(outputImprovementCoverageGeopackageFile, improvementCoverageCollection, true);
+				}
+			}
+			
+			System.out.println("initial avg catchment elevation:"+initialFitness);
+			double finalFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
+			System.out.println("final avg catchment fitness:"+finalFitness);
+			
+			double runtimeMinutes = (end.getTime() - start.getTime())/(1000.0*60);
+			System.out.println("run time (minutes): "+runtimeMinutes); //minutes
 			
 		} catch(IOException e) {
 			e.printStackTrace();
@@ -415,9 +507,11 @@ public class ImproveCatchments {
 		
 	}
 	
-	private static CatchmentLines improveJunctions(CatchmentLines catchmentLines, int numSteps) throws IOException {
+	private static int improveJunctions(CatchmentLines catchmentLines, int numSteps) throws IOException {
 		SectionFitness sectionFitness = new AvgElevationSectionFitness(tinPolys);
-		JunctionFitness junctionFitness = new TouchingJunctionFitness(sectionFitness);
+		//SectionFitness sectionFitness = new AvgElevationLengthPenaltySectionFitness(tinPolys);
+		//JunctionFitness junctionFitness = new SumTouchingJunctionFitness(sectionFitness);
+		JunctionFitness junctionFitness = new PartialSumTouchingJunctionFitness(sectionFitness, 3);
 		
 		JunctionImprover junctionImprover = new SimulatedAnnealingJunctionImprover(
 				catchmentLines,
@@ -428,8 +522,10 @@ public class ImproveCatchments {
 				numSteps
 				);
 		
-		System.out.println("improving junctions...");
+		int modifiedCount = 0;
 		for(Coordinate junction : catchmentLines.getJunctions(waterAnalyzer)) {	
+			
+			System.out.println("---");
 			JunctionModification junctionModification = null;
 			try {
 				junctionModification = junctionImprover.improve(junction);
@@ -438,6 +534,9 @@ public class ImproveCatchments {
 				e.printStackTrace();
 				continue;
 			}
+			 
+			modifiedCount += junctionModification.isModified() ? 1 : 0;
+			
 			if (junctionModification.getModifiedJunction() != junctionModification.getOriginalJunction()) {
 				System.out.println("  moved junction "+junctionModification.getOriginalJunction()+" to "+junctionModification.getModifiedJunction());
 				for (SimpleFeature touchingSection : junctionModification.getModifiedSections()) {
@@ -445,18 +544,20 @@ public class ImproveCatchments {
 					catchmentLines.addOrUpdate(touchingSection);
 				}
 			}				
-			System.out.println("---");
+			
 		}
 		
-		return catchmentLines;
+		return modifiedCount;
 	}
 	
-	private static CatchmentLines improveSections(CatchmentLines catchmentLines, int numSteps) throws IOException {
-		//SectionFitness sectionFitness = new RidgeSectionFitness(tinPolys);
-		SectionFitness sectionFitness = new ElevationLenghPenaltySectionFitness(tinPolys);
+	private static int improveSections(CatchmentLines catchmentLines, int numSteps) throws IOException {
+		//sectionFitness = new AvgElevationSectionFitness(tinPolys);
+		sectionFitness = new AvgElevationLengthPenaltySectionFitness(tinPolys);
+		//SectionFitness sectionFitness = new RidgeSectionFitness(tinPolys);			
+		//sectionFitness = new ElevationLenghPenaltySectionFitness(tinPolys);
 		//SectionFitness sectionFitness = new SondheimSectionFitness(tinPolys);
 		
-		SectionImprover sectionImprover = new SimulatedAnnealingSectionImprover(
+		SimulatedAnnealingSectionImprover sectionImprover = new SimulatedAnnealingSectionImprover(
 				catchmentLines, 
 				tinEdges, 
 				waterFeatureSource, 
@@ -465,18 +566,35 @@ public class ImproveCatchments {
 				numSteps
 				);
 		
-		System.out.println("improving sections...");
+		if (improvementCoverage != null) {
+			sectionImprover.setImprovementCoverage(improvementCoverage);
+		}
+		
 		SimpleFeatureCollection sections = catchmentLines.getOriginalFeatures();
 		SimpleFeatureIterator sectionIt = sections.features();
+		int modifiedCount = 0;
 		while(sectionIt.hasNext()) {
-			SimpleFeature section = sectionIt.next();				
+			System.out.println("---");
+			SimpleFeature section = sectionIt.next();	
+			if (getNoImprovementCount(section) >= MIN_NO_IMPROVEMENT_COUNT_TO_SKIP_SECTION) {
+				System.out.println("skipping.  assume this section cannot be improved further.");
+				continue;
+			}
 			section = catchmentLines.getLatest(section);
 			SectionModification modification = null;
 			try {
 				modification = sectionImprover.improve(section);
 			} 
 			catch (Exception e) {
+				System.out.println("no improvements were possible. ");
+				e.printStackTrace();				
 				continue;
+			}
+			
+			if (modification.isModified()) {
+				modifiedCount++;	
+			} else {
+				incrementNoImprovementCount(section);
 			}
 			
 			catchmentLines.addOrUpdate(modification.getModifiedSection());
@@ -485,12 +603,32 @@ public class ImproveCatchments {
 				catchmentLines.addOrUpdate(touchingSection);
 				throw new IllegalStateException("This should never occur -- touching sections don't get modified by SectionImprover");
 			}
-			System.out.println("---");
+			
 		}
 		sectionIt.close();		
 		
+		improvementCoverage = sectionImprover.getImprovementCoverage();
 		
-		return catchmentLines;
+		return modifiedCount;
+	}
+	
+	private static void incrementNoImprovementCount(SimpleFeature section) {
+		FeatureId key = section.getIdentifier();
+		if(sectionNoImprovementCount.containsKey(key)) {
+			int count = sectionNoImprovementCount.get(key);
+			sectionNoImprovementCount.put(key, count++);
+		}
+		else {
+			sectionNoImprovementCount.put(key, 1);
+		}
+	}
+	
+	private static int getNoImprovementCount(SimpleFeature section) {
+		FeatureId key = section.getIdentifier();
+		if(sectionNoImprovementCount.containsKey(key)) {
+			return sectionNoImprovementCount.get(key);
+		}
+		return 0;
 	}
 	
 }

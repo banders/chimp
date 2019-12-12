@@ -175,7 +175,9 @@ public class SimulatedAnnealingCatchmentSetImprover extends CatchmentSetImprover
 			List<SimpleFeature> newSections = null;
 			
 			try {
-				neighbourCoord = tinEdges.getRandomCoordInRadius(favouredModification.getModifiedJunction(), radius, true);
+				List<Coordinate> exclude = new ArrayList<Coordinate>();
+				exclude.add(favouredModification.getModifiedJunction());
+				neighbourCoord = tinEdges.getRandomCoordInRadius(favouredModification.getModifiedJunction(), radius, exclude);
 				int freedom = 5; //(int)(Math.random() * 10) + 1; //10 is max freedom
 				newSections = router.rerouteFeatures(favouredModification.getModifiedSections(), favouredModification.getModifiedJunction(), neighbourCoord, freedom);
 			} catch(IOException e) {
@@ -304,13 +306,13 @@ public class SimulatedAnnealingCatchmentSetImprover extends CatchmentSetImprover
 	 * @throws IOException
 	 */
 	private LineString getRandomNeighbour(LineString route) throws RouteException, IOException {
-
+		List<Coordinate> existingRouteCoords = SpatialUtils.toCoordinateList(route.getCoordinates());
 		int MAX_TRIES = 100;
 		for(int attemptNum = 0; attemptNum < MAX_TRIES; attemptNum++) { 
 			//pick a pivotIndex, which is the main coordinate that will be displaced.
 			int pivotIndex = (int)(Math.random() * route.getNumPoints());
 			Coordinate oldCoord = route.getCoordinateN(pivotIndex);
-			Coordinate newCoord = tinEdges.getRandomCoordInRadius(oldCoord, radius, true);
+			Coordinate newCoord = tinEdges.getRandomCoordInRadius(oldCoord, radius, existingRouteCoords);
 			int freedom = (int)(Math.random() * route.getNumPoints());
 			try {
 				LineString neighbourRoute = router.reroute(route, oldCoord, newCoord, freedom, false);

@@ -25,6 +25,10 @@ public class TinPolys extends Tin {
 		super(tinPolys);
 	}
 
+	public TinPolys(SimpleFeatureSource tinPolys, Filter filter) {
+		super(tinPolys, filter);
+	}
+	
 	/**
 	 * Gets a list of (usually two) triangles that share the given edge in the TIN.
 	 */

@@ -7,6 +7,7 @@ import java.util.List;
 import org.geotools.data.DataUtilities;
 import org.geotools.data.collection.CollectionFeatureSource;
 import org.geotools.data.collection.SpatialIndexFeatureCollection;
+import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.feature.DefaultFeatureCollection;
 import org.geotools.feature.SchemaException;
@@ -77,6 +78,10 @@ public class TestHelper {
 	
 	public static void save(SimpleFeatureSource fs, String filename) throws IOException {
 		SaveUtils.saveToGeoPackage(filename, fs.getFeatures());
+	}
+	
+	public static void save(SimpleFeatureCollection fc, String filename) throws IOException {
+		SaveUtils.saveToGeoPackage(filename, fc);
 	}
 	
 	public static Geometry geometryFromWkt(String wkt) throws ParseException {

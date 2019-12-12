@@ -51,4 +51,9 @@ public class SectionModification {
 		return this.modifiedTouchingSections;
 	}
 	
+	public boolean isModified() {
+		boolean isModified = !getOriginalSection().equals(getModifiedSection());
+		return isModified;
+	}
+	
 }
