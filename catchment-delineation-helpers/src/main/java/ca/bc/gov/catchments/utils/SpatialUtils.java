@@ -125,6 +125,11 @@ public class SpatialUtils {
 		return toLineString(coords);
 	}
 	
+	public static LineString toLineString(Coordinate[] in) {
+		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+		return geometryFactory.createLineString(in);
+	}
+	
 	public static LineString toLineString(List<Coordinate> in) {
 		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
 		Coordinate[] coords = toCoordinateArray(in);

@@ -6,6 +6,8 @@ import java.util.List;
 import org.locationtech.jts.geom.Coordinate;
 import org.opengis.feature.simple.SimpleFeature;
 
+import ca.bc.gov.catchment.improvement.Junction;
+
 public class SumTouchingJunctionFitness extends JunctionFitness {
 
 	private SectionFitness sectionFitness;
@@ -19,8 +21,8 @@ public class SumTouchingJunctionFitness extends JunctionFitness {
 	}
 	
 	@Override
-	public double fitness(Coordinate junction, List<SimpleFeature> touchingSections) throws IOException {
-		return sectionFitness.fitnessSum(touchingSections);		
+	public double fitness(Junction junction) throws IOException {
+		return sectionFitness.fitnessSum(junction.getTouchingSections());		
 	}
 
 }

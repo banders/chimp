@@ -8,6 +8,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;
 import org.opengis.feature.simple.SimpleFeature;
 
+import ca.bc.gov.catchment.improvement.Junction;
 import ca.bc.gov.catchments.utils.SpatialUtils;
 
 public class PartialSumTouchingJunctionFitness extends JunctionFitness {
@@ -32,9 +33,9 @@ public class PartialSumTouchingJunctionFitness extends JunctionFitness {
 	}
 	
 	@Override
-	public double fitness(Coordinate junction, List<SimpleFeature> touchingSections) throws IOException {
+	public double fitness(Junction junction) throws IOException {
 		double sum = 0;
-		for(SimpleFeature section : touchingSections) {
+		for(SimpleFeature section : junction.getTouchingSections()) {
 			LineString partialRoute = getPartialRouteTouchingJunction(section, junction, nTouching);
 			sum += sectionFitness.fitness(partialRoute);
 		}
@@ -49,19 +50,19 @@ public class PartialSumTouchingJunctionFitness extends JunctionFitness {
 	 * @param junction
 	 * @return
 	 */
-	private LineString getPartialRouteTouchingJunction(SimpleFeature section, Coordinate junction, int nTouching) {
+	private LineString getPartialRouteTouchingJunction(SimpleFeature section, Junction junction, int nTouching) {
 		LineString originalRoute = (LineString)section.getDefaultGeometry();
 		if (originalRoute.getNumPoints() < nTouching) {
 			return originalRoute;
 		}
 		
 		List<Coordinate> coords = new ArrayList<Coordinate>();
-		if (originalRoute.getCoordinateN(0).equals(junction)) {
+		if (originalRoute.getCoordinateN(0).equals(junction.getCoordinate())) {
 			for (int i = 0; i < originalRoute.getNumPoints(); i++) {
 				coords.add(originalRoute.getCoordinateN(i));
 			}
 		}
-		else if (originalRoute.getCoordinateN(originalRoute.getNumPoints()-1).equals(junction)) {
+		else if (originalRoute.getCoordinateN(originalRoute.getNumPoints()-1).equals(junction.getCoordinate())) {
 			for (int i = 0; i < originalRoute.getNumPoints(); i++) {
 				int s = originalRoute.getNumPoints() - 1 - i;
 				coords.add(originalRoute.getCoordinateN(s));

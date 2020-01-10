@@ -8,49 +8,39 @@ import org.opengis.feature.simple.SimpleFeature;
 
 public class JunctionModification {
 
-	private Coordinate originalJunction;
-	private Coordinate modifiedJunction;
-	private List<SimpleFeature> modifiedSections;
-	private List<SimpleFeature> originalSections;
+	private Junction originalJunction;
+	private Junction modifiedJunction;
+	private ImprovementMetrics improvementMetrics;
 	
-	public JunctionModification(Coordinate originalJunction, List<SimpleFeature> originalSections) {
+	public JunctionModification(Junction originalJunction) {
 		this.originalJunction = originalJunction;
-		this.originalSections = originalSections;
 		
 		//modified junction and modified sections are initialized to the original values
 		this.modifiedJunction = originalJunction;
-		this.modifiedSections = new ArrayList<SimpleFeature>();
-		this.modifiedSections.addAll(originalSections);
-		
 	}
 	
-	public void setModifiedJunction(Coordinate modifiedJunction) {
+	public void setModifiedJunction(Junction modifiedJunction) {
 		this.modifiedJunction = modifiedJunction;
 	}
 	
-	public void setModifiedSections(List<SimpleFeature> modifiedSections) {
-		this.modifiedSections = modifiedSections;
-	}
-	
-	public Coordinate getOriginalJunction() {
+	public Junction getOriginalJunction() {
 		return this.originalJunction;
 	}
 	
-	public Coordinate getModifiedJunction() {
+	public Junction getModifiedJunction() {
 		return this.modifiedJunction;
 	}
 	
-	public List<SimpleFeature> getModifiedSections() {
-		return this.modifiedSections;
-	}
-	
-	public List<SimpleFeature> getOriginalSections() {
-		return this.originalSections;
-	}
-	
 	public boolean isModified() {
-		boolean isModified = originalJunction.equals(modifiedJunction);
+		boolean isModified = !originalJunction.getCoordinate().equals(modifiedJunction.getCoordinate());
 		return isModified;
 	}
 	
+	public ImprovementMetrics getImprovementMetrics() {
+		return improvementMetrics;
+	}
+	
+	public void setImprovementMetrics(ImprovementMetrics p) {
+		improvementMetrics = p;
+	}
 }

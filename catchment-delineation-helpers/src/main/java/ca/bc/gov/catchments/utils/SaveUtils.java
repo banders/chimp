@@ -94,7 +94,23 @@ public class SaveUtils {
 			boolean append) throws IOException {
 		
 		int srid = 3005; //default
-		CoordinateReferenceSystem crs = fc.getSchema().getGeometryDescriptor().getCoordinateReferenceSystem();
+		
+		if (fc == null) {
+			throw new NullPointerException("feature collection must not be null");
+		}
+		if (fc.getSchema() == null) {
+			throw new NullPointerException("feature collection's schema must not be null");
+		}
+		
+		CoordinateReferenceSystem crs = null;
+		try {
+			 crs = fc.getSchema().getGeometryDescriptor().getCoordinateReferenceSystem();
+		}
+		catch (NullPointerException e) {
+			//do nothing.
+			//this can occur when the feature collection is empty
+		}
+		
 		if (crs != null) {
 			try {
 				srid = CRS.lookupEpsgCode(crs, true);

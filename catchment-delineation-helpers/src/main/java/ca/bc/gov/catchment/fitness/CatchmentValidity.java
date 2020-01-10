@@ -2,6 +2,7 @@ package ca.bc.gov.catchment.fitness;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import org.geotools.data.simple.SimpleFeatureCollection;
@@ -22,6 +23,7 @@ import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
 import org.opengis.filter.identity.FeatureId;
 
+import ca.bc.gov.catchment.routes.LineStringRouter;
 import ca.bc.gov.catchment.water.WaterAnalyzer;
 
 public class CatchmentValidity {
@@ -96,27 +98,58 @@ public class CatchmentValidity {
 		Filter containsFilter = filterFactory2D.contains(
 				filterFactory2D.property(waterGeometryPropertyName), 
 				filterFactory2D.literal(route));
+		
+		
 		SimpleFeatureCollection nonEndpointCrossings = waterFeatures.getFeatures(containsFilter);
+		
 		if (nonEndpointCrossings.size() > 0) {
 			return false;
 		}
 		
+		
 		//check that each non-confluence VERTEX of the route doesn't touch water
-		for(Coordinate c : route.getCoordinates()) {
-			if (!waterAnalyzer.isConfluence(c)) {
-				Point p = geometryFactory.createPoint(c);
-				
-				Filter touchesFilter = filterFactory2D.dwithin(
-						filterFactory2D.property(waterGeometryPropertyName),
-						filterFactory2D.literal(p),
-						0,
-						"meters"
-						);
-				SimpleFeatureCollection touchingWaterFeatures = waterFeatures.getFeatures(touchesFilter);
-				if (touchingWaterFeatures.size() > 0) {
-					return false;
-				}
-			}			
+		if (route.getNumPoints() >= 4) {
+			//this is the most computationally efficient way to check if the 
+			//route touches water at non-endpoints, but it doesn't work when the route
+			//has less than 4 vertices (because LineStringRouter.removeEndpoints()
+			//will not create routes with less than 2 vertices).
+			//for short routes, use a less efficient algorithm below
+			
+			LineString routeNoEndpoints = LineStringRouter.removeEndpoints(route);
+			Filter touchesFilter = filterFactory2D.dwithin(
+					filterFactory2D.property(waterGeometryPropertyName),
+					filterFactory2D.literal(routeNoEndpoints),
+					0,
+					"meters"
+					);
+			SimpleFeatureCollection touchingWaterFeatures = waterFeatures.getFeatures(touchesFilter);		
+			if (touchingWaterFeatures.size() > 0) {
+				return false;
+			}
+			
+		} 
+		else {
+			//this is a less computationally efficient way to check if the route touches
+			//water at non end-points.  It is only used when the
+			//more efficient algorithm above cannot be used (i.e. for routes with less
+			//than 4 vertices)
+			for(Coordinate c : route.getCoordinates()) {
+				if (!waterAnalyzer.isConfluence(c)) {
+					Point p = geometryFactory.createPoint(c);
+					
+					Filter touchesFilter = filterFactory2D.dwithin(
+							filterFactory2D.property(waterGeometryPropertyName),
+							filterFactory2D.literal(p),
+							0,
+							"meters"
+							);
+					SimpleFeatureCollection touchingWaterFeatures = waterFeatures.getFeatures(touchesFilter);
+					
+					if (touchingWaterFeatures.size() > 0) {
+						return false;
+					}
+				}			
+			}
 		}
 		
 		return true;

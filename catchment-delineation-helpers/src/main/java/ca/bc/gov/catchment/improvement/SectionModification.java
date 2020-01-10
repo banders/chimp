@@ -14,6 +14,7 @@ public class SectionModification {
 	private SimpleFeature originalSection;
 	private SimpleFeature modifiedSection;
 	private List<SimpleFeature> modifiedTouchingSections;
+	private ImprovementMetrics improvementMetrics;
 	
 	public SectionModification(SimpleFeature originalSection) {
 		this.originalSection = originalSection;
@@ -56,4 +57,11 @@ public class SectionModification {
 		return isModified;
 	}
 	
+	public ImprovementMetrics getImprovementMetrics() {
+		return improvementMetrics;
+	}
+	
+	public void setImprovementMetrics(ImprovementMetrics p) {
+		improvementMetrics = p;
+	}
 }

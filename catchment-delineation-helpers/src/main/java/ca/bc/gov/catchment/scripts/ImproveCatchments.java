@@ -94,16 +94,15 @@ import ca.bc.gov.catchment.fitness.SectionFitness;
 import ca.bc.gov.catchment.fitness.RidgeSectionFitness;
 import ca.bc.gov.catchment.fitness.SondheimSectionFitness;
 import ca.bc.gov.catchment.fitness.SumTouchingJunctionFitness;
-import ca.bc.gov.catchment.improvement.CatchmentSetImprover;
 import ca.bc.gov.catchment.improvement.ImprovementCoverage;
+import ca.bc.gov.catchment.improvement.ImprovementMetrics;
+import ca.bc.gov.catchment.improvement.Junction;
 import ca.bc.gov.catchment.improvement.JunctionImprover;
 import ca.bc.gov.catchment.improvement.JunctionModification;
 import ca.bc.gov.catchment.improvement.SectionImprover;
 import ca.bc.gov.catchment.improvement.SectionModification;
-import ca.bc.gov.catchment.improvement.SimulatedAnnealingCatchmentSetImprover;
 import ca.bc.gov.catchment.improvement.SimulatedAnnealingJunctionImprover;
 import ca.bc.gov.catchment.improvement.SimulatedAnnealingSectionImprover;
-import ca.bc.gov.catchment.improvement.ZipperCatchmentSetImprover;
 import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchment.tin.TinPolys;
 import ca.bc.gov.catchment.water.WaterAnalyzer;
@@ -121,12 +120,15 @@ public class ImproveCatchments {
 
 	private static final String GEOPKG_ID = "geopkg";
 	private static final int MAX_JUNCTION_ITERATIONS = 20;
-	private static final int MAX_SECTION_ITERATIONS = 5;
+	private static final int MAX_SECTION_ITERATIONS = 10;
 	private static final float MIN_JUNCTION_IMPROVEMENT_PERCENT = 0.5f;
 	private static final float MIN_SECTION_IMPROVEMENT_PERCENT = MIN_JUNCTION_IMPROVEMENT_PERCENT / 20;	
 	private static final double SEARCH_RADIUS = 200;
 	private static final double BUFFER_DISTANCE_METRES = 200;
-	private static final int MIN_NO_IMPROVEMENT_COUNT_TO_SKIP_SECTION = 1;
+	private static final int MIN_NO_IMPROVEMENT_COUNT_TO_SKIP_SECTION = 2;
+	private static final int MIN_NO_IMPROVEMENT_COUNT_TO_SKIP_JUNCTION = 3;
+	private static final int NUM_TESTS_PER_JUNCTION = 30;
+	private static final int NUM_TESTS_PER_SECTION = 100;
 	
 	private static TinEdges tinEdges;
 	private static TinPolys tinPolys;
@@ -136,6 +138,7 @@ public class ImproveCatchments {
 	private static ImprovementCoverage improvementCoverage;
 	private static SectionFitness sectionFitness;
 	private static Map<FeatureId, Integer> sectionNoImprovementCount;
+	private static Map<String, Integer> junctionNoImprovementCount;
 
 	public static void main(String[] args) {
 		
@@ -407,12 +410,12 @@ public class ImproveCatchments {
 			double initialFitness = globalFitness.fitnessAvg(catchmentLines.getOriginalFeatures());
 			
 			System.out.println("improving junctions...");
+			junctionNoImprovementCount = new HashMap<String, Integer>();
 			for(int iterationNum = 1; iterationNum <= MAX_JUNCTION_ITERATIONS; iterationNum++) {
 				
-				double roundStartFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
+				double roundStartGlobalFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
 				
-				
-				int numImproved = improveJunctions(catchmentLines, 30);
+				ImprovementMetrics metrics = improveJunctions(catchmentLines, NUM_TESTS_PER_JUNCTION);
 				
 				/*
 				String outFilename1 = outputGeopackageFilename.replace(".gpkg", "-j"+iterationNum+".gpkg");
@@ -421,28 +424,43 @@ public class ImproveCatchments {
 				SaveUtils.saveToGeoPackage(outFilename1, outFeatureCollection1, true);
 				*/
 				
-				double roundEndFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
-				double percentImprovementThisRound = (roundEndFitness - roundStartFitness)/roundEndFitness * 100;
+				double roundEndGlobalFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
+				double percentImprovementThisRound = (roundEndGlobalFitness - roundStartGlobalFitness)/roundEndGlobalFitness * 100;
 				System.out.println("junction round "+iterationNum+" complete");
-				System.out.println(" # improved: "+numImproved);
-				System.out.println(" start avg fitness:"+roundStartFitness);
-				System.out.println(" end avg fitness:"+roundEndFitness);
-				System.out.println(" improved by "+percentImprovementThisRound+"%");
+				System.out.println(" improvements: ");
+				System.out.println("  - # requested: "+metrics.getNumImprovementRequests());
+				System.out.println("  - # succeeded: "+metrics.getNumImproved());
+				System.out.println(" alternatives tested: ");
+				System.out.println("  - # total: "+metrics.getNumAlternativesTested());
+				System.out.println("  - # valid: "+metrics.getNumValidAlternativesTested());
+				System.out.println(" runtime: ");
+				System.out.println("  - total for all improvement requests: "+metrics.getRuntimeMs()+ " ms");
+				System.out.println("  - average per improvement request: "+metrics.getAvgRuntimeMsPerTest()+ " ms");
+				System.out.println("  - average per improvement request alternative: "+metrics.getAvgRuntimeMsPerTest()+ " ms");				
+				System.out.println(" global fitness:");
+				System.out.println("  - start: "+roundStartGlobalFitness);
+				System.out.println("  - end: "+roundEndGlobalFitness);
+				System.out.println("  - improved by: "+percentImprovementThisRound+"%");
 				
-				
+				if(metrics.getNumImprovementRequests() == 0) {
+					System.out.println("Junction improvements no improvements were requested in the previous round");
+					break;
+				}
+				/*
 				if (percentImprovementThisRound < MIN_JUNCTION_IMPROVEMENT_PERCENT) {
 					System.out.println("Junction improvements halted because latest improvement < "+MIN_JUNCTION_IMPROVEMENT_PERCENT);
 					break;
 				}
+				*/
 			}
 				
 			System.out.println("improving sections...");
 			sectionNoImprovementCount = new HashMap<FeatureId, Integer>();
 			for(int iterationNum = 1; iterationNum <= MAX_SECTION_ITERATIONS; iterationNum++) {
 				
-				double roundStartFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
+				double roundStartGlobalFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
 				
-				int numImproved = improveSections(catchmentLines, 50);
+				ImprovementMetrics metrics = improveSections(catchmentLines, NUM_TESTS_PER_SECTION);
 				
 				/*
 				String outFilename2 = outputGeopackageFilename.replace(".gpkg", "-s"+iterationNum+".gpkg");
@@ -451,18 +469,34 @@ public class ImproveCatchments {
 				SaveUtils.saveToGeoPackage(outFilename2, outFeatureCollection2, true);
 				*/
 				
-				double roundEndFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
-				double percentImprovementThisRound = (roundEndFitness - roundStartFitness)/roundEndFitness * 100;			
+				double roundEndGlobalFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
+				double percentImprovementThisRound = (roundEndGlobalFitness - roundStartGlobalFitness)/roundEndGlobalFitness * 100;			
 				System.out.println("section round "+iterationNum+" complete");
-				System.out.println(" # improved: "+numImproved);
-				System.out.println(" start avg fitness:"+roundStartFitness);
-				System.out.println(" end avg fitness:"+roundEndFitness);
-				System.out.println(" improved by "+percentImprovementThisRound+"%");
+				System.out.println(" improvements: ");
+				System.out.println("  - # requested: "+metrics.getNumImprovementRequests());
+				System.out.println("  - # succeeded: "+metrics.getNumImproved());
+				System.out.println(" alternatives tested: ");
+				System.out.println("  - # total: "+metrics.getNumAlternativesTested());
+				System.out.println("  - # valid: "+metrics.getNumValidAlternativesTested());				
+				System.out.println(" runtime: ");
+				System.out.println("  - total for all improvement requests: "+metrics.getRuntimeMs()+ " ms");
+				System.out.println("  - average per improvement request: "+metrics.getAvgRuntimeMsPerRequest()+ " ms");
+				System.out.println("  - average per improvement request alternative: "+metrics.getAvgRuntimeMsPerTest()+ " ms");				
+				System.out.println(" global fitness:");
+				System.out.println("  - start: "+roundStartGlobalFitness);
+				System.out.println("  - end: "+roundEndGlobalFitness);
+				System.out.println("  - improved by: "+percentImprovementThisRound+"%");
 				
+				if(metrics.getNumImprovementRequests() == 0) {
+					System.out.println("Junction improvements no improvements were requested in the previous round");
+					break;
+				}
+				/*
 				if (percentImprovementThisRound < MIN_SECTION_IMPROVEMENT_PERCENT) {
 					System.out.println("section improvements halted because latest improvement < "+MIN_SECTION_IMPROVEMENT_PERCENT);
 					break;
 				}
+				*/
 			}
 			
 			Date end = new Date();
@@ -507,7 +541,9 @@ public class ImproveCatchments {
 		
 	}
 	
-	private static int improveJunctions(CatchmentLines catchmentLines, int numSteps) throws IOException {
+	private static ImprovementMetrics improveJunctions(CatchmentLines catchmentLines, int numSteps) throws IOException {
+		ImprovementMetrics metricsTotal = new ImprovementMetrics();
+		
 		SectionFitness sectionFitness = new AvgElevationSectionFitness(tinPolys);
 		//SectionFitness sectionFitness = new AvgElevationLengthPenaltySectionFitness(tinPolys);
 		//JunctionFitness junctionFitness = new SumTouchingJunctionFitness(sectionFitness);
@@ -522,35 +558,46 @@ public class ImproveCatchments {
 				numSteps
 				);
 		
-		int modifiedCount = 0;
-		for(Coordinate junction : catchmentLines.getJunctions(waterAnalyzer)) {	
+		List<Coordinate> junctions = catchmentLines.getJunctions(waterAnalyzer);
+				
+		System.out.println("attempting to improve "+junctions.size()+" junctions");
+		for(Coordinate junctionCoord : junctions) {
+			
+			List<SimpleFeature> touchingSections = catchmentLines.getSectionsTouchingJunction(junctionCoord);
+			Junction junction = new Junction(junctionCoord, touchingSections);
 			
 			System.out.println("---");
-			JunctionModification junctionModification = null;
+			if (getNoImprovementCount(junction) >= MIN_NO_IMPROVEMENT_COUNT_TO_SKIP_JUNCTION) {
+				System.out.println("skipping. this junction has "+getNoImprovementCount(junction)+" prior no-improvement events");
+				continue;
+			}
+			JunctionModification modification = null;
 			try {
-				junctionModification = junctionImprover.improve(junction);
+				modification = junctionImprover.improve(junction);
+				metricsTotal.merge(modification.getImprovementMetrics());
 			}
 			catch(Exception e) {
 				e.printStackTrace();
-				continue;
 			}
 			 
-			modifiedCount += junctionModification.isModified() ? 1 : 0;
-			
-			if (junctionModification.getModifiedJunction() != junctionModification.getOriginalJunction()) {
-				System.out.println("  moved junction "+junctionModification.getOriginalJunction()+" to "+junctionModification.getModifiedJunction());
-				for (SimpleFeature touchingSection : junctionModification.getModifiedSections()) {
+			if (modification != null && modification.isModified()) {
+				System.out.println("  moved junction "+modification.getOriginalJunction().getCoordinate()+" to "+modification.getModifiedJunction().getCoordinate());
+				for (SimpleFeature touchingSection : modification.getModifiedJunction().getTouchingSections()) {
 					//System.out.println("  updated section with fid="+touchingSection.getIdentifier());
 					catchmentLines.addOrUpdate(touchingSection);
 				}
-			}				
-			
+			} else {
+				incrementNoImprovementCount(junction);
+			}
 		}
 		
-		return modifiedCount;
+		return metricsTotal;
 	}
 	
-	private static int improveSections(CatchmentLines catchmentLines, int numSteps) throws IOException {
+	private static ImprovementMetrics improveSections(CatchmentLines catchmentLines, int numSteps) throws IOException {
+		
+		ImprovementMetrics metricsTotal = new ImprovementMetrics();
+		
 		//sectionFitness = new AvgElevationSectionFitness(tinPolys);
 		sectionFitness = new AvgElevationLengthPenaltySectionFitness(tinPolys);
 		//SectionFitness sectionFitness = new RidgeSectionFitness(tinPolys);			
@@ -572,7 +619,6 @@ public class ImproveCatchments {
 		
 		SimpleFeatureCollection sections = catchmentLines.getOriginalFeatures();
 		SimpleFeatureIterator sectionIt = sections.features();
-		int modifiedCount = 0;
 		while(sectionIt.hasNext()) {
 			System.out.println("---");
 			SimpleFeature section = sectionIt.next();	
@@ -584,24 +630,23 @@ public class ImproveCatchments {
 			SectionModification modification = null;
 			try {
 				modification = sectionImprover.improve(section);
+				metricsTotal.merge(modification.getImprovementMetrics());
 			} 
 			catch (Exception e) {
 				System.out.println("no improvements were possible. ");
-				e.printStackTrace();				
-				continue;
+				e.printStackTrace();
 			}
 			
-			if (modification.isModified()) {
-				modifiedCount++;	
-			} else {
+			if (modification != null && modification.isModified()) {
+				catchmentLines.addOrUpdate(modification.getModifiedSection());
+				for (SimpleFeature touchingSection : modification.getModifiedTouchingSections()) {
+					//System.out.println(" updated section with fid="+touchingSection.getIdentifier());
+					catchmentLines.addOrUpdate(touchingSection);
+					throw new IllegalStateException("This should never occur -- touching sections don't get modified by SectionImprover");
+				}	
+			}
+			else {
 				incrementNoImprovementCount(section);
-			}
-			
-			catchmentLines.addOrUpdate(modification.getModifiedSection());
-			for (SimpleFeature touchingSection : modification.getModifiedTouchingSections()) {
-				//System.out.println(" updated section with fid="+touchingSection.getIdentifier());
-				catchmentLines.addOrUpdate(touchingSection);
-				throw new IllegalStateException("This should never occur -- touching sections don't get modified by SectionImprover");
 			}
 			
 		}
@@ -609,18 +654,43 @@ public class ImproveCatchments {
 		
 		improvementCoverage = sectionImprover.getImprovementCoverage();
 		
-		return modifiedCount;
+		return metricsTotal;
+	}
+	
+	// ------------------------------------------------------------------------
+	// Functions to support testing of the end condition
+	// ------------------------------------------------------------------------
+	
+	private static void incrementNoImprovementCount(Junction junction) {
+		String key = junction.getID();
+		if(junctionNoImprovementCount.containsKey(key)) {
+			int count = junctionNoImprovementCount.get(key);
+			count++;
+			junctionNoImprovementCount.put(key, count);
+		}
+		else {
+			junctionNoImprovementCount.put(key, 1);
+		}
 	}
 	
 	private static void incrementNoImprovementCount(SimpleFeature section) {
 		FeatureId key = section.getIdentifier();
 		if(sectionNoImprovementCount.containsKey(key)) {
 			int count = sectionNoImprovementCount.get(key);
-			sectionNoImprovementCount.put(key, count++);
+			count++;
+			sectionNoImprovementCount.put(key, count);
 		}
 		else {
 			sectionNoImprovementCount.put(key, 1);
 		}
+	}
+	
+	private static int getNoImprovementCount(Junction junction) {
+		String key = junction.getID();
+		if(junctionNoImprovementCount.containsKey(key)) {
+			return junctionNoImprovementCount.get(key);
+		}
+		return 0;
 	}
 	
 	private static int getNoImprovementCount(SimpleFeature section) {

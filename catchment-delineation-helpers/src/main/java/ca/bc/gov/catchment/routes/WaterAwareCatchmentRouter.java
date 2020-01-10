@@ -2,6 +2,7 @@ package ca.bc.gov.catchment.routes;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import org.geotools.filter.visitor.IsStaticExpressionVisitor;
@@ -94,6 +95,7 @@ public class WaterAwareCatchmentRouter {
 		
 		//System.out.println(" old route:"+route);
 		//System.out.println(" new route:"+newRoute);
+		
 		return newRoute;
 	}
 	

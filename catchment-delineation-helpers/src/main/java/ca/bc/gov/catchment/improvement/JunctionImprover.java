@@ -7,6 +7,6 @@ import org.opengis.feature.simple.SimpleFeature;
 
 public abstract class JunctionImprover {
 
-	public abstract JunctionModification improve(Coordinate junction) throws IOException;
+	public abstract JunctionModification improve(Junction junction) throws IOException;
 	
 }

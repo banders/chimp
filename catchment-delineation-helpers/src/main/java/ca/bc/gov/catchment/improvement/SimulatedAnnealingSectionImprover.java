@@ -2,6 +2,7 @@ package ca.bc.gov.catchment.improvement;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -65,7 +66,12 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 	@Override
 	public SectionModification improve(SimpleFeature section) throws IOException {
 		
+		ImprovementMetrics metrics = new ImprovementMetrics();
+		metrics.incrementNumImprovementRequests();
+		Date start = new Date();
+		
 		SectionModification result = new SectionModification(section);
+		result.setImprovementMetrics(metrics);
 		
 		//this list is kept just so we can output all neighbours, then visualize it later for debugging.
 		List<SimpleFeature> neighboursTested = new ArrayList<SimpleFeature>();
@@ -84,6 +90,7 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 		for(int stepNum = 0; stepNum < maxSteps; stepNum++) {
 			LineString neighbourRoute = null;
 			try {
+				metrics.incrementNumAlternativesTested();
 				neighbourRoute = getRandomNeighbour(favouredRoute);
 			} catch(RouteException e) {
 				continue;
@@ -127,7 +134,8 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 			}
 			
 			//document the neighbour route
-			improvementCoverage.incrementCountValid(neighbourRoute, section);	
+			improvementCoverage.incrementCountValid(neighbourRoute, section);
+			metrics.incrementNumValidAlternativesTested();
 			
 			//System.out.println("neighbourFit:"+neighbourFit+", favouredFit:"+favouredFit);
 			
@@ -159,12 +167,17 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 		//prepare result object which includes the chosenRoute		
 		if (chosenRoute != null && !chosenRoute.equals(originalRoute)) {
 			SimpleFeature modifiedSection = SpatialUtils.geomToFeature(chosenRoute, section.getFeatureType(), section.getID());
-			result.setModifiedSection(modifiedSection);	
+			result.setModifiedSection(modifiedSection);
+			metrics.incrementNumImproved();
 			System.out.println("improved section from "+originalFit+" to "+fitnessFinder.fitness(chosenRoute));
 		}
 		else {
 			System.out.println("section could not be improved from "+originalFit);
 		}
+		
+		Date end = new Date();
+		long runtimeMs = end.getTime() - start.getTime();
+		metrics.setRuntimeMs(runtimeMs);
 		
 		SaveUtils.saveToGeoPackage("C:/Temp/catchment-section-"+section.getID()+".gpkg", 
 				SpatialUtils.featListToSimpleFeatureCollection(neighboursTested), 
@@ -214,7 +227,7 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 	 */
 	private LineString getRandomNeighbour(LineString route) throws RouteException, IOException {
 		List<Coordinate> existingRouteCoords = SpatialUtils.toCoordinateList(route.getCoordinates());
-		int MAX_TRIES = 100;
+		int MAX_TRIES = 10;
 		for(int attemptNum = 0; attemptNum < MAX_TRIES; attemptNum++) { 
 			//pick a pivotIndex, which is the main coordinate that will be displaced.
 			int pivotIndex = (int)(Math.random() * route.getNumPoints());

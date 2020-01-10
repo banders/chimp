@@ -132,7 +132,6 @@ public class CatchmentLines {
 		} finally {
 			it.close();	
 		}
-		System.out.println(junctions.size()+" junctions");
 		return junctions;
 	}
 	

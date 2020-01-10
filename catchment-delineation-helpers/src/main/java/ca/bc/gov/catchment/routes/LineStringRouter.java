@@ -2,7 +2,10 @@ package ca.bc.gov.catchment.routes;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
@@ -30,6 +33,8 @@ import ca.bc.gov.catchments.utils.SpatialUtils;
  */
 public class LineStringRouter {
 
+	private static final int MAX_CONNECTED_COORD_CACHE_SIZE = 1000;
+	
 	private TinEdges tinEdges;
 	private SimpleFeatureType tinEdgesFeatureType;
 	private String tinEdgesGeometryProperty;
@@ -37,6 +42,7 @@ public class LineStringRouter {
 	private FilterFactory2 filterFactory2D;
 	private boolean allowSelfIntersection;
 	private boolean allowRepeatedCoords;
+	private Map<Coordinate, List<Coordinate>> connectedCoordCache;
 	
 	public LineStringRouter(TinEdges tinEdges) {
 		this.tinEdges = tinEdges;
@@ -49,6 +55,14 @@ public class LineStringRouter {
 		Hints filterHints = new Hints( Hints.FEATURE_2D, true ); // force 2D queries
 		this.filterFactory2D = CommonFactoryFinder.getFilterFactory2(filterHints);
 		
+		//define a map that removes the oldest entry when the 
+		//cache removes its maximum size.  i.e. the least-recently-used entry is
+		//removed
+		connectedCoordCache = new LinkedHashMap<Coordinate, List<Coordinate>>(MAX_CONNECTED_COORD_CACHE_SIZE, .75F, true) {
+		    public boolean removeEldestEntry(Map.Entry<Coordinate, List<Coordinate>> eldest) {
+		        return size() > MAX_CONNECTED_COORD_CACHE_SIZE;
+		    }
+		};
 	}
 
 	
@@ -266,11 +280,21 @@ public class LineStringRouter {
 	/**
 	 * identifies and returns coordinates in the TIN that are connected
 	 * to the given coordinate by a single edge
+	 * Implementation note: this function caches the results of each lookup so that subsequent
+	 * requests can be made faster. 
 	 * @param c
 	 * @return
 	 * @throws IOException 
 	 */
 	public List<Coordinate> getConnectedCoords(Coordinate c) throws IOException {
+		
+		//check if the answer is in cache
+		List<Coordinate> cachedResult = connectedCoordCache.get(c);
+		if (cachedResult != null) {
+			return cachedResult;
+		}
+		
+		//if not in cache, use a spatial query to look up the answer
 		Point p = geometryFactory.createPoint(c);
 		Filter firstCoordTouchesWaterFilter = filterFactory2D.touches(
 				filterFactory2D.property(tinEdgesGeometryProperty),
@@ -287,6 +311,10 @@ public class LineStringRouter {
 			results.add(connectedCoord);
 		}
 		touchingIt.close();
+		
+		//cache the answer for faster response next time
+		connectedCoordCache.put(c, results);
+		
 		return results;
 	}
 	
@@ -358,7 +386,6 @@ public class LineStringRouter {
 		resultCoords.add(startCoord);
 		Coordinate currentCoord = startCoord;
 		while(!currentCoord.equals(endCoord)) {
-			
 			List<Coordinate> routeSoFar = new ArrayList<Coordinate>();
 			if (previous != null) {
 				routeSoFar.addAll(previous);
@@ -442,6 +469,7 @@ public class LineStringRouter {
 			}
 		}
 		
+		Date de = new Date();
 		return bestFitCoord;
 	}
 	
@@ -569,7 +597,7 @@ public class LineStringRouter {
 		return false;
 	}
 	
-	private Coordinate[] removeEndpoints(Coordinate[] coords) {
+	public static Coordinate[] removeEndpoints(Coordinate[] coords) {
 		if (coords.length < 2) {
 			return new Coordinate[0];
 		}
@@ -580,13 +608,13 @@ public class LineStringRouter {
 		return result;
 	}
 	
-	private LineString removeEndpoints(LineString route) {
+	public static LineString removeEndpoints(LineString route) {
 		Coordinate[] coords = route.getCoordinates();
 		if (coords.length < 4 ) {
 			throw new IllegalArgumentException("route must have least 4 coordinates");
 		}
 		Coordinate[] updatedCoords = removeEndpoints(coords);
-		LineString result = geometryFactory.createLineString(updatedCoords);
+		LineString result = SpatialUtils.toLineString(updatedCoords);
 		return result;
 	}
 	
