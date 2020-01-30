@@ -135,7 +135,8 @@ public class ImproveCatchments {
 	private static SimpleFeatureSource tinPolysFeatureSource;
 	private static WaterAnalyzer waterAnalyzer;
 	private static SimpleFeatureSource waterFeatureSource;
-	private static ImprovementCoverage improvementCoverage;
+	private static ImprovementCoverage sectionImprovementCoverage;
+	private static ImprovementCoverage junctionImprovementCoverage;
 	private static SectionFitness sectionFitness;
 	private static Map<FeatureId, Integer> sectionNoImprovementCount;
 	private static Map<String, Integer> junctionNoImprovementCount;
@@ -148,7 +149,8 @@ public class ImproveCatchments {
 		options.addOption("waterFile", true, "Input GeoPackage file with water features");
 		options.addOption("tinEdgesFile", true, "Input GeoPackage file with TIN");
 		options.addOption("tinPolysFile", true, "Input GeoPackage file with TIN");
-		options.addOption("outImprovementCoverageFile", true, "Output GeoPackage file for improvement coverage");		
+		options.addOption("outJunctionImprovementCoverageFile", true, "Output GeoPackage file for junction improvement coverage");
+		options.addOption("outSectionImprovementCoverageFile", true, "Output GeoPackage file for section improvement coverage");
 		options.addOption("o", true, "Output GeoPackage file");
 		options.addOption("catchmentsTable", true, "catchments table name");
 		options.addOption("waterTable", true, "water table name");
@@ -166,7 +168,8 @@ public class ImproveCatchments {
 		String inTinEdgesFilename = null;
 		String inTinPolysFilename = null;
 		String outputGeopackageFilename = null;
-		String outputImprovementCoverageGeopackageFile = null;
+		String outputSectionImprovementCoverageGeopackageFile = null;
+		String outputJunctionImprovementCoverageGeopackageFile = null;
 		String catchmentsTable = null;
 		String waterTable = null;
 		String tinEdgesTable = null;
@@ -185,7 +188,8 @@ public class ImproveCatchments {
 			inTinEdgesFilename = cmd.getOptionValue("tinEdgesFile");
 			inTinPolysFilename = cmd.getOptionValue("tinPolysFile");
 			outputGeopackageFilename = cmd.getOptionValue("o");	
-			outputImprovementCoverageGeopackageFile = cmd.getOptionValue("outImprovementCoverageFile");	
+			outputSectionImprovementCoverageGeopackageFile = cmd.getOptionValue("outSectionImprovementCoverageFile");	
+			outputJunctionImprovementCoverageGeopackageFile = cmd.getOptionValue("outJunctionImprovementCoverageFile");	
 			catchmentsTable = cmd.getOptionValue("catchmentsTable");
 			waterTable = cmd.getOptionValue("waterTable");
 			tinEdgesTable = cmd.getOptionValue("tinEdgesTable");
@@ -511,16 +515,27 @@ public class ImproveCatchments {
 			
 			//saving improvement coverage
 			//-----------------------------------------------------------------
-			if (improvementCoverage != null) {
-				System.out.println("improvement coverage fraction (total): "+improvementCoverage.getTotalCoverageFraction());
-				System.out.println("improvement coverage fraction (valid only): "+improvementCoverage.getValidCoverageFraction());
-				if (outputImprovementCoverageGeopackageFile != null) {
-					SimpleFeatureSource improvementCoverageSource = improvementCoverage.toFeatureSource();
+			if (sectionImprovementCoverage != null) {
+				System.out.println("section improvement coverage fraction (total): "+sectionImprovementCoverage.getTotalCoverageFraction());
+				System.out.println("section improvement coverage fraction (valid only): "+sectionImprovementCoverage.getValidCoverageFraction());
+				if (outputSectionImprovementCoverageGeopackageFile != null) {
+					SimpleFeatureSource improvementCoverageSource = sectionImprovementCoverage.toFeatureSource();
 					SimpleFeatureCollection improvementCoverageCollection = improvementCoverageSource.getFeatures();
 					improvementCoverageCollection = SpatialUtils.renameFeatureType(improvementCoverageCollection, outImprovementCoverageTable);				
-					SaveUtils.saveToGeoPackage(outputImprovementCoverageGeopackageFile, improvementCoverageCollection, true);
+					SaveUtils.saveToGeoPackage(outputSectionImprovementCoverageGeopackageFile, improvementCoverageCollection, true);
 				}
 			}
+			if (junctionImprovementCoverage != null) {
+				System.out.println("junction improvement coverage fraction (total): "+junctionImprovementCoverage.getTotalCoverageFraction());
+				System.out.println("junction improvement coverage fraction (valid only): "+junctionImprovementCoverage.getValidCoverageFraction());
+				if (outputJunctionImprovementCoverageGeopackageFile != null) {
+					SimpleFeatureSource improvementCoverageSource = junctionImprovementCoverage.toFeatureSource();
+					SimpleFeatureCollection improvementCoverageCollection = improvementCoverageSource.getFeatures();
+					improvementCoverageCollection = SpatialUtils.renameFeatureType(improvementCoverageCollection, outImprovementCoverageTable);				
+					SaveUtils.saveToGeoPackage(outputJunctionImprovementCoverageGeopackageFile, improvementCoverageCollection, true);
+				}
+			}
+			
 			
 			System.out.println("initial avg catchment elevation:"+initialFitness);
 			double finalFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
@@ -549,7 +564,7 @@ public class ImproveCatchments {
 		//JunctionFitness junctionFitness = new SumTouchingJunctionFitness(sectionFitness);
 		JunctionFitness junctionFitness = new PartialSumTouchingJunctionFitness(sectionFitness, 3);
 		
-		JunctionImprover junctionImprover = new SimulatedAnnealingJunctionImprover(
+		SimulatedAnnealingJunctionImprover junctionImprover = new SimulatedAnnealingJunctionImprover(
 				catchmentLines,
 				tinEdges,
 				waterFeatureSource,									
@@ -557,6 +572,10 @@ public class ImproveCatchments {
 				SEARCH_RADIUS,
 				numSteps
 				);
+		
+		if (junctionImprovementCoverage != null) {
+			junctionImprover.setImprovementCoverage(junctionImprovementCoverage);
+		}
 		
 		List<Coordinate> junctions = catchmentLines.getJunctions(waterAnalyzer);
 				
@@ -591,6 +610,8 @@ public class ImproveCatchments {
 			}
 		}
 		
+		junctionImprovementCoverage = junctionImprover.getImprovementCoverage();
+		
 		return metricsTotal;
 	}
 	
@@ -613,8 +634,8 @@ public class ImproveCatchments {
 				numSteps
 				);
 		
-		if (improvementCoverage != null) {
-			sectionImprover.setImprovementCoverage(improvementCoverage);
+		if (sectionImprovementCoverage != null) {
+			sectionImprover.setImprovementCoverage(sectionImprovementCoverage);
 		}
 		
 		SimpleFeatureCollection sections = catchmentLines.getOriginalFeatures();
@@ -652,7 +673,7 @@ public class ImproveCatchments {
 		}
 		sectionIt.close();		
 		
-		improvementCoverage = sectionImprover.getImprovementCoverage();
+		sectionImprovementCoverage = sectionImprover.getImprovementCoverage();
 		
 		return metricsTotal;
 	}

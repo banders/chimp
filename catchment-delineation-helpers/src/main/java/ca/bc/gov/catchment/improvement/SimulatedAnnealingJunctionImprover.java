@@ -37,6 +37,7 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 	private double radius;
 	private WaterAwareCatchmentRouter router;
 	private boolean shortCircuitOnFirstImprovement;
+	private ImprovementCoverage improvementCoverage;
 	
 	public SimulatedAnnealingJunctionImprover(
 			CatchmentLines catchmentLines,
@@ -44,7 +45,7 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 			SimpleFeatureSource waterFeatures,			
 			JunctionFitness fitnessFinder, 
 			double radius,
-			int maxSteps) {
+			int maxSteps) throws IOException {
 		this.tinEdges = tinEdges;
 		this.catchmentLines = catchmentLines;
 		this.fitnessFinder = fitnessFinder;
@@ -53,6 +54,7 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 		this.radius = radius;
 		this.maxSteps = maxSteps;
 		this.shortCircuitOnFirstImprovement = true;
+		this.improvementCoverage = new ImprovementCoverage(tinEdges.getPointCloud());
 	}
 	
 	@Override
@@ -100,6 +102,8 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 				
 				System.out.print(" neighbour:"+neighbourCoord);
 				neighboursTested.add(neighbourCoord);
+				improvementCoverage.incrementCountTotal(neighbourCoord);	
+				
 				int freedom = 5; //(int)(Math.random() * 10) + 1; //10 is max freedom
 				newSections = router.rerouteFeatures(favouredModification.getModifiedJunction().getTouchingSections(), favouredModification.getModifiedJunction().getCoordinate(), neighbourCoord, freedom);
 			} catch(IOException e) {
@@ -109,6 +113,8 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 				System.out.println("  invalid: "+e);
 				continue;
 			}
+			
+			improvementCoverage.incrementCountValid(neighbourCoord, null);
 			
 			Junction neighbourJunction = new Junction(neighbourCoord, newSections);
 			double neighbourFit = fitnessFinder.fitness(neighbourJunction);
@@ -195,8 +201,16 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 		return chosenModification;
 	}
 	
+	/**
+	 * Initialize the ImprovementCoverage with an existing object
+	 * @param improvementCoverage
+	 */
+	public void setImprovementCoverage(ImprovementCoverage improvementCoverage) {
+		this.improvementCoverage = improvementCoverage;
+	}
+	
 	public ImprovementCoverage getImprovementCoverage() {
-		return null;
+		return improvementCoverage;
 	}
 	
 	private String getJunctionId(List<SimpleFeature> touchingSections) {

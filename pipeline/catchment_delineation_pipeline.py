@@ -25,6 +25,7 @@ POINT_CLOUD_TABLE_FULL_3D = "point_cloud_3d"
 BREAKLINES_TABLE = "breaklines"
 BREAKLINES_TABLE_3D = "breaklines_3d"
 TIN_EDGES_TABLE = "tin_edges"
+TIN_EDGES_COLORED_TABLE = "tin_edges_colored"
 TIN_POLYS_TABLE = "tin_polys"
 TIN_CENTROIDS_TABLE = "tin_centroids"
 
@@ -137,8 +138,11 @@ def main():
   improved_catchments_smoothed_gpkg_filename = "{}-{}.improved-catchments-smoothed.gpkg".format(test_id, run_id)
   improved_catchments_smoothed_gpkg_filename_with_path = os.path.join(run_out_dir, improved_catchments_smoothed_gpkg_filename)
 
-  improvement_coverage_gpkg_filename = "{}-{}.improvement-coverage.gpkg".format(test_id, run_id)
-  improvement_coverage_gpkg_filename_with_path = os.path.join(run_out_dir, improvement_coverage_gpkg_filename)
+  section_improvement_coverage_gpkg_filename = "{}-{}.improvement-coverage-section.gpkg".format(test_id, run_id)
+  section_improvement_coverage_gpkg_filename_with_path = os.path.join(run_out_dir, section_improvement_coverage_gpkg_filename)
+
+  junction_improvement_coverage_gpkg_filename = "{}-{}.improvement-coverage-junction.gpkg".format(test_id, run_id)
+  junction_improvement_coverage_gpkg_filename_with_path = os.path.join(run_out_dir, junction_improvement_coverage_gpkg_filename)
 
   #----------------------------------------------------------------------------
 
@@ -520,12 +524,21 @@ def main():
         print("Failure.  Pipeline execution stopped early.")
         exit(1);
 
-    print("Building TIN polygons")
-    cmd8b = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.IdentifyTriangles -i {} -inTable {} -o {} -outPolyTable {} -outCentroidTable {} -touchesDistanceTolerance {} {}".format(settings.get("java_path"), settings.get("java_classpath"), tin_gpkg_filename_with_path, TIN_EDGES_TABLE, tin_gpkg_filename_with_path, TIN_POLYS_TABLE, TIN_CENTROIDS_TABLE, touches_distance_tolerance, bbox)
-    resp = call(cmd8b.split())
+      print("Building TIN polygons")
+      cmd8b = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.IdentifyTriangles -i {} -inTable {} -o {} -outPolyTable {} -outCentroidTable {} -touchesDistanceTolerance {} {}".format(settings.get("java_path"), settings.get("java_classpath"), tin_gpkg_filename_with_path, TIN_EDGES_TABLE, tin_gpkg_filename_with_path, TIN_POLYS_TABLE, TIN_CENTROIDS_TABLE, touches_distance_tolerance, bbox)
+      resp = call(cmd8b.split())
+      if resp != 0:
+        print("Failure.  Pipeline execution stopped early.")
+        exit(1);
+
+    
+    print("Computing slopes of triangles adjacent to tin edges")
+    cmd8c = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.ComputeAdjacentSlopes -i {} -inTable {} -o {} -outTable {} -tinPolysFilename {} -tinPolysTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), tin_gpkg_filename_with_path, TIN_EDGES_TABLE, tin_gpkg_filename_with_path, TIN_EDGES_COLORED_TABLE, tin_gpkg_filename_with_path, TIN_POLYS_TABLE, bbox)
+    resp = call(cmd8c.split())
     if resp != 0:
       print("Failure.  Pipeline execution stopped early.")
       exit(1);
+    
 
   #improve catchments
   if args.start_step <= 9 and 9 <= args.last_step:
@@ -545,8 +558,8 @@ def main():
         print("Failure.  Pipeline execution stopped early.")
         exit(1);
 
-    data_bbox = "1680546.3,501755.5,1682284.9,503082.5" #small
-    #data_bbox = "1673235.6,499766.7,1679748.7,504957.6" #medium
+    #data_bbox = "1680546.3,501755.5,1682284.9,503082.5" #small
+    data_bbox = "1673235.6,499766.7,1679748.7,504957.6" #medium
     data_bbox_crs = "EPSG:3005"
     print("NOTE: custom bbox: {}".format(data_bbox))
 
@@ -554,7 +567,7 @@ def main():
 
     if not os.path.exists(improved_catchments_gpkg_filename_with_path):
       print("Creating TIN edges")
-      cmd9 = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.ImproveCatchments -catchmentsFile {} -catchmentsTable {} -waterFile {} -waterTable {} -tinEdgesFile {} -tinEdgesTable {} -tinPolysFile {} -tinPolysTable {} -o {} -outTable {} -outImprovementCoverageFile {} {}".format(settings.get("java_path"), settings.get("java_classpath"), initial_catchments_3d_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, water_feature_segmented_filename_with_path, SEGMENTED_WATER_FEATURES_TABLE, tin_gpkg_filename_with_path, TIN_EDGES_TABLE, tin_gpkg_filename_with_path, TIN_POLYS_TABLE, improved_catchments_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, improvement_coverage_gpkg_filename_with_path, bbox)
+      cmd9 = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.ImproveCatchments -catchmentsFile {} -catchmentsTable {} -waterFile {} -waterTable {} -tinEdgesFile {} -tinEdgesTable {} -tinPolysFile {} -tinPolysTable {} -o {} -outTable {} -outJunctionImprovementCoverageFile {} -outSectionImprovementCoverageFile {} {}".format(settings.get("java_path"), settings.get("java_classpath"), initial_catchments_3d_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, water_feature_segmented_filename_with_path, SEGMENTED_WATER_FEATURES_TABLE, tin_gpkg_filename_with_path, TIN_EDGES_TABLE, tin_gpkg_filename_with_path, TIN_POLYS_TABLE, improved_catchments_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, junction_improvement_coverage_gpkg_filename_with_path, section_improvement_coverage_gpkg_filename_with_path, bbox)
       resp = call(cmd9.split())
       if resp != 0:
         print("Failure.  Pipeline execution stopped early.")

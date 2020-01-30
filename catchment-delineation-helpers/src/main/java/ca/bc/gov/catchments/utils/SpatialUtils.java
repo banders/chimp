@@ -15,6 +15,7 @@ import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.feature.DefaultFeatureCollection;
 import org.geotools.feature.SchemaException;
 import org.geotools.feature.simple.SimpleFeatureBuilder;
+import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.geotools.geometry.jts.JTSFactoryFinder;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
@@ -23,6 +24,7 @@ import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Point;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
+import org.opengis.feature.type.AttributeDescriptor;
 import org.tinfour.common.IQuadEdge;
 import org.tinfour.common.Vertex;
 import org.tinfour.standard.IncrementalTin;
@@ -206,6 +208,31 @@ public class SpatialUtils {
 		
 		
 		return outFc;	
+	}
+
+	public static SimpleFeatureType extendFeatureType(SimpleFeatureType inFeatureType, String newProperties) throws SchemaException {
+		return extendFeatureType(inFeatureType, newProperties, inFeatureType.getTypeName());
+	}
+	
+	/**
+	 * 
+	 * @param inFeatureType
+	 * @param newProperties a csv list of properties in the same format used by DataUtilities.createType(...)
+	 * @return
+	 * @throws SchemaException
+	 */
+	public static SimpleFeatureType extendFeatureType(SimpleFeatureType inFeatureType, String newProperties, String typeName) throws SchemaException {
+		
+		if (typeName == null) {
+			typeName = inFeatureType.getTypeName(); 
+		}
+		
+		String typeSpec = DataUtilities.encodeType(inFeatureType);
+		String newTypeSpec = typeSpec + "," + newProperties;
+		
+		SimpleFeatureType outFeatureType = DataUtilities.createType(typeName, newTypeSpec);
+		return outFeatureType;
+		
 	}
 	
 	public static boolean hasCoordinate(Geometry g, Coordinate c) {

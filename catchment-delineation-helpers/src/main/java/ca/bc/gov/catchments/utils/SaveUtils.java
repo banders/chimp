@@ -70,7 +70,13 @@ public class SaveUtils {
                             }
                             g.setAttribute(name, bool);
                         } else {
-                            g.setAttribute(name, f.getAttribute(name));
+                        	if (g.getFeatureType().getDescriptor(name) != null) {
+                        		Object value = f.getAttribute(name);
+                        		g.setAttribute(name, value);
+                            }
+                        	else {
+                        		throw new IllegalArgumentException("table '"+entry.getTableName()+"' does not support attribute '"+name+"'");	
+                        	}   
                         }
                     }
                     w.write();
@@ -82,6 +88,7 @@ public class SaveUtils {
             tx.commit();
         } catch (Exception ex) {
             tx.rollback();
+            ex.printStackTrace();
             throw new IOException(ex);
         } finally {
             tx.close();

@@ -218,4 +218,13 @@ public class Edge {
 	    Coordinate orthoCenter = new Coordinate(x, y);
 	    return orthoCenter;
 	}
+	
+	public double getZAt(double x, double y) {
+		double x1 = getA().getX();
+		double x2 = getB().getX();
+		double z1 = getA().getZ();
+		double z2 = getB().getZ();
+		double z = (x - x1) / (x2 - x1) * (z2 - z1) + z1;
+		return z;
+	}
 }

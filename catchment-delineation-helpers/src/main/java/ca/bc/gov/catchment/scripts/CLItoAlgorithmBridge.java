@@ -92,11 +92,6 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 	private boolean isBatch; //false mean isStreaming
 	
 	//properties derived from the input data set
-	private DataStore inDatastore;
-	private SimpleFeatureType inFeatureType;
-	private String inGeometryPropertyName;
-	private CoordinateReferenceSystem inCrs;
-	private int inSrid;
 	private SimpleFeatureSource inFeatureSource;
 	
 	public CLItoAlgorithmBridge() {
@@ -109,7 +104,7 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 	
 	public void start(String argv[], Options customOptions) {
 		message("Running "+this.getClass().getSimpleName(), baseMessageIndent++);
-		allOptions = loadAllOptions(customOptions);
+		allOptions = combineAllOptions(customOptions);
 		
 		//parse the command line into the defined options
 		System.out.println(" Parsing command line options...");
@@ -124,7 +119,7 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 		loadDefaultOptionValues();
 			
 		//load spatial data from input file
-		SimpleFeatureSource inFeatureSource = loadInputFeautreCollection();
+		inFeatureSource = loadFeautreSource(inFilename, inTable);
 		
 		//filter out unwanted features
 		SimpleFeatureCollection inFeatures = null;
@@ -141,7 +136,7 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 		
 	}
 	
-	private Options loadAllOptions(Options customOptions) {
+	private Options combineAllOptions(Options customOptions) {
 		//define default options
 		Options allOptions = new Options();
 		allOptions.addOption(OPTION_IN_FILENAME, true, "Input GeoPackage file");
@@ -173,6 +168,10 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 			System.out.println("  -"+name+" "+value);
 		}
 		return cmd;
+	}
+	
+	public String getOptionValue(String name) {
+		return commandLine.getOptionValue(name);
 	}
 	
 	/**
@@ -221,57 +220,39 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 	 *   "bboxcrs" 
 	 * @return a SimpleFeatureCollection of features from the input which match the filter
 	 */
-	private SimpleFeatureSource loadInputFeautreCollection() {
-		message("Reading input features...");
+	public static SimpleFeatureSource loadFeautreSource(String fileName, String tableName) {
 		
 		//load input
 		Map<String, String> inputDatastoreParams = new HashMap<String, String>();
 		inputDatastoreParams.put("dbtype", "geopkg");
-		inputDatastoreParams.put("database", inFilename);
+		inputDatastoreParams.put("database", fileName);
 		
+		DataStore datastore = null;
 		try {
-			inDatastore = DataStoreFinder.getDataStore(inputDatastoreParams);
+			datastore = DataStoreFinder.getDataStore(inputDatastoreParams);
 		} catch (IOException e) {
-			System.out.println("Unable to open input file: "+inFilename);
+			System.out.println("Unable to open input file: "+fileName);
 			e.printStackTrace();
 			System.exit(1);
 		}
 		
-		if (inDatastore == null) {
+		if (datastore == null) {
 			System.out.println("Unable to open input datastore");
 			System.exit(1);
 		}
-		
+				
+		SimpleFeatureSource featureSource = null;
 		try {
-			inFeatureType = inDatastore.getSchema(inTable);
-		} catch (IOException e) {
-			System.out.println("Unable to get schema for feature type "+inTable+" in the input datastore");
-			e.printStackTrace();
-		}
-		
-		inGeometryPropertyName = inFeatureType.getGeometryDescriptor().getLocalName();
-		
-		CoordinateReferenceSystem inCrs = inFeatureType.getCoordinateReferenceSystem();
-		inSrid = -1;
-		try {
-			inSrid = CRS.lookupEpsgCode(inCrs, true);
-		} catch (FactoryException e1) {
-			System.out.println("Unable to lookup SRID for feature type "+inFeatureType);
-		}
-		
-		inFeatureSource = null;
-		try {
-			inFeatureSource = inDatastore.getFeatureSource(inTable);
+			featureSource = datastore.getFeatureSource(tableName);
 		} catch (IOException e1) {
-			System.out.println("Unable to get in feature source: "+inTable);
+			System.out.println("Unable to get in feature source: "+tableName);
 			e1.printStackTrace();
 			System.exit(1);
 		}
 		
 		try {
-			message("Indexing...");
-			SpatialIndexFeatureCollection fastInFeatureCollection = new SpatialIndexFeatureCollection(inFeatureSource.getFeatures());
-			inFeatureSource = new SpatialIndexFeatureSource(fastInFeatureCollection);
+			SpatialIndexFeatureCollection fastInFeatureCollection = new SpatialIndexFeatureCollection(featureSource.getFeatures());
+			featureSource = new SpatialIndexFeatureSource(fastInFeatureCollection);
 		}
 		catch (IOException e) {
 			System.out.println("Unable to index in feature source");
@@ -279,7 +260,7 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 			System.exit(1);
 		}
 
-		return inFeatureSource;
+		return featureSource;
 	}
 	
 	/**
@@ -290,12 +271,15 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 	 * @throws IOException
 	 */
 	private SimpleFeatureCollection filter(SimpleFeatureSource inFeatureSource) throws IOException {
-		Hints filterHints = new Hints( Hints.FEATURE_2D, true ); // force 2D queries
-		FilterFactory2 filterFactory = CommonFactoryFinder.getFilterFactory2(filterHints);
+		
+		String geometryPropertyName = inFeatureSource.getSchema().getGeometryDescriptor().getLocalName();;
+		
+		//Hints filterHints = new Hints( Hints.FEATURE_2D, true ); // force 2D queries
+		FilterFactory2 filterFactory = CommonFactoryFinder.getFilterFactory2();
 		SimpleFeatureCollection inFeatureCollection = null;
 		if (boundsToProcess != null) {
 			message("Filtering features in bbox...");
-			Filter bboxFilter = filterFactory.bbox(filterFactory.property(inGeometryPropertyName), boundsToProcess);
+			Filter bboxFilter = filterFactory.bbox(filterFactory.property(geometryPropertyName), boundsToProcess);
 			inFeatureCollection = inFeatureSource.getFeatures(bboxFilter);
 		}
 		else {
@@ -391,7 +375,15 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 	}
 	
 	public int getInSrid() {
-		return this.inSrid;
+		SimpleFeatureType featureType = inFeatureSource.getSchema();
+		CoordinateReferenceSystem crs = featureType.getCoordinateReferenceSystem();
+		int srid = -1;
+		try {
+			srid = CRS.lookupEpsgCode(crs, true);
+		} catch (FactoryException e1) {
+			System.out.println("Unable to lookup SRID for feature type "+featureType);
+		}
+		return srid;
 	}
 
 }

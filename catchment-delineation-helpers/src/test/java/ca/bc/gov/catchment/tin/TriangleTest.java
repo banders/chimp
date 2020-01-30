@@ -197,4 +197,65 @@ public class TriangleTest {
 		Assert.isTrue(slope2 < 0 && slope2 > -90, "slope2 was "+slope2+", but expected to be negative (-90 to 0) when 'downward from base'");
 
 	}
+	
+	@Test
+	public void testGetSlopeRelativeToBaseEdge5() {
+		Coordinate c1 = new Coordinate(1677207.19999999995343387, 502077.29999999998835847, 945.81418527804578389);
+		Coordinate c2 = new Coordinate(1677200.23452296736650169, 502073.10519546363502741, 949);
+		Coordinate c3 = new Coordinate(1677170.35000000009313226, 502045.5, 960.04651157794705796);
+		Edge baseEdge1 = new Edge(c1, c2);
+		Edge baseEdge2 = new Edge(c2, c3);
+		Edge baseEdge3 = new Edge(c1, c3);
+		
+		//slopes down from base
+		Triangle t1 = new Triangle(
+				c1,
+				c2,
+				c3
+			);	
+		
+		double slope1 = t1.getSlopeRelativeToBaseEdge(baseEdge1);
+		Assert.isTrue(slope1 < 0 && slope1 > -90, "slope1 was "+slope1+", but expected to be negative (-90 to 0) when 'downward from base'");
+		
+		double slope2 = t1.getSlopeRelativeToBaseEdge(baseEdge2);
+		Assert.isTrue(slope2 < 0 && slope2 > -90, "slope2 was "+slope2+", but expected to be negative (-90 to 0) when 'downward from base'");
+
+		double slope3 = t1.getSlopeRelativeToBaseEdge(baseEdge3);
+		Assert.isTrue(slope3 > 0 && slope3 < 90, "slope3 was "+slope3+", but expected to be positive (0 to 90) when 'upward from base'");
+
+	}
+	
+	@Test
+	public void testGetSlopeRelativeToBaseEdge6() {
+		
+		/**
+		 * it's slightly non-intuitive, but the slope relative to baseEdge1 is positive.  Although c3
+		 * is between than c1 and c2, it is much closer to c1 (the high value on the base edge).  That results in
+		 * a slightly positive upward slope
+		 */
+		
+		Coordinate c1 = new Coordinate(1677033.6294514974579215, 500693.713930269703269, 1575);
+		Coordinate c2 = new Coordinate(1677018.37873886618763208, 500773.36331682838499546, 1537);
+		Coordinate c3 = new Coordinate(1677088.89409003173932433, 500743.10645042266696692, 1571);
+		Edge baseEdge1 = new Edge(c1, c2);
+		Edge baseEdge2 = new Edge(c2, c3);
+		Edge baseEdge3 = new Edge(c1, c3);
+		
+		//slopes down from base
+		Triangle t1 = new Triangle(
+				c1,
+				c2,
+				c3
+			);	
+		
+		double slope1 = t1.getSlopeRelativeToBaseEdge(baseEdge1);
+		Assert.isTrue(slope1 > 0 && slope1 < 90, "slope1 was "+slope1+", but expected to be positive (0 to 90) when 'upward from base'");
+		
+		double slope2 = t1.getSlopeRelativeToBaseEdge(baseEdge2);
+		Assert.isTrue(slope2 > 0 && slope2 < 90, "slope2 was "+slope2+", but expected to be positive (0 to 90) when 'downward from base'");
+
+		double slope3 = t1.getSlopeRelativeToBaseEdge(baseEdge3);
+		Assert.isTrue(slope3 < 0 && slope3 > -90, "slope3 was "+slope3+", but expected to be negative (-90 to 0) when 'downward from base'");
+
+	}
 }

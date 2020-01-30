@@ -56,14 +56,14 @@ public class AvgElevationLengthPenaltySectionFitness extends SectionFitness {
 		for(Coordinate coord : geom.getCoordinates()) {
 			sumZ += coord.getZ();
 		}
-		double avgLen = sumZ / geom.getNumPoints();
+		double avgZ = sumZ / geom.getNumPoints();
 		double lenFraction = len/maxLen; //[0-1]
 		if (lenFraction > 1) {
 			lenFraction = 1;
 		}
 		double alpha = Math.log(1+lenFraction); //[0,1]
-		double lenPenalty = avgLen * alpha; //[0,avgLen]
-		double fitness = avgLen - lenPenalty;
+		double lenPenalty = avgZ * alpha; //[0,avgZ]
+		double fitness = avgZ - lenPenalty;
 		/*
 		if (fitness < 0) {
 			System.out.println("avgLen:"+avgLen);

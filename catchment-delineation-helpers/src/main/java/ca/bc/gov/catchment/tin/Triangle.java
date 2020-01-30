@@ -449,14 +449,21 @@ public class Triangle {
 	 */
 	public double getSlopeRelativeToBaseEdge(Edge baseEdge) {
 		Edge spine = getSpineEdge(baseEdge);
+		double slopeRelativeToBase = Math.toDegrees(
+				Math.sin(
+						spine.magnitudeWithSignZ() / spine.getMagnitude()
+						)
+				);
+		/*
 		double spineAngle = spine.getCompassAngle() % 360;
 		double aspect = getAspect() % 360;
 		double slopeRelativeToBase = getSlope();
-		double diff = Math.abs(spineAngle - aspect);
-		
+		double diff = Math.abs(spineAngle - aspect);		
 		if (diff < 90) {
 			slopeRelativeToBase *= -1;
 		}
+		*/
+		//System.out.println("slopeRelativeToBase: "+ slopeRelativeToBase + ", slopeRelativeToAspect: "+getSlope()+ ", z: "+spine.magnitudeWithSignZ());
 		return slopeRelativeToBase;
 	}
 	
@@ -529,31 +536,32 @@ public class Triangle {
  	    
 		//special base: baseline is vertical
 		if (baseSlope == Double.POSITIVE_INFINITY || baseSlope == Double.NEGATIVE_INFINITY) { 
-			spineBaseCoord = new Coordinate(baseEdge.getA().getX(), spinePeakCoord.getY());
+			spineBaseCoord = new Coordinate(baseEdge.getA().getX(), spinePeakCoord.getY(), 0);
 		}
 		
 		//special case: baseline is horizontal
  	    else if (baseSlope == 0) { 
- 	    	spineBaseCoord = new Coordinate(spinePeakCoord.getX(), baseEdge.getA().getY());
+ 	    	//z value is the same all along baseEdge, so just choose the value from A for
+ 	    	//spineBaseCoord
+ 	    	spineBaseCoord = new Coordinate(spinePeakCoord.getX(), baseEdge.getA().getY(), baseEdge.getA().getZ());
  	    }
 		
 		//normal case: baseline is neither horizontal nor vertical
  	    else {
 			double baseYIntercept = baseEdge.getA().getY() - baseSlope * baseEdge.getA().getX();
 			
-			//equation of spine
+			//equation of spine (2D)
 			double spineSlope = -1 / baseSlope;
 			double spineYIntercept = spinePeakCoord.getY() - spineSlope * spinePeakCoord.getX();
 			
-			//create an edge representing the spine.  It bpoints from the base to the peak of the 
+			//create an 2D edge representing the spine.  It points from the base to the peak of the 
 			//triangle
 			spineBaseCoord = Edge.intersectionOfLines(baseSlope, baseYIntercept, spineSlope, spineYIntercept);
+			
+			//find the z coordinate of the point where the spine meets the base edge
+			double z = baseEdge.getZAt(spineBaseCoord.getX(), spineBaseCoord.getY());
+			spineBaseCoord.setZ(z);
  	    }
-		
-		//always provide a z-value for spine coordinates
-		if (Double.isNaN(spineBaseCoord.getZ())) {
-			spineBaseCoord.setZ(0);
-		}
 		
 		Edge spine = new Edge(spineBaseCoord, spinePeakCoord);
 		
