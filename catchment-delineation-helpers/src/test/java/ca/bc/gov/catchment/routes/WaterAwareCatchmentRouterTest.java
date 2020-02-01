@@ -100,4 +100,9 @@ public class WaterAwareCatchmentRouterTest {
 		}
 	}
 	
+	@Test
+	public void testIsCoordinateMovable() {
+		
+	}
+	
 }

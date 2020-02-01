@@ -29,7 +29,7 @@ import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
 import ca.bc.gov.catchments.utils.SpatialUtils;
 
-public class Tin {
+public abstract class Tin {
 
 	protected SimpleFeatureSource featureSource;
 	protected SimpleFeatureType featureType;
@@ -121,6 +121,8 @@ public class Tin {
 		}
 		return coords;
 	}
+
+	public abstract SimpleFeature getEdge(Coordinate c1, Coordinate c2) throws IOException;
 	
 	public double getMaxElevation() throws IOException {
 		double maxZ = 0;

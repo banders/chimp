@@ -96,8 +96,6 @@ import ca.bc.gov.catchment.fitness.RidgeSectionFitness;
 import ca.bc.gov.catchment.fitness.SondheimSectionFitness;
 import ca.bc.gov.catchment.fitness.SumTouchingJunctionFitness;
 import ca.bc.gov.catchment.improvement.BestInRadiusJunctionImprover;
-import ca.bc.gov.catchment.improvement.BestOfNSetImprover;
-import ca.bc.gov.catchment.improvement.EvolutionSetImprover;
 import ca.bc.gov.catchment.improvement.ImprovementCoverage;
 import ca.bc.gov.catchment.improvement.ImprovementMetrics;
 import ca.bc.gov.catchment.improvement.Junction;
@@ -105,7 +103,6 @@ import ca.bc.gov.catchment.improvement.JunctionImprover;
 import ca.bc.gov.catchment.improvement.JunctionModification;
 import ca.bc.gov.catchment.improvement.SectionImprover;
 import ca.bc.gov.catchment.improvement.SectionModification;
-import ca.bc.gov.catchment.improvement.SetImprover;
 import ca.bc.gov.catchment.improvement.SimulatedAnnealingJunctionImprover;
 import ca.bc.gov.catchment.improvement.SimulatedAnnealingSectionImprover;
 import ca.bc.gov.catchment.tin.TinEdges;
@@ -121,7 +118,7 @@ import ca.bc.gov.catchments.utils.SpatialUtils;
  *
  */
 
-public class ImproveCatchments {
+public class ImproveCatchmentsOld {
 
 	private static final String GEOPKG_ID = "geopkg";
 	private static final int MAX_JUNCTION_ITERATIONS = 30;
@@ -413,60 +410,351 @@ public class ImproveCatchments {
 			tinEdges = new TinEdges(tinEdgesFeatureSource, bufferedBboxFilter);
 			waterAnalyzer = new WaterAnalyzer(fastWaterFeatureSource);
 			
-			CatchmentLines catchmentLines = new CatchmentLines(fastCatchmentFeatureSource, bboxFilter);
-			
 			//fitness functions
-			sectionFitness = new RidgeColorSectionFitness(tinPolys);
-			JunctionFitness junctionFitness = new PartialSumTouchingJunctionFitness(sectionFitness, 3);
+			SectionFitness globalFitness = new AvgElevationSectionFitness(tinPolys);
+
+			CatchmentLines catchmentLines = new CatchmentLines(fastCatchmentFeatureSource, bboxFilter);
+			double initialFitness = globalFitness.fitnessAvg(catchmentLines.getOriginalFeatures());
 			
-			//improvers
-			SectionImprover sectionImprover = new SimulatedAnnealingSectionImprover(
-					catchmentLines, 
-					tinEdges, 
-					waterFeatureSource, 
-					sectionFitness, 
-					SEARCH_RADIUS, 
-					100 //numSteps
-					);
-						
-			SimulatedAnnealingJunctionImprover junctionImprover = new SimulatedAnnealingJunctionImprover(
-					catchmentLines,
-					tinEdges,
-					waterFeatureSource,									
-					junctionFitness,
-					SEARCH_RADIUS,
-					30 //numSteps
-					);
+			System.out.println("improving junctions...");
+			junctionNoImprovementCount = new HashMap<String, Integer>();
+			for(int iterationNum = 1; iterationNum <= MAX_JUNCTION_ITERATIONS; iterationNum++) {
+				
+				double roundStartGlobalFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
+				
+				ImprovementMetrics metrics = improveJunctions(catchmentLines, NUM_TESTS_PER_JUNCTION);
+				
+				/*
+				String outFilename1 = outputGeopackageFilename.replace(".gpkg", "-j"+iterationNum+".gpkg");
+				SimpleFeatureCollection outFeatureCollection1 = catchmentLines.getUpdatedFeatures();
+				outFeatureCollection1 = SpatialUtils.renameFeatureType(outFeatureCollection1, outTable);
+				SaveUtils.saveToGeoPackage(outFilename1, outFeatureCollection1, true);
+				*/
+				
+				double roundEndGlobalFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
+				double percentImprovementThisRound = (roundEndGlobalFitness - roundStartGlobalFitness)/roundEndGlobalFitness * 100;
+				System.out.println("junction round "+iterationNum+" complete");
+				System.out.println(" improvements: ");
+				System.out.println("  - # requested: "+metrics.getNumImprovementRequests());
+				System.out.println("  - # succeeded: "+metrics.getNumImproved());
+				System.out.println(" alternatives tested: ");
+				System.out.println("  - # total: "+metrics.getNumAlternativesTested());
+				System.out.println("  - # valid: "+metrics.getNumValidAlternativesTested());
+				System.out.println(" runtime: ");
+				System.out.println("  - total for all improvement requests: "+metrics.getRuntimeMs()+ " ms");
+				System.out.println("  - average per improvement request: "+metrics.getAvgRuntimeMsPerTest()+ " ms");
+				System.out.println("  - average per improvement request alternative: "+metrics.getAvgRuntimeMsPerTest()+ " ms");				
+				System.out.println(" global fitness:");
+				System.out.println("  - start: "+roundStartGlobalFitness);
+				System.out.println("  - end: "+roundEndGlobalFitness);
+				System.out.println("  - improved by: "+percentImprovementThisRound+"%");
+				
+				if(metrics.getNumImprovementRequests() == 0) {
+					System.out.println("Junction improvements no improvements were requested in the previous round");
+					break;
+				}
+				/*
+				if (percentImprovementThisRound < MIN_JUNCTION_IMPROVEMENT_PERCENT) {
+					System.out.println("Junction improvements halted because latest improvement < "+MIN_JUNCTION_IMPROVEMENT_PERCENT);
+					break;
+				}
+				*/
+			}
+				
+			System.out.println("improving sections...");
+			sectionNoImprovementCount = new HashMap<FeatureId, Integer>();
 			
-			SetImprover oneGenerationSetImprover = new BestOfNSetImprover(
-					waterAnalyzer, 
-					sectionImprover, 
-					junctionImprover, 
-					2 //n
-					);
+			for(int iterationNum = 1; iterationNum <= MAX_SECTION_ITERATIONS; iterationNum++) {
+				int numSteps = MAX_TESTS_PER_SECTION;
+				if (iterationNum < 5) {
+					//ramp up number of tests for the first 5 rounds
+					numSteps = Math.min(MIN_TESTS_PER_SECTION * iterationNum, MAX_TESTS_PER_SECTION);
+				}
+				
+				double roundStartGlobalFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
+				
+				ImprovementMetrics metrics = improveSections(catchmentLines, numSteps);
+				
+				/*
+				String outFilename2 = outputGeopackageFilename.replace(".gpkg", "-s"+iterationNum+".gpkg");
+				SimpleFeatureCollection outFeatureCollection2 = catchmentLines.getUpdatedFeatures();
+				outFeatureCollection2 = SpatialUtils.renameFeatureType(outFeatureCollection2, outTable);
+				SaveUtils.saveToGeoPackage(outFilename2, outFeatureCollection2, true);
+				*/
+				
+				double roundEndGlobalFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
+				double percentImprovementThisRound = (roundEndGlobalFitness - roundStartGlobalFitness)/roundEndGlobalFitness * 100;			
+				System.out.println("section round "+iterationNum+" complete");
+				System.out.println(" round settings: ");
+				System.out.println("  - # steps per section: "+numSteps);
+				System.out.println(" improvements: ");
+				System.out.println("  - # requested: "+metrics.getNumImprovementRequests());
+				System.out.println("  - # succeeded: "+metrics.getNumImproved());
+				System.out.println(" alternatives tested: ");
+				System.out.println("  - # total: "+metrics.getNumAlternativesTested());
+				System.out.println("  - # valid: "+metrics.getNumValidAlternativesTested());				
+				System.out.println(" runtime: ");
+				System.out.println("  - total for all improvement requests: "+metrics.getRuntimeMs()+ " ms");
+				System.out.println("  - average per improvement request: "+metrics.getAvgRuntimeMsPerRequest()+ " ms");
+				System.out.println("  - average per improvement request alternative: "+metrics.getAvgRuntimeMsPerTest()+ " ms");				
+				System.out.println(" global fitness:");
+				System.out.println("  - start: "+roundStartGlobalFitness);
+				System.out.println("  - end: "+roundEndGlobalFitness);
+				System.out.println("  - improved by: "+percentImprovementThisRound+"%");
+				
+				if(metrics.getNumImprovementRequests() == 0) {
+					System.out.println("Junction improvements no improvements were requested in the previous round");
+					break;
+				}
+				/*
+				if (percentImprovementThisRound < MIN_SECTION_IMPROVEMENT_PERCENT) {
+					System.out.println("section improvements halted because latest improvement < "+MIN_SECTION_IMPROVEMENT_PERCENT);
+					break;
+				}
+				*/
+			}
 			
-			SetImprover evolutionSetImprover = new EvolutionSetImprover(
-					oneGenerationSetImprover, 
-					2 //numGenerations
-					);
+			Date end = new Date();
 			
-			//make improvements
-			SimpleFeatureCollection result = evolutionSetImprover.improve(catchmentLines);
+			//saving improved catchments
+			//-----------------------------------------------------------------
+			SimpleFeatureCollection outFeatureCollection = catchmentLines.getUpdatedFeatures();
+			outFeatureCollection = SpatialUtils.renameFeatureType(outFeatureCollection, outTable);
 			
-			//save result
-			result = SpatialUtils.renameFeatureType(result, outTable);			
-			SaveUtils.saveToGeoPackage(outputGeopackageFilename, result, true);
+			SaveUtils.saveToGeoPackage(outputGeopackageFilename, outFeatureCollection, true);
 			
-		}
-		catch(IOException e) {
+			
+			//saving improvement coverage
+			//-----------------------------------------------------------------
+			if (sectionImprovementCoverage != null) {
+				System.out.println("section improvement coverage fraction (total): "+sectionImprovementCoverage.getTotalCoverageFraction());
+				System.out.println("section improvement coverage fraction (valid only): "+sectionImprovementCoverage.getValidCoverageFraction());
+				if (outputSectionImprovementCoverageGeopackageFile != null) {
+					SimpleFeatureSource improvementCoverageSource = sectionImprovementCoverage.toFeatureSource();
+					SimpleFeatureCollection improvementCoverageCollection = improvementCoverageSource.getFeatures();
+					improvementCoverageCollection = SpatialUtils.renameFeatureType(improvementCoverageCollection, outImprovementCoverageTable);				
+					SaveUtils.saveToGeoPackage(outputSectionImprovementCoverageGeopackageFile, improvementCoverageCollection, true);
+				}
+			}
+			if (junctionImprovementCoverage != null) {
+				System.out.println("junction improvement coverage fraction (total): "+junctionImprovementCoverage.getTotalCoverageFraction());
+				System.out.println("junction improvement coverage fraction (valid only): "+junctionImprovementCoverage.getValidCoverageFraction());
+				if (outputJunctionImprovementCoverageGeopackageFile != null) {
+					SimpleFeatureSource improvementCoverageSource = junctionImprovementCoverage.toFeatureSource();
+					SimpleFeatureCollection improvementCoverageCollection = improvementCoverageSource.getFeatures();
+					improvementCoverageCollection = SpatialUtils.renameFeatureType(improvementCoverageCollection, outImprovementCoverageTable);				
+					SaveUtils.saveToGeoPackage(outputJunctionImprovementCoverageGeopackageFile, improvementCoverageCollection, true);
+				}
+			}
+			
+			
+			System.out.println("initial avg catchment elevation:"+initialFitness);
+			double finalFitness = globalFitness.fitnessAvg(catchmentLines.getUpdatedFeatures());
+			System.out.println("final avg catchment fitness:"+finalFitness);
+			
+			double runtimeMinutes = (end.getTime() - start.getTime())/(1000.0*60);
+			System.out.println("run time (minutes): "+runtimeMinutes); //minutes
+			
+		} catch(IOException e) {
 			e.printStackTrace();
 			System.exit(1);
-		} catch (SchemaException e) {
+		} catch(SchemaException e) {
 			e.printStackTrace();
 			System.exit(1);
 		}
 		
+		System.out.println("All done");
+		
 	}
 	
+	private static ImprovementMetrics improveJunctions(CatchmentLines catchmentLines, int numSteps) throws IOException {
+		ImprovementMetrics metricsTotal = new ImprovementMetrics();
+		
+		//SectionFitness sectionFitness = new AvgElevationSectionFitness(tinPolys);
+		sectionFitness = new RidgeColorSectionFitness(tinPolys);
+		//SectionFitness sectionFitness = new AvgElevationLengthPenaltySectionFitness(tinPolys);
+		//JunctionFitness junctionFitness = new SumTouchingJunctionFitness(sectionFitness);
+		JunctionFitness junctionFitness = new PartialSumTouchingJunctionFitness(sectionFitness, 3);
+		
+		
+		SimulatedAnnealingJunctionImprover junctionImprover = new SimulatedAnnealingJunctionImprover(
+				catchmentLines,
+				tinEdges,
+				waterFeatureSource,									
+				junctionFitness,
+				SEARCH_RADIUS,
+				numSteps
+				);
+		/*
+		BestInRadiusJunctionImprover junctionImprover = new BestInRadiusJunctionImprover(
+				catchmentLines,
+				tinEdges,
+				waterFeatureSource,									
+				junctionFitness,
+				150// SEARCH RADIUS m
+				);
+		*/
+		
+		if (junctionImprovementCoverage != null) {
+			junctionImprover.setImprovementCoverage(junctionImprovementCoverage);
+		}
+		
+		List<Coordinate> junctions = catchmentLines.getJunctions(waterAnalyzer);
+				
+		System.out.println("attempting to improve "+junctions.size()+" junctions");
+		for(Coordinate junctionCoord : junctions) {
+			
+			List<SimpleFeature> touchingSections = catchmentLines.getSectionsTouchingJunction(junctionCoord);
+			Junction junction = new Junction(junctionCoord, touchingSections);
+			
+			System.out.println("---");
+			if (getNoImprovementCount(junction) >= MIN_NO_IMPROVEMENT_COUNT_TO_SKIP_JUNCTION) {
+				System.out.println("skipping. this junction has "+getNoImprovementCount(junction)+" prior no-improvement events");
+				continue;
+			}
+			JunctionModification modification = null;
+			try {
+				modification = junctionImprover.improve(junction);
+				metricsTotal.merge(modification.getImprovementMetrics());
+			}
+			catch(Exception e) {
+				e.printStackTrace();
+			}
+			 
+			if (modification != null && modification.isModified()) {
+				resetNoImprovementCount(junction);
+				System.out.println("  moved junction "+modification.getOriginalJunction().getCoordinate()+" to "+modification.getModifiedJunction().getCoordinate());
+				for (SimpleFeature touchingSection : modification.getModifiedJunction().getTouchingSections()) {
+					//System.out.println("  updated section with fid="+touchingSection.getIdentifier());
+					catchmentLines.addOrUpdate(touchingSection);
+				}
+			} else {
+				incrementNoImprovementCount(junction);
+			}
+		}
+		
+		junctionImprovementCoverage = junctionImprover.getImprovementCoverage();
+		
+		return metricsTotal;
+	}
+	
+	private static ImprovementMetrics improveSections(CatchmentLines catchmentLines, int numSteps) throws IOException {
+		
+		ImprovementMetrics metricsTotal = new ImprovementMetrics();
+		
+		//sectionFitness = new AvgElevationSectionFitness(tinPolys);
+		//sectionFitness = new AvgElevationLengthPenaltySectionFitness(tinPolys);
+		//SectionFitness sectionFitness = new RidgeSectionFitness(tinPolys);			
+		//sectionFitness = new ElevationLenghPenaltySectionFitness(tinPolys);
+		//SectionFitness sectionFitness = new SondheimSectionFitness(tinPolys);
+		sectionFitness = new RidgeColorSectionFitness(tinPolys);
+		
+		SimulatedAnnealingSectionImprover sectionImprover = new SimulatedAnnealingSectionImprover(
+				catchmentLines, 
+				tinEdges, 
+				waterFeatureSource, 
+				sectionFitness, 
+				SEARCH_RADIUS, 
+				numSteps
+				);
+		
+		if (sectionImprovementCoverage != null) {
+			sectionImprover.setImprovementCoverage(sectionImprovementCoverage);
+		}
+		
+		SimpleFeatureCollection sections = catchmentLines.getOriginalFeatures();
+		SimpleFeatureIterator sectionIt = sections.features();
+		while(sectionIt.hasNext()) {
+			System.out.println("---");
+			SimpleFeature section = sectionIt.next();	
+			if (getNoImprovementCount(section) >= MIN_NO_IMPROVEMENT_COUNT_TO_SKIP_SECTION) {
+				System.out.println("skipping.  assume this section cannot be improved further.");
+				continue;
+			}
+			section = catchmentLines.getLatest(section);
+			SectionModification modification = null;
+			try {
+				modification = sectionImprover.improve(section);
+				metricsTotal.merge(modification.getImprovementMetrics());
+			} 
+			catch (Exception e) {
+				System.out.println("no improvements were possible. ");
+				e.printStackTrace();
+			}
+			
+			if (modification != null && modification.isModified()) {
+				catchmentLines.addOrUpdate(modification.getModifiedSection());
+				resetNoImprovementCount(section);
+				for (SimpleFeature touchingSection : modification.getModifiedTouchingSections()) {
+					//System.out.println(" updated section with fid="+touchingSection.getIdentifier());
+					catchmentLines.addOrUpdate(touchingSection);
+					throw new IllegalStateException("This should never occur -- touching sections don't get modified by SectionImprover");
+				}	
+			}
+			else {
+				incrementNoImprovementCount(section);
+			}
+			
+		}
+		sectionIt.close();		
+		
+		sectionImprovementCoverage = sectionImprover.getImprovementCoverage();
+		
+		return metricsTotal;
+	}
+	
+	// ------------------------------------------------------------------------
+	// Functions to support testing of the end condition
+	// ------------------------------------------------------------------------
+	
+	private static void incrementNoImprovementCount(Junction junction) {
+		String key = junction.getID();
+		if(junctionNoImprovementCount.containsKey(key)) {
+			int count = junctionNoImprovementCount.get(key);
+			count++;
+			junctionNoImprovementCount.put(key, count);
+		}
+		else {
+			junctionNoImprovementCount.put(key, 1);
+		}
+	}
+	
+	private static void resetNoImprovementCount(Junction junction) {
+		String key = junction.getID();
+		junctionNoImprovementCount.put(key, 0);
+	}
+	
+	private static void incrementNoImprovementCount(SimpleFeature section) {
+		FeatureId key = section.getIdentifier();
+		if(sectionNoImprovementCount.containsKey(key)) {
+			int count = sectionNoImprovementCount.get(key);
+			count++;
+			sectionNoImprovementCount.put(key, count);
+		}
+		else {
+			sectionNoImprovementCount.put(key, 1);
+		}
+	}
+	
+	private static void resetNoImprovementCount(SimpleFeature section) {
+		FeatureId key = section.getIdentifier();
+		sectionNoImprovementCount.put(key, 0);
+	}
+	
+	private static int getNoImprovementCount(Junction junction) {
+		String key = junction.getID();
+		if(junctionNoImprovementCount.containsKey(key)) {
+			return junctionNoImprovementCount.get(key);
+		}
+		return 0;
+	}
+	
+	private static int getNoImprovementCount(SimpleFeature section) {
+		FeatureId key = section.getIdentifier();
+		if(sectionNoImprovementCount.containsKey(key)) {
+			return sectionNoImprovementCount.get(key);
+		}
+		return 0;
+	}
 	
 }

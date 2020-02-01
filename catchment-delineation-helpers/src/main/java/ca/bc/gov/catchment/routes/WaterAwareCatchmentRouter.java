@@ -50,15 +50,13 @@ public class WaterAwareCatchmentRouter {
 		if (!isCoordinateMovable(pivotIndex, route, isEndpointMovable)) {
 			throw new IllegalArgumentException("'oldCoord' is not movable");
 		}
-		int pivotCoordMoved = 0;
 		List<Coordinate> coordsToIncludeInNewRoute = new ArrayList<Coordinate>();
 		for (int i = 0; i < route.getNumPoints(); i++) {
 			boolean isEndpoint = i == 0 || i == route.getNumPoints()-1;
 			int distance = Math.abs(pivotIndex - i);
 			
 			if (distance == 0) {
-				//Note: we can move the current point if it is both an endpoint and a pivot.
-				pivotCoordMoved++;
+				//Add the new coord to the route.  omit the old pivot coord.
 				coordsToIncludeInNewRoute.add(newCoord);
 			}
 			else if (distance <= freedom && isCoordinateMovable(i, route, isEndpointMovable) && !isEndpoint) {
@@ -79,7 +77,6 @@ public class WaterAwareCatchmentRouter {
 			/*
 			System.out.println("Unable to change route. Diagnosis below:");
 			System.out.println("pivotIndex: "+pivotIndex);
-			System.out.println("pivotCoordMoved #:"+pivotCoordMoved);
 			System.out.println("original route: "+route);
 			System.out.println("oldCoord: "+oldCoord);
 			System.out.println("newCoord: "+newCoord);
@@ -153,6 +150,9 @@ public class WaterAwareCatchmentRouter {
 		if (index+1 < route.getNumPoints()) {
 			next = route.getCoordinateN(index+1);
 		}
+		if (index > 0) {
+			prev = route.getCoordinateN(index-1);
+		}
 		
 		if (!isEndpointMovable) {
 			boolean isEndpoint = index == 0 || index == route.getNumPoints()-1;
@@ -164,6 +164,7 @@ public class WaterAwareCatchmentRouter {
 		if (water.isConfluence(c)) {
 			return false;
 		}
+		
 		//check if adjacent coord is a confluence
 		if (next != null && water.isConfluence(next)) {
 			return false;
@@ -171,7 +172,6 @@ public class WaterAwareCatchmentRouter {
 		if (prev != null && water.isConfluence(prev)) {
 			return false;
 		}
-		prev = c;
 	
 		return true;
 	}

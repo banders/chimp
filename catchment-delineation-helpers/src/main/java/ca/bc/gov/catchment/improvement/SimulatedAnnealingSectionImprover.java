@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.TreeMap;
+import java.util.logging.Logger;
 
 import org.geotools.data.DataUtilities;
 import org.geotools.data.simple.SimpleFeatureSource;
@@ -36,11 +37,11 @@ import ca.bc.gov.catchments.utils.SpatialUtils;
 public class SimulatedAnnealingSectionImprover extends SectionImprover {
 
 	private static final double MAX_TEMPERATURE = 100;
+	private static Logger LOG = Logger.getAnonymousLogger();
 	
 	private CatchmentValidity catchmentValidityChecker;
 	private CatchmentLines catchmentLines;
 	private TinEdges tinEdges;
-	private SectionFitness fitnessFinder;
 	private int maxSteps;
 	private double radius;
 	private WaterAwareCatchmentRouter router;
@@ -55,7 +56,7 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 			int maxSteps) throws IOException {
 		this.tinEdges = tinEdges;
 		this.catchmentLines = catchmentLines;
-		this.fitnessFinder = fitnessFinder;
+		this.setSectionFitness(fitnessFinder);
 		this.catchmentValidityChecker = new CatchmentValidity(waterFeatures);
 		this.router = new WaterAwareCatchmentRouter(tinEdges, new WaterAnalyzer(waterFeatures));
 		this.maxSteps = maxSteps;
@@ -77,7 +78,7 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 		List<SimpleFeature> neighboursTested = new ArrayList<SimpleFeature>();
 		
 		LineString originalRoute = (LineString)section.getDefaultGeometry();
-		double originalFit = fitnessFinder.fitness(originalRoute);
+		double originalFit = getSectionFitness().fitness(originalRoute);
 		
 		//favouredRoute is the simulated annealing algorithm's best suggestion, although
 		//it only considers fitness of the route (not whether the route is valid).
@@ -101,7 +102,7 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 			//document the neighbour route
 			improvementCoverage.incrementCountTotal(neighbourRoute, section);	
 			
-			double neighbourFit = fitnessFinder.fitness(neighbourRoute);
+			double neighbourFit = getSectionFitness().fitness(neighbourRoute);
 			SimpleFeature neighbourFeature = toTestedFeature(neighbourRoute, neighbourFit, ""+stepNum);
 			neighboursTested.add(neighbourFeature);
 			boolean fitnessImproved = neighbourFit > favouredFit;
@@ -115,7 +116,7 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 				double r = Math.random();
 				acceptWorse = p > r;
 				if (!acceptWorse) {
-					System.out.println("neighbour rejected.  fit worsened from "+favouredFit+" to "+neighbourFit);
+					LOG.finer("neighbour rejected.  fit worsened from "+favouredFit+" to "+neighbourFit);
 					continue;
 				}
 			}
@@ -123,13 +124,13 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 			//validate the neighbour route.  if invalid, skip the route and try again
 			boolean isValidWrtWater = catchmentValidityChecker.isRouteValidWrtWater(neighbourRoute);
 			if (!isValidWrtWater) {
-				System.out.println("neighbour rejected.  invalid w.r.t water");
+				LOG.finer("neighbour rejected.  invalid w.r.t water");
 				continue;
 			}
 			boolean isValidWrtCatchments = 
 					catchmentValidityChecker.isRouteValidWrtCatchments(neighbourRoute, catchmentLines.getUpdatedFeatures(), section.getIdentifier());
 			if (!isValidWrtCatchments) {
-				System.out.println("neighbour rejected.  invalid w.r.t catchments");
+				LOG.finer("neighbour rejected.  invalid w.r.t catchments");
 				continue;
 			}
 			
@@ -144,14 +145,14 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 				routesToConsider.put(neighbourFit, neighbourRoute);
 				favouredFit = neighbourFit;	
 				favouredRoute = neighbourRoute;
-				System.out.println("neighbour accepted.  fit improved from "+favouredFit+" to "+neighbourFit);
+				LOG.finer("neighbour accepted.  fit improved from "+favouredFit+" to "+neighbourFit);
 				continue;
 			}
 						
 			if (acceptWorse) {
 				favouredFit = neighbourFit;
 				favouredRoute = neighbourRoute;
-				System.out.println("neighbour accepted.  fit worsened from "+favouredFit+" to "+neighbourFit);
+				LOG.finer("neighbour accepted.  fit worsened from "+favouredFit+" to "+neighbourFit);
 				continue;
 			}
 			
@@ -169,19 +170,21 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 			SimpleFeature modifiedSection = SpatialUtils.geomToFeature(chosenRoute, section.getFeatureType(), section.getID());
 			result.setModifiedSection(modifiedSection);
 			metrics.incrementNumImproved();
-			System.out.println("improved section from "+originalFit+" to "+fitnessFinder.fitness(chosenRoute));
+			LOG.finer("improved section from "+originalFit+" to "+getSectionFitness().fitness(chosenRoute));
 		}
 		else {
-			System.out.println("section could not be improved from "+originalFit);
+			LOG.finer("section could not be improved from "+originalFit);
 		}
 		
 		Date end = new Date();
 		long runtimeMs = end.getTime() - start.getTime();
 		metrics.setRuntimeMs(runtimeMs);
 		
+		/*
 		SaveUtils.saveToGeoPackage("C:/Temp/catchment-section-"+section.getID()+".gpkg", 
 				SpatialUtils.featListToSimpleFeatureCollection(neighboursTested), 
 				false);
+		*/
 		
 		return result;
 	}
@@ -289,7 +292,7 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 		try {
 			srid = CRS.lookupEpsgCode(crs, true);
 		} catch (FactoryException e1) {
-			System.out.println("Unable to lookup SRID");
+			LOG.finer("Unable to lookup SRID");
 			System.exit(1);
 		}
 		
@@ -299,7 +302,7 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 		try {
 			testedFeatureType = DataUtilities.createType(outTable, "geometry:LineString:srid="+srid+",fit:float");
 		} catch (SchemaException e1) {
-			System.out.println("Unable to create feature type "+outTable);
+			LOG.finer("Unable to create feature type "+outTable);
 			System.exit(1);
 		}
 		SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder(testedFeatureType);

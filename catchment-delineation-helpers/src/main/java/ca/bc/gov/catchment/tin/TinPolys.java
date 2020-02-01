@@ -66,4 +66,8 @@ public class TinPolys extends Tin {
 		
 		return result;
 	}
+	
+	public SimpleFeature getEdge(Coordinate c1, Coordinate c2) throws IOException {
+		throw new IllegalStateException("not implemented yet.  Todo.  implement TinPolys.getEdge()");
+	}
 }

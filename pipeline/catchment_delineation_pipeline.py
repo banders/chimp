@@ -558,8 +558,8 @@ def main():
         print("Failure.  Pipeline execution stopped early.")
         exit(1);
 
-    #data_bbox = "1680546.3,501755.5,1682284.9,503082.5" #small
-    data_bbox = "1673235.6,499766.7,1679748.7,504957.6" #medium
+    data_bbox = "1680546.3,501755.5,1682284.9,503082.5" #small
+    #data_bbox = "1673235.6,499766.7,1679748.7,504957.6" #medium
     data_bbox_crs = "EPSG:3005"
     print("NOTE: custom bbox: {}".format(data_bbox))
 
@@ -567,7 +567,7 @@ def main():
 
     if not os.path.exists(improved_catchments_gpkg_filename_with_path):
       print("Creating TIN edges")
-      cmd9 = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.ImproveCatchments -catchmentsFile {} -catchmentsTable {} -waterFile {} -waterTable {} -tinEdgesFile {} -tinEdgesTable {} -tinPolysFile {} -tinPolysTable {} -o {} -outTable {} -outJunctionImprovementCoverageFile {} -outSectionImprovementCoverageFile {} {}".format(settings.get("java_path"), settings.get("java_classpath"), initial_catchments_3d_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, water_feature_segmented_filename_with_path, SEGMENTED_WATER_FEATURES_TABLE, tin_gpkg_filename_with_path, TIN_EDGES_TABLE, tin_gpkg_filename_with_path, TIN_POLYS_TABLE, improved_catchments_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, junction_improvement_coverage_gpkg_filename_with_path, section_improvement_coverage_gpkg_filename_with_path, bbox)
+      cmd9 = "{} -cp {} -Djava.util.logging.config.file={} -Xms2g ca.bc.gov.catchment.scripts.ImproveCatchments -catchmentsFile {} -catchmentsTable {} -waterFile {} -waterTable {} -tinEdgesFile {} -tinEdgesTable {} -tinPolysFile {} -tinPolysTable {} -o {} -outTable {} -outJunctionImprovementCoverageFile {} -outSectionImprovementCoverageFile {} {}".format(settings.get("java_path"), settings.get("java_classpath"), settings.get("log_properties_file"), initial_catchments_3d_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, water_feature_segmented_filename_with_path, SEGMENTED_WATER_FEATURES_TABLE, tin_gpkg_filename_with_path, TIN_EDGES_TABLE, tin_gpkg_filename_with_path, TIN_POLYS_TABLE, improved_catchments_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, junction_improvement_coverage_gpkg_filename_with_path, section_improvement_coverage_gpkg_filename_with_path, bbox)
       resp = call(cmd9.split())
       if resp != 0:
         print("Failure.  Pipeline execution stopped early.")

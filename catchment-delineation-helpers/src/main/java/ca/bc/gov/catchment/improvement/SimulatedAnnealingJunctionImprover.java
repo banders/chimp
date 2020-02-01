@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.TreeMap;
+import java.util.logging.Logger;
 
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.locationtech.jts.geom.Coordinate;
@@ -28,6 +29,7 @@ import ca.bc.gov.catchment.water.WaterAnalyzer;
 public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 
 	private static final double MAX_TEMPERATURE = 100;
+	private static Logger LOG = Logger.getAnonymousLogger();
 	
 	private CatchmentValidity catchmentValidityChecker;
 	private CatchmentLines catchmentLines;
@@ -65,17 +67,17 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 		Date start = new Date();
 		
 		double originalFit = fitnessFinder.fitness(originalJunction);
-		System.out.println("trying to improve junction: "+originalJunction.getID());
+		LOG.finer("trying to improve junction: "+originalJunction.getID());
 		
 		JunctionModification favouredModification = new JunctionModification(originalJunction);
 		favouredModification.setImprovementMetrics(metrics);
 		
 		if (originalJunction.getDegree() == 0) {
-			System.out.println(" no sections touch this junction");
+			LOG.finer(" no sections touch this junction");
 			return favouredModification;
 		}
 		if (originalJunction.getDegree() < 3) {
-			System.out.println(" invalid junction.  degree must be >= 3.  found: "+originalJunction.getDegree());
+			LOG.finer(" invalid junction.  degree must be >= 3.  found: "+originalJunction.getDegree());
 			return favouredModification;
 		}
 		
@@ -100,17 +102,19 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 					continue;
 				}
 				
-				System.out.print(" neighbour:"+neighbourCoord);
+				LOG.finer(" neighbour:"+neighbourCoord);
 				neighboursTested.add(neighbourCoord);
 				improvementCoverage.incrementCountTotal(neighbourCoord);	
 				
-				int freedom = 5; //(int)(Math.random() * 10) + 1; //10 is max freedom
+				//int freedom = 5; 
+				//int freedom = (int)(Math.random() * 10) + 1; //random 1-10
+				int freedom = (int)(Math.random() * 5) + 5; //random 5-10
 				newSections = router.rerouteFeatures(favouredModification.getModifiedJunction().getTouchingSections(), favouredModification.getModifiedJunction().getCoordinate(), neighbourCoord, freedom);
 			} catch(IOException e) {
-				System.out.println("  invalid: "+e);
+				LOG.finer("  invalid: "+e);
 				continue;
 			} catch(RouteException e) {
-				System.out.println("  invalid: "+e);
+				LOG.finer("  invalid: "+e);
 				continue;
 			}
 			
@@ -130,7 +134,7 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 				double r = Math.random();
 				acceptWorse = p > r;
 				if (!acceptWorse) {
-					System.out.println("  rejected.  fit worsened from "+favouredFit+" to "+neighbourFit);
+					LOG.finer("  rejected.  fit worsened from "+favouredFit+" to "+neighbourFit);
 					continue;
 				}
 			} 
@@ -140,14 +144,14 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 			//within the improve() function.  It takes >50% of the processing time.
 			boolean isValidWrtWater = catchmentValidityChecker.areSectionsValidWrtWater(newSections);
 			if (!isValidWrtWater) {
-				System.out.println("  rejected.  invalid w.r.t water");
+				LOG.finer("  rejected.  invalid w.r.t water");
 				continue;
 			}
 			
 			boolean isValidWrtCatchments = 
 					catchmentValidityChecker.areSectionsValidWrtCatchments(newSections, catchmentLines.getUpdatedFeatures());
 			if (!isValidWrtCatchments) {
-				System.out.println("  rejected.  invalid w.r.t catchments");
+				LOG.finer("  rejected.  invalid w.r.t catchments");
 				continue;
 			}
 			
@@ -158,7 +162,7 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 			
 			//if the fit is an improvement, record the route
 			if (fitnessImprovedVsFavoured) {
-				System.out.println("  accepted.  fit improved from "+favouredFit+" to "+neighbourFit);
+				LOG.finer("  accepted.  fit improved from "+favouredFit+" to "+neighbourFit);
 				modificationsToConsider.put(neighbourFit, modification);
 				favouredFit = neighbourFit;	
 				favouredModification = modification;
@@ -170,7 +174,7 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 			}
 			
 			if (acceptWorse) {
-				System.out.println("  accepted. fit worsened from "+favouredFit+" to "+neighbourFit);
+				LOG.finer("  accepted. fit worsened from "+favouredFit+" to "+neighbourFit);
 				favouredFit = neighbourFit;
 				favouredModification = modification;
 				//System.out.println(" accepted neighbour at random");
@@ -187,10 +191,10 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 		JunctionModification chosenModification = chooseJunctionModification(modificationsToConsider);
 		if (!chosenModification.getOriginalJunction().equals(chosenModification.getModifiedJunction())) {
 			metrics.incrementNumImproved();
-			System.out.println(" improved junction from "+originalFit+" to "+fitnessFinder.fitness(chosenModification.getModifiedJunction()));
+			LOG.finer(" improved junction from "+originalFit+" to "+fitnessFinder.fitness(chosenModification.getModifiedJunction()));
 		}
 		else {
-			System.out.println(" junction could not be improved");
+			LOG.finer(" junction could not be improved");
 		}
 		
 		Date end = new Date();
