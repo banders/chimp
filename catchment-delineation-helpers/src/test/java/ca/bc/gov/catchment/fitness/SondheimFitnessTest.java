@@ -13,7 +13,7 @@ import org.locationtech.jts.util.Assert;
 import ca.bc.gov.catchment.synthetic.DummyFactory;
 import ca.bc.gov.catchment.tin.TinPolys;
 import ca.bc.gov.catchment.tin.Triangle;
-import ca.bc.gov.catchments.utils.SpatialUtils;
+import ca.bc.gov.catchment.utils.SpatialUtils;
 
 public class SondheimFitnessTest {
 	

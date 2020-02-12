@@ -22,7 +22,7 @@ import org.locationtech.jts.io.WKTReader;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.geometry.PositionFactory;
 
-import ca.bc.gov.catchments.utils.SaveUtils;
+import ca.bc.gov.catchment.utils.SaveUtils;
 
 public class TestHelper {
 

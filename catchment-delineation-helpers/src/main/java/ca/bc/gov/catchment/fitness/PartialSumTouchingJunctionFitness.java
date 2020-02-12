@@ -9,7 +9,7 @@ import org.locationtech.jts.geom.LineString;
 import org.opengis.feature.simple.SimpleFeature;
 
 import ca.bc.gov.catchment.improvement.Junction;
-import ca.bc.gov.catchments.utils.SpatialUtils;
+import ca.bc.gov.catchment.utils.SpatialUtils;
 
 public class PartialSumTouchingJunctionFitness extends JunctionFitness {
 

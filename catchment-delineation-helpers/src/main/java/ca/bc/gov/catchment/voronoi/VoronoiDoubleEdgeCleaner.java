@@ -40,7 +40,7 @@ import org.opengis.filter.FilterFactory2;
 import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
-import ca.bc.gov.catchments.utils.SpatialUtils;
+import ca.bc.gov.catchment.utils.SpatialUtils;
 
 public class VoronoiDoubleEdgeCleaner {
 	

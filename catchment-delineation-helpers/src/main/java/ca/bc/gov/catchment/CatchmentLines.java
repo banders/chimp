@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.geotools.data.collection.SpatialIndexFeatureCollection;
+import org.geotools.data.collection.SpatialIndexFeatureSource;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.simple.SimpleFeatureSource;
@@ -19,10 +21,13 @@ import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
 
-import ca.bc.gov.catchment.water.WaterAnalyzer;
+import ca.bc.gov.catchment.utils.SpatialUtils;
+import ca.bc.gov.catchment.water.Water;
 
 public class CatchmentLines {
 
+	private static int NEXT_ID = 1;
+	
 	private FilterFactory2 filterFactory;
 	private GeometryFactory geometryFactory;
 	private SimpleFeatureType featureType;
@@ -30,6 +35,7 @@ public class CatchmentLines {
 	private SimpleFeatureSource originalCatchmentLines;
 	private DefaultFeatureCollection updatedCatchmentLines;
 	private Filter defaultFilter;
+	private int id;
 	
 	public CatchmentLines(SimpleFeatureSource catchmentLines) throws IOException {
 		this(catchmentLines, null);
@@ -45,6 +51,37 @@ public class CatchmentLines {
 		this.updatedCatchmentLines = new DefaultFeatureCollection();
 		this.updatedCatchmentLines.addAll(catchmentLines.getFeatures());
 		this.defaultFilter = defaultFilter;
+		this.id = NEXT_ID++; 
+	}
+	
+	public int getId() {
+		return this.id;
+	}
+	
+	public CatchmentLines copy() throws IOException {
+
+		//clone each feature from 'updatedCatchmentLines', and add to a new
+		//feature collection.  
+		DefaultFeatureCollection dfc = new DefaultFeatureCollection();
+		SimpleFeatureIterator it = getOriginalFeatures().features();
+		while(it.hasNext()) {
+			SimpleFeature f = it.next();
+			f = getLatest(f);
+			SimpleFeature clone = SpatialUtils.copyFeature(f);
+			dfc.add(clone);
+		}
+		it.close();
+		
+		//create a new catchment lines object from the new feature collection
+		SpatialIndexFeatureCollection fc = new SpatialIndexFeatureCollection(dfc);
+		SpatialIndexFeatureSource fs = new SpatialIndexFeatureSource(fc);
+		CatchmentLines copy = new CatchmentLines(fs, null);
+		
+		return copy;
+	}
+	
+	private void setUpdatedCatchmentLines(DefaultFeatureCollection fc) {
+		this.updatedCatchmentLines = fc;
 	}
 	
 	public List<SimpleFeature> getSectionsTouchingJunction(Coordinate junction) throws IOException {
@@ -110,7 +147,7 @@ public class CatchmentLines {
 		return this.updatedCatchmentLines;
 	}
 	
-	public List<Coordinate> getJunctions(WaterAnalyzer waterAnalyzer) throws IOException {
+	public List<Coordinate> getJunctions(Water waterAnalyzer) throws IOException {
 		List<Coordinate> junctions = new ArrayList<Coordinate>();
 		SimpleFeatureCollection fc = getOriginalFeatures();
 		SimpleFeatureIterator it = fc.features();

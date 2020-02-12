@@ -1,4 +1,4 @@
-package ca.bc.gov.catchments.utils;
+package ca.bc.gov.catchment.utils;
 
 import java.io.File;
 import java.io.IOException;

@@ -23,7 +23,7 @@ import ca.bc.gov.catchment.fitness.SectionFitness;
 import ca.bc.gov.catchment.routes.RouteException;
 import ca.bc.gov.catchment.routes.WaterAwareCatchmentRouter;
 import ca.bc.gov.catchment.tin.TinEdges;
-import ca.bc.gov.catchment.water.WaterAnalyzer;
+import ca.bc.gov.catchment.water.Water;
 
 /**
  * This junction improver uses no randomness, so results are deterministic.
@@ -38,7 +38,6 @@ public class BestInRadiusJunctionImprover extends JunctionImprover {
 	private static final int FREEDOM_STEP = 2;
 	
 	private CatchmentValidity catchmentValidityChecker;
-	private CatchmentLines catchmentLines;
 	private TinEdges tinEdges;
 	private JunctionFitness fitnessFinder;
 	private double radius;
@@ -46,22 +45,20 @@ public class BestInRadiusJunctionImprover extends JunctionImprover {
 	private ImprovementCoverage improvementCoverage;
 	
 	public BestInRadiusJunctionImprover(
-			CatchmentLines catchmentLines,
 			TinEdges tinEdges,
 			SimpleFeatureSource waterFeatures,			
 			JunctionFitness fitnessFinder, 
 			double radius) throws IOException {
 		this.tinEdges = tinEdges;
-		this.catchmentLines = catchmentLines;
 		this.fitnessFinder = fitnessFinder;
 		this.catchmentValidityChecker = new CatchmentValidity(waterFeatures);
-		this.router = new WaterAwareCatchmentRouter(tinEdges, new WaterAnalyzer(waterFeatures));
+		this.router = new WaterAwareCatchmentRouter(tinEdges, new Water(waterFeatures));
 		this.radius = radius;
 		this.improvementCoverage = new ImprovementCoverage(tinEdges.getPointCloud());
 	}
 	
 	@Override
-	public JunctionModification improve(Junction originalJunction) throws IOException {
+	public JunctionModification improve(Junction originalJunction, CatchmentLines catchmentLines) throws IOException {
 		
 		ImprovementMetrics metrics = new ImprovementMetrics();
 		metrics.incrementNumImprovementRequests();

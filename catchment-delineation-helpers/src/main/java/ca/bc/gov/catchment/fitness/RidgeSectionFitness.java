@@ -22,7 +22,7 @@ import org.opengis.filter.FilterFactory2;
 import ca.bc.gov.catchment.tin.Edge;
 import ca.bc.gov.catchment.tin.TinPolys;
 import ca.bc.gov.catchment.tin.Triangle;
-import ca.bc.gov.catchments.utils.SpatialUtils;
+import ca.bc.gov.catchment.utils.SpatialUtils;
 
 /**
  * Defines functions used to calculate how well a given geometry aligns with 

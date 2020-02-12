@@ -26,7 +26,7 @@ import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
-import ca.bc.gov.catchments.utils.SpatialUtils;
+import ca.bc.gov.catchment.utils.SpatialUtils;
 
 public class ImprovementCoverage {
 

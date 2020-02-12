@@ -23,11 +23,12 @@ import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
 
+import ca.bc.gov.catchment.algorithms.SinuosityQuantifier;
 import ca.bc.gov.catchment.tin.Edge;
 import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchment.tin.TinPolys;
 import ca.bc.gov.catchment.tin.Triangle;
-import ca.bc.gov.catchments.utils.SpatialUtils;
+import ca.bc.gov.catchment.utils.SpatialUtils;
 
 /**
  * @author Brock
@@ -36,8 +37,8 @@ import ca.bc.gov.catchments.utils.SpatialUtils;
 public class RidgeColorSectionFitness extends SectionFitness {
 
 	private static final int MAX_CACHE_SIZE = 1000;
-	private static final int COLOR_UNDEFINED = -100;
-	private static final int COLOR_EXCELLENT = 3;
+	private static final int COLOR_UNDEFINED = 0;
+	private static final int COLOR_EXCELLENT = 4;
 	private static final int COLOR_GOOD = 2;
 	private static final int COLOR_MEDIUM = 1;
 	
@@ -66,7 +67,12 @@ public class RidgeColorSectionFitness extends SectionFitness {
 		double originalFitness = super.fitness(geom);
 		double len = geom.getLength();
 		double fitnessAdjustedForLength = originalFitness / len;
-		return fitnessAdjustedForLength;
+		
+		SinuosityQuantifier sq = new SinuosityQuantifier();
+		double sinuosity = sq.getSinuosity(geom); //>= 1		
+		double fitnessAdjustedForSinuosity = fitnessAdjustedForLength * 1/sinuosity;
+		
+		return fitnessAdjustedForSinuosity;
 	}
 	
 	@Override
@@ -92,6 +98,7 @@ public class RidgeColorSectionFitness extends SectionFitness {
 		
 		double length = segment.getLength();
 		double avgElevation = (c1.getZ() + c2.getZ()) / 2;
+		double elevationFraction = avgElevation / maxElevation; //[0-1] where higher numbers indicate higher elevation
 		
 		List<Triangle> triangles = tinPolys.getTrianglesOnEdge(segment);
 		double color = COLOR_UNDEFINED;
@@ -116,12 +123,16 @@ public class RidgeColorSectionFitness extends SectionFitness {
 			}
 			else {
 				//no ridge 
-				double elevationFraction = avgElevation / maxElevation; //[0-1] where higher numbers indicate higher elevation
 				color = elevationFraction;
+				//color = 0;
 			}
 		}
 		double fitness = length * color;
 		fitnessCache.put(segment, fitness);
+		
+		//penalize low elevations.  (elevationFraction) is a value in range [0-1].  larger means higher elevation.
+		//fitness *= elevationFraction;
+		
 		return fitness;
 	}
 	

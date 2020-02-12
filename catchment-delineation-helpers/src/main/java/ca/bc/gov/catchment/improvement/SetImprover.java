@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.geotools.data.collection.SpatialIndexFeatureCollection;
+import org.geotools.data.collection.SpatialIndexFeatureSource;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.filter.identity.FeatureId;
@@ -17,17 +19,32 @@ public abstract class SetImprover {
 	private static Map<String, Integer> junctionNoImprovementCount;
 	
 	public SetImprover() {
+	}
+	
+	protected void resetShortCircuitStatistics() {
 		sectionNoImprovementCount = new HashMap<FeatureId, Integer>();
 		junctionNoImprovementCount = new HashMap<String, Integer>();
 	}
 	
-	public abstract SimpleFeatureCollection improve(CatchmentLines catchmentLines) throws IOException;
+	public CatchmentLines improve(CatchmentLines catchmentLines) throws IOException {
+		resetShortCircuitStatistics();
+		return improveImpl(catchmentLines);
+	}
+	
+	protected abstract CatchmentLines improveImpl(CatchmentLines catchmentLines) throws IOException;
 	
 	
 	public abstract SectionFitness getGlobalFitness();
 	
 	public double checkGlobalFitness(SimpleFeatureCollection fc) throws IOException {
 		return getGlobalFitness().fitnessAvg(fc);
+	}
+	
+	protected CatchmentLines toCatchmentLines(SimpleFeatureCollection fc) throws IOException {
+		SpatialIndexFeatureCollection fastFc = new SpatialIndexFeatureCollection(fc);
+		SpatialIndexFeatureSource fastFs = new SpatialIndexFeatureSource(fastFc);
+		CatchmentLines result = new CatchmentLines(fastFs);
+		return result;
 	}
 	
 	// ------------------------------------------------------------------------

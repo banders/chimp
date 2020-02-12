@@ -13,16 +13,16 @@ import ca.bc.gov.catchment.fitness.CatchmentValidity;
 import ca.bc.gov.catchment.routes.RouteException;
 import ca.bc.gov.catchment.synthetic.DummyFactory;
 
-public class WaterAnalyzerTest {
+public class WaterTest {
 
 	private GeometryFactory geometryFactory;
 	private SimpleFeatureSource waterFeatures;
-	private WaterAnalyzer waterAnalyzer;
+	private Water waterAnalyzer;
 	
-	public WaterAnalyzerTest() throws IOException, RouteException {
+	public WaterTest() throws IOException, RouteException {
 		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
 		this.waterFeatures = DummyFactory.createDummyWaterFeatures();
-		this.waterAnalyzer = new WaterAnalyzer(waterFeatures);
+		this.waterAnalyzer = new Water(waterFeatures);
 	}
 	
 	@Test

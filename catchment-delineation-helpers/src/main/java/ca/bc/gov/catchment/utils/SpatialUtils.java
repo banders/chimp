@@ -1,4 +1,4 @@
-package ca.bc.gov.catchments.utils;
+package ca.bc.gov.catchment.utils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,6 +33,10 @@ import ca.bc.gov.catchment.algorithms.TrianglesFromEdgesAlg;
 
 public class SpatialUtils {
 
+	public static SimpleFeature copyFeature(SimpleFeature feature) {
+		return copyFeature(feature, feature.getFeatureType());
+	}
+	
 	public static SimpleFeature copyFeature(SimpleFeature feature, SimpleFeatureType newFeatureType) {
 		SimpleFeatureBuilder fb = new SimpleFeatureBuilder(newFeatureType);
 		Geometry geometry = (Geometry)feature.getDefaultGeometry();
@@ -82,6 +86,21 @@ public class SpatialUtils {
 		return geometries;
 	}
 	
+	/**
+	 * Converts SimpleFeatureCollection to List<SimpleFeature>
+	 * @param fc
+	 * @return
+	 */
+	public static List<SimpleFeature> simpleFeatureCollectionToList(SimpleFeatureCollection fc) {
+		List<SimpleFeature> result = new ArrayList<SimpleFeature>();
+		SimpleFeatureIterator it = fc.features();
+		while(it.hasNext()) {
+			SimpleFeature feature = it.next();
+			result.add(feature);
+		}
+		it.close();
+		return result;
+	}
 
 	public static SimpleFeature geomToFeature(Geometry geom, SimpleFeatureType type, String fid) {
 		SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder(type);

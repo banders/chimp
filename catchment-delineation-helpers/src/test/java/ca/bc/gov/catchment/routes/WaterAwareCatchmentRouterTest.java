@@ -23,8 +23,8 @@ import ca.bc.gov.catchment.fitness.CatchmentValidity;
 import ca.bc.gov.catchment.synthetic.DummyFactory;
 import ca.bc.gov.catchment.synthetic.TestHelper;
 import ca.bc.gov.catchment.tin.TinEdges;
-import ca.bc.gov.catchment.water.WaterAnalyzer;
-import ca.bc.gov.catchments.utils.SpatialUtils;
+import ca.bc.gov.catchment.utils.SpatialUtils;
+import ca.bc.gov.catchment.water.Water;
 
 public class WaterAwareCatchmentRouterTest {
 
@@ -64,7 +64,7 @@ public class WaterAwareCatchmentRouterTest {
 		LineStringRouter basicRouter = new LineStringRouter(tinEdges);
 		LineString originalRoute = basicRouter.makeRoute(included);
 		
-		WaterAnalyzer waterAnalyzer = new WaterAnalyzer(water);
+		Water waterAnalyzer = new Water(water);
 		
 		WaterAwareCatchmentRouter catchmentRouter = new WaterAwareCatchmentRouter(tinEdges, waterAnalyzer);
 		LineString modifiedRoute = catchmentRouter.reroute(originalRoute, coordToMove, coordToReplaceWith, 1, false);

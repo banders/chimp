@@ -23,7 +23,7 @@ import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
 
 import ca.bc.gov.catchment.tin.TinEdges;
-import ca.bc.gov.catchments.utils.SpatialUtils;
+import ca.bc.gov.catchment.utils.SpatialUtils;
 
 /**
  * This class provides an API for re-routing a linestring between two points

@@ -9,7 +9,7 @@ import org.geotools.data.DataStoreFinder;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureSource;
 
-import ca.bc.gov.catchments.utils.SaveUtils;
+import ca.bc.gov.catchment.utils.SaveUtils;
 
 public class GeoPackagePersistable implements Persistable {
 

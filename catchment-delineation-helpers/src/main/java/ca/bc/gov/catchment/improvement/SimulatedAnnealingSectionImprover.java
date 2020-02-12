@@ -30,9 +30,9 @@ import ca.bc.gov.catchment.fitness.SectionFitness;
 import ca.bc.gov.catchment.routes.RouteException;
 import ca.bc.gov.catchment.routes.WaterAwareCatchmentRouter;
 import ca.bc.gov.catchment.tin.TinEdges;
-import ca.bc.gov.catchment.water.WaterAnalyzer;
-import ca.bc.gov.catchments.utils.SaveUtils;
-import ca.bc.gov.catchments.utils.SpatialUtils;
+import ca.bc.gov.catchment.utils.SaveUtils;
+import ca.bc.gov.catchment.utils.SpatialUtils;
+import ca.bc.gov.catchment.water.Water;
 
 public class SimulatedAnnealingSectionImprover extends SectionImprover {
 
@@ -40,7 +40,6 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 	private static Logger LOG = Logger.getAnonymousLogger();
 	
 	private CatchmentValidity catchmentValidityChecker;
-	private CatchmentLines catchmentLines;
 	private TinEdges tinEdges;
 	private int maxSteps;
 	private double radius;
@@ -48,24 +47,22 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 	private ImprovementCoverage improvementCoverage;
 	
 	public SimulatedAnnealingSectionImprover(
-			CatchmentLines catchmentLines,
 			TinEdges tinEdges,
 			SimpleFeatureSource waterFeatures,
 			SectionFitness fitnessFinder, 
 			double radius,
 			int maxSteps) throws IOException {
 		this.tinEdges = tinEdges;
-		this.catchmentLines = catchmentLines;
 		this.setSectionFitness(fitnessFinder);
 		this.catchmentValidityChecker = new CatchmentValidity(waterFeatures);
-		this.router = new WaterAwareCatchmentRouter(tinEdges, new WaterAnalyzer(waterFeatures));
+		this.router = new WaterAwareCatchmentRouter(tinEdges, new Water(waterFeatures));
 		this.maxSteps = maxSteps;
 		this.radius = radius;
 		this.improvementCoverage = new ImprovementCoverage(tinEdges.getPointCloud());
 	}
 	
 	@Override
-	public SectionModification improve(SimpleFeature section) throws IOException {
+	public SectionModification improve(SimpleFeature section, CatchmentLines catchmentLines) throws IOException {
 		
 		ImprovementMetrics metrics = new ImprovementMetrics();
 		metrics.incrementNumImprovementRequests();
@@ -103,7 +100,7 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 			improvementCoverage.incrementCountTotal(neighbourRoute, section);	
 			
 			double neighbourFit = getSectionFitness().fitness(neighbourRoute);
-			SimpleFeature neighbourFeature = toTestedFeature(neighbourRoute, neighbourFit, ""+stepNum);
+			SimpleFeature neighbourFeature = toTestedFeature(neighbourRoute, neighbourFit, ""+stepNum, catchmentLines);
 			neighboursTested.add(neighbourFeature);
 			boolean fitnessImproved = neighbourFit > favouredFit;
 			boolean acceptWorse = false;
@@ -284,7 +281,7 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 		return p;
 	}
 	
-	private SimpleFeature toTestedFeature(LineString route, double fit, String fid) {
+	private SimpleFeature toTestedFeature(LineString route, double fit, String fid, CatchmentLines catchmentLines) {
 
 		//lookup the SRID of the point cloud
 		CoordinateReferenceSystem crs = catchmentLines.getSchema().getCoordinateReferenceSystem();

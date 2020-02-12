@@ -63,9 +63,8 @@ import org.opengis.referencing.NoSuchAuthorityCodeException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.opengis.referencing.operation.TransformException;
 
-
-import ca.bc.gov.catchments.utils.SaveUtils;
-import ca.bc.gov.catchments.utils.SpatialUtils;
+import ca.bc.gov.catchment.utils.SaveUtils;
+import ca.bc.gov.catchment.utils.SpatialUtils;
 
 /*
  * Test bboxes: 

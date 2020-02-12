@@ -1,4 +1,4 @@
-package ca.bc.gov.catchments.utils;
+package ca.bc.gov.catchment.utils;
 import java.util.ArrayList;
 import java.util.List;
 

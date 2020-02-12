@@ -39,6 +39,8 @@ import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
+import ca.bc.gov.catchment.utils.FilterUtils;
+import ca.bc.gov.catchment.utils.SaveUtils;
 import ca.bc.gov.catchment.voronoi.GeoPackagePersistable;
 import ca.bc.gov.catchment.voronoi.KeptAndDiscarded;
 import ca.bc.gov.catchment.voronoi.Persistable;
@@ -47,8 +49,6 @@ import ca.bc.gov.catchment.voronoi.VoronoiTouchingWaterCleaner;
 import ca.bc.gov.catchment.voronoi.VoronoiDanglerCleaner;
 import ca.bc.gov.catchment.voronoi.VoronoiDoubleEdgeCleaner;
 import ca.bc.gov.catchment.voronoi.VoronoiFalseCapCleaner;
-import ca.bc.gov.catchments.utils.FilterUtils;
-import ca.bc.gov.catchments.utils.SaveUtils;
 
 public class CleanVoronoiOutput {
 

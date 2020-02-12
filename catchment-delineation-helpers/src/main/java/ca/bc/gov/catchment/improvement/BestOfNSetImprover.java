@@ -19,8 +19,9 @@ import org.locationtech.jts.geom.Coordinate;
 import org.opengis.feature.simple.SimpleFeature;
 
 import ca.bc.gov.catchment.CatchmentLines;
+import ca.bc.gov.catchment.fitness.CatchmentValidity;
 import ca.bc.gov.catchment.fitness.SectionFitness;
-import ca.bc.gov.catchment.water.WaterAnalyzer;
+import ca.bc.gov.catchment.water.Water;
 
 public class BestOfNSetImprover extends SetImprover {
 	
@@ -34,35 +35,39 @@ public class BestOfNSetImprover extends SetImprover {
 	private static int MIN_TESTS_PER_SECTION = 5;
 	private static int MAX_TESTS_PER_SECTION = 10;
 	
-	private WaterAnalyzer waterAnalyzer;
+	private Water waterAnalyzer;
 	private JunctionImprover junctionImprover;
 	private SectionImprover sectionImprover;
 	private SectionFitness globalFitness;
 	private int n;
-	private SimpleFeatureCollection bestResult;
+	private CatchmentLines bestResult;
+	private CatchmentLines randomResult;
 	private double bestGlobalFitness;
 	
 	public BestOfNSetImprover(
-			WaterAnalyzer waterAnalyzer,
+			Water waterAnalyzer,
 			SectionImprover sectionImprover,
 			JunctionImprover junctionImprover,
 			int n) throws IOException {
-		super();
 		this.waterAnalyzer = waterAnalyzer;
 		this.sectionImprover = sectionImprover;
 		this.junctionImprover = junctionImprover;
 		this.globalFitness = sectionImprover.getSectionFitness();
 		this.n = n;
-		
+		reset();
 	}
 	
 	@Override
-	public SimpleFeatureCollection improve(CatchmentLines catchmentLines) throws IOException {
-		this.bestGlobalFitness = checkGlobalFitness(catchmentLines.getOriginalFeatures());
-		this.bestResult = catchmentLines.getOriginalFeatures();
+	protected CatchmentLines improveImpl(CatchmentLines catchmentLines) throws IOException {
+		reset();
+		double initialFitness = checkGlobalFitness(catchmentLines.getUpdatedFeatures());
+		this.bestGlobalFitness = initialFitness;
+		SimpleFeatureCollection bestSet = catchmentLines.getUpdatedFeatures();
+		SimpleFeatureCollection randomSet = bestSet;
 		
-		double initialFitness = checkGlobalFitness(catchmentLines.getOriginalFeatures());
 		LOG.info("best of "+n+", initial set fitness: "+initialFitness);
+		
+		long r = (long)Math.floor(Math.random() * n);
 		
 		Date overallStart = new Date();
 		for (int i = 0; i < n; i++) {
@@ -71,29 +76,41 @@ public class BestOfNSetImprover extends SetImprover {
 			SimpleFeatureCollection iterationResult = improveIteration(catchmentLines);
 			double iterationGlobalFitness = checkGlobalFitness(iterationResult);
 			Date iterationEnd = new Date();
-			long iterationTime = iterationEnd.getTime() - iterationStart.getTime();
-			LOG.info(" set fitness: "+iterationGlobalFitness +", run time: "+iterationTime+"ms");
+			long iterationTime = (iterationEnd.getTime() - iterationStart.getTime())/1000;
+			LOG.info(" set fitness: "+iterationGlobalFitness +", run time: "+iterationTime+"s");
 			if (iterationGlobalFitness > bestGlobalFitness) {
-				bestResult = iterationResult;
+				bestSet = iterationResult;
 				bestGlobalFitness = iterationGlobalFitness;
+			}
+			if (i == r) {
+				randomSet = iterationResult;
 			}
 		}
 		Date overallEnd = new Date();
-		long overallTime = overallEnd.getTime() - overallStart.getTime();
-		LOG.info("best set fitness: "+bestGlobalFitness +", run time: "+overallTime+"ms");
-		return bestResult;
+		long overallTime = (overallEnd.getTime() - overallStart.getTime())/1000;
+		LOG.info("best set fitness: "+bestGlobalFitness +", run time: "+overallTime+"s");
+		
+		this.bestResult = toCatchmentLines(bestSet);
+		this.randomResult = toCatchmentLines(randomSet);
+		
+		return this.bestResult;
 	}
 	
+	public CatchmentLines getRandomSet() {
+		return this.randomResult;
+	}
 	
-	private SimpleFeatureCollection improveIteration(CatchmentLines catchmentLines) throws IOException {
+	public CatchmentLines getBestSet() {
+		return this.bestResult;
+	}
+	
+	private SimpleFeatureCollection improveIteration(CatchmentLines catchmentLinesOriginal) throws IOException {
+		resetShortCircuitStatistics();
 		Date start = new Date();
 		SimpleFeatureCollection outFeatureCollection = null;
 		
-		//make a copy of the catchmentLines, so the original isn't modified
-		SpatialIndexFeatureCollection fc = new SpatialIndexFeatureCollection(catchmentLines.getUpdatedFeatures());
-		SpatialIndexFeatureSource fs = new SpatialIndexFeatureSource(fc);
-		catchmentLines = new CatchmentLines(fs, catchmentLines.getDefaultFilter());
-				
+		CatchmentLines catchmentLines = catchmentLinesOriginal.copy();
+		
 		try {
 
 			
@@ -180,7 +197,7 @@ public class BestOfNSetImprover extends SetImprover {
 				*/
 				
 				if(metrics.getNumImprovementRequests() == 0) {
-					LOG.fine("Junction improvements no improvements were requested in the previous round");
+					LOG.fine("Section improvements - no improvements were requested in the previous round");
 					break;
 				}
 				/*
@@ -215,6 +232,11 @@ public class BestOfNSetImprover extends SetImprover {
 		
 	}
 	
+	private void reset() {
+		bestResult = null;
+		randomResult = null;
+		bestGlobalFitness = Double.NaN;
+	}
 
 	private ImprovementMetrics improveJunctions(CatchmentLines catchmentLines, int numSteps) throws IOException {
 		ImprovementMetrics metricsTotal = new ImprovementMetrics();
@@ -234,7 +256,7 @@ public class BestOfNSetImprover extends SetImprover {
 			}
 			JunctionModification modification = null;
 			try {
-				modification = junctionImprover.improve(junction);
+				modification = junctionImprover.improve(junction, catchmentLines);
 				metricsTotal.merge(modification.getImprovementMetrics());
 			}
 			catch(Exception e) {
@@ -252,7 +274,7 @@ public class BestOfNSetImprover extends SetImprover {
 				incrementNoImprovementCount(junction);
 			}
 		}
-			
+		
 		return metricsTotal;
 	}
 	
@@ -260,7 +282,9 @@ public class BestOfNSetImprover extends SetImprover {
 		
 		ImprovementMetrics metricsTotal = new ImprovementMetrics();
 		
-		SimpleFeatureCollection sections = catchmentLines.getOriginalFeatures();
+		//note: iterate over "original features" so to avoid concurrent modification exception.
+		//(we lookup the latest version of each original feature below)
+		SimpleFeatureCollection sections = catchmentLines.getOriginalFeatures(); 
 		SimpleFeatureIterator sectionIt = sections.features();
 		LOG.info("improving "+sections.size()+" sections");
 		while(sectionIt.hasNext()) {
@@ -273,7 +297,7 @@ public class BestOfNSetImprover extends SetImprover {
 			section = catchmentLines.getLatest(section);
 			SectionModification modification = null;
 			try {
-				modification = sectionImprover.improve(section);
+				modification = sectionImprover.improve(section, catchmentLines);
 				metricsTotal.merge(modification.getImprovementMetrics());
 			} 
 			catch (Exception e) {

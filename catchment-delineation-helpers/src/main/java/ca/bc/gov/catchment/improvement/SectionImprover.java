@@ -4,13 +4,14 @@ import java.io.IOException;
 
 import org.opengis.feature.simple.SimpleFeature;
 
+import ca.bc.gov.catchment.CatchmentLines;
 import ca.bc.gov.catchment.fitness.SectionFitness;
 
 public abstract class SectionImprover {
 
 	private SectionFitness sectionFitness;
 	
-	public abstract SectionModification improve(SimpleFeature section) throws IOException;
+	public abstract SectionModification improve(SimpleFeature section, CatchmentLines catchmentLines) throws IOException;
 	
 	public SectionFitness getSectionFitness() {
 		return this.sectionFitness;

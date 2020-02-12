@@ -9,7 +9,7 @@ import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.operation.linemerge.LineMerger;
 import org.opengis.feature.simple.SimpleFeatureType;
 
-import ca.bc.gov.catchments.utils.SpatialUtils;
+import ca.bc.gov.catchment.utils.SpatialUtils;
 
 public class MergeLinesAlg {
 

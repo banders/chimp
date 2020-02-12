@@ -107,9 +107,9 @@ import ca.bc.gov.catchment.improvement.SimulatedAnnealingJunctionImprover;
 import ca.bc.gov.catchment.improvement.SimulatedAnnealingSectionImprover;
 import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchment.tin.TinPolys;
-import ca.bc.gov.catchment.water.WaterAnalyzer;
-import ca.bc.gov.catchments.utils.SaveUtils;
-import ca.bc.gov.catchments.utils.SpatialUtils;
+import ca.bc.gov.catchment.utils.SaveUtils;
+import ca.bc.gov.catchment.utils.SpatialUtils;
+import ca.bc.gov.catchment.water.Water;
 
 /**
  * Creates a delaunay TIN from a given point cloud, optionally 
@@ -136,7 +136,7 @@ public class ImproveCatchmentsOld {
 	private static TinEdges tinEdges;
 	private static TinPolys tinPolys;
 	private static SimpleFeatureSource tinPolysFeatureSource;
-	private static WaterAnalyzer waterAnalyzer;
+	private static Water waterAnalyzer;
 	private static SimpleFeatureSource waterFeatureSource;
 	private static ImprovementCoverage sectionImprovementCoverage;
 	private static ImprovementCoverage junctionImprovementCoverage;
@@ -408,7 +408,7 @@ public class ImproveCatchmentsOld {
 			
 			tinPolys = new TinPolys(tinPolysFeatureSource, bufferedBboxFilter);
 			tinEdges = new TinEdges(tinEdgesFeatureSource, bufferedBboxFilter);
-			waterAnalyzer = new WaterAnalyzer(fastWaterFeatureSource);
+			waterAnalyzer = new Water(fastWaterFeatureSource);
 			
 			//fitness functions
 			SectionFitness globalFitness = new AvgElevationSectionFitness(tinPolys);
@@ -578,12 +578,12 @@ public class ImproveCatchmentsOld {
 		
 		
 		SimulatedAnnealingJunctionImprover junctionImprover = new SimulatedAnnealingJunctionImprover(
-				catchmentLines,
 				tinEdges,
 				waterFeatureSource,									
 				junctionFitness,
 				SEARCH_RADIUS,
-				numSteps
+				numSteps,
+				true //shortcircuit
 				);
 		/*
 		BestInRadiusJunctionImprover junctionImprover = new BestInRadiusJunctionImprover(
@@ -614,7 +614,7 @@ public class ImproveCatchmentsOld {
 			}
 			JunctionModification modification = null;
 			try {
-				modification = junctionImprover.improve(junction);
+				modification = junctionImprover.improve(junction, catchmentLines);
 				metricsTotal.merge(modification.getImprovementMetrics());
 			}
 			catch(Exception e) {
@@ -650,7 +650,6 @@ public class ImproveCatchmentsOld {
 		sectionFitness = new RidgeColorSectionFitness(tinPolys);
 		
 		SimulatedAnnealingSectionImprover sectionImprover = new SimulatedAnnealingSectionImprover(
-				catchmentLines, 
 				tinEdges, 
 				waterFeatureSource, 
 				sectionFitness, 
@@ -674,7 +673,7 @@ public class ImproveCatchmentsOld {
 			section = catchmentLines.getLatest(section);
 			SectionModification modification = null;
 			try {
-				modification = sectionImprover.improve(section);
+				modification = sectionImprover.improve(section, catchmentLines);
 				metricsTotal.merge(modification.getImprovementMetrics());
 			} 
 			catch (Exception e) {

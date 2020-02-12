@@ -24,7 +24,7 @@ import org.opengis.filter.FilterFactory2;
 import org.opengis.filter.identity.FeatureId;
 
 import ca.bc.gov.catchment.routes.LineStringRouter;
-import ca.bc.gov.catchment.water.WaterAnalyzer;
+import ca.bc.gov.catchment.water.Water;
 
 public class CatchmentValidity {
 
@@ -33,7 +33,7 @@ public class CatchmentValidity {
 	private SimpleFeatureSource waterFeatures;
 	private SimpleFeatureType waterFeatureType;
 	private String waterGeometryPropertyName;
-	private WaterAnalyzer waterAnalyzer;
+	private Water waterAnalyzer;
 	
 	public CatchmentValidity(SimpleFeatureSource waterFeatures) {
 		Hints filterHints = new Hints( Hints.FEATURE_2D, true ); // force 2D queries
@@ -42,7 +42,7 @@ public class CatchmentValidity {
 		this.waterFeatures = waterFeatures;
 		this.waterFeatureType = waterFeatures.getSchema();
 		this.waterGeometryPropertyName = waterFeatureType.getGeometryDescriptor().getLocalName();
-		this.waterAnalyzer = new WaterAnalyzer(waterFeatures);
+		this.waterAnalyzer = new Water(waterFeatures);
 	}
 	
 	public boolean areRoutesValidWrtWater(SimpleFeatureCollection catchments) throws IOException {

@@ -11,8 +11,8 @@ import org.locationtech.jts.geom.LineString;
 import org.opengis.feature.simple.SimpleFeature;
 
 import ca.bc.gov.catchment.tin.TinEdges;
-import ca.bc.gov.catchment.water.WaterAnalyzer;
-import ca.bc.gov.catchments.utils.SpatialUtils;
+import ca.bc.gov.catchment.utils.SpatialUtils;
+import ca.bc.gov.catchment.water.Water;
 
 /**
  * Provides objects for routing lines through a TIN, but restricts solutions to those which don't conflict 
@@ -22,11 +22,11 @@ import ca.bc.gov.catchments.utils.SpatialUtils;
  */
 public class WaterAwareCatchmentRouter {
 
-	private WaterAnalyzer water;
+	private Water water;
 	private TinEdges tinEdges;
 	private LineStringRouter lineStringRouter;
 	
-	public WaterAwareCatchmentRouter(TinEdges tinEdges, WaterAnalyzer water) {
+	public WaterAwareCatchmentRouter(TinEdges tinEdges, Water water) {
 		this.tinEdges = tinEdges;
 		this.water = water;
 		this.lineStringRouter = new LineStringRouter(tinEdges);
