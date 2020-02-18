@@ -1,7 +1,7 @@
 """
 
 Example usage:
-  python catchment_delineation_pipeline.py -run-config run-configs\bc-kotl-1000.json -start-step 1 -run-id 2
+  python catchment_delineation_pipeline_2.py -run-config run-configs\bc-kotl-1000.json -start-step 1 -run-id 2
 
 """
 
@@ -544,8 +544,9 @@ def main():
     print("---------------------------------------------------")
     print("")  
 
-    data_bbox = "1680546.3,501755.5,1682284.9,503082.5" #small
-    #data_bbox = "1673235.6,499766.7,1679748.7,504957.6" #medium
+    #data_bbox = "1674321.1,501746.5,1674521.8,501917.9" #test case
+    #data_bbox = "1680546.3,501755.5,1682284.9,503082.5" #small
+    data_bbox = "1673235.6,499766.7,1679748.7,504957.6" #medium
     data_bbox_crs = "EPSG:3005"
     print("NOTE: custom bbox: {}".format(data_bbox))
 

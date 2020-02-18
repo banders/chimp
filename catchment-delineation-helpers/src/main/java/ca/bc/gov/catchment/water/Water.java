@@ -11,6 +11,7 @@ import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.factory.CommonFactoryFinder;
+import org.geotools.factory.Hints;
 import org.geotools.geometry.jts.JTSFactoryFinder;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
@@ -35,7 +36,8 @@ public class Water {
 	private Map<Coordinate, Boolean> confluenceCache;
 
 	public Water(SimpleFeatureSource waterFeatures) {
-		this.filterFactory = CommonFactoryFinder.getFilterFactory2();
+		Hints filterHints = new Hints(Hints.FEATURE_2D, true);
+		this.filterFactory = CommonFactoryFinder.getFilterFactory2(filterHints);
 		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
 		this.waterFeatures = waterFeatures;
 		this.waterFeatureType = waterFeatures.getSchema();
@@ -115,7 +117,7 @@ public class Water {
 	 * @return
 	 * @throws IOException
 	 */
-	public SimpleFeature getOverlappingWater(Geometry edge) throws IOException {
+	public SimpleFeature getTouchingWater(Geometry edge) throws IOException {
 		if (edge.getNumPoints() != 2) {
 			throw new IllegalArgumentException("edge must have exactly two vertices");
 		}
@@ -142,7 +144,7 @@ public class Water {
 	 * @return
 	 * @throws IOException
 	 */
-	public boolean isOverlappingWater(Geometry g) throws IOException {
+	public boolean isTouchingWater(Geometry g) throws IOException {
 		Filter overlapsFilter = filterFactory.contains(
 				filterFactory.property(waterGeometryPropertyName), 
 				filterFactory.literal(g));
@@ -151,47 +153,18 @@ public class Water {
 	}
 	
 	/**
-	 * gets the water features that touch the given coordinate.
-	 * @param f
-	 * @return
-	 * @throws IOException
-	 */
-	public List<SimpleFeature> getTouchingWater(Coordinate c) throws IOException {
-		Point p = geometryFactory.createPoint(c);
-		Filter filter = filterFactory.touches(
-				filterFactory.property(waterGeometryPropertyName), 
-				filterFactory.literal(p));
-		SimpleFeatureCollection matches = waterFeatures.getFeatures(filter);
-		List<SimpleFeature> matchesAsList = SpatialUtils.simpleFeatureCollectionToList(matches);
-		return matchesAsList;
-	}
-	
-	/**
-	 * determines whether the given coordinate touches any water feature
+	 * determines whether the given geometry overlaps any water feature
 	 * @param f
 	 * @return
 	 * @throws IOException
 	 */
 	public boolean isTouchingWater(Coordinate c) throws IOException {
 		Point p = geometryFactory.createPoint(c);
-		Filter filter = filterFactory.touches(
+		Filter overlapsFilter = filterFactory.contains(
 				filterFactory.property(waterGeometryPropertyName), 
 				filterFactory.literal(p));
-		SimpleFeatureCollection matches = waterFeatures.getFeatures(filter);
-		return matches.size() > 0;
+		SimpleFeatureCollection overlappingWaterFeatures = waterFeatures.getFeatures(overlapsFilter);
+		return overlappingWaterFeatures.size() > 0;
 	}
 	
-	/**
-	 * determines whether the given geometry touches any water feature
-	 * @param f
-	 * @return
-	 * @throws IOException
-	 */
-	public boolean isTouchingWater(Geometry g) throws IOException {
-		Filter filter = filterFactory.touches(
-				filterFactory.property(waterGeometryPropertyName), 
-				filterFactory.literal(g));
-		SimpleFeatureCollection matches = waterFeatures.getFeatures(filter);
-		return matches.size() > 0;
-	}
 }

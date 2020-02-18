@@ -108,7 +108,7 @@ public class RidgeGrower {
 	private SimpleFeature growRidge(Coordinate fromConfluence, 
 			LineString seedEdge, 
 			List<SimpleFeature> adjacentWater) throws IOException {
-
+	
 		//identify the coordinate at the leading end of the ridge (i.e. opposite end 
 		//of the ridge line from the confluence)
 		Coordinate leadingCoord = seedEdge.getCoordinateN(0);
@@ -121,14 +121,15 @@ public class RidgeGrower {
 		ridgeCoords.add(fromConfluence);
 		ridgeCoords.add(leadingCoord);
 		
-		while(true) {
+		boolean end = false;
+		while(!end) {
 			
 			//next edges to consider, sorted by best candidate first
 			List<SimpleFeature> nextEdgesToConsider = tinEdges.getEdgesTouchingCoordinate(leadingCoord);
 			nextEdgesToConsider.sort(fitnessComparator);
 			
 			int initialLineLen = ridgeCoords.size();
-			System.out.println("to consider: "+nextEdgesToConsider.size()+ " from "+leadingCoord);
+			//System.out.println("to consider: "+nextEdgesToConsider.size()+ " from "+leadingCoord);
 			for (SimpleFeature next : nextEdgesToConsider) {
 				LineString edgeToConsider = (LineString)next.getDefaultGeometry();
 				
@@ -142,24 +143,42 @@ public class RidgeGrower {
 				if (!isValid) {
 					continue;
 				}
-				
+				boolean isGettingHigher = nextCoord.getZ() > leadingCoord.getZ();
+				if (!isGettingHigher) {
+					continue;
+				}
+			
+				boolean touchesWater = water.isTouchingWater(nextCoord);
+				if (touchesWater) {
+					end = true;
+					break;
+				}
 				ridgeCoords.add(nextCoord);
 				leadingCoord = nextCoord;
-				break;				
+				break;		
 			}
 			int newLineLen = ridgeCoords.size();
 			if (newLineLen == initialLineLen) {
-				throw new RuntimeException("Unable to form a complete ridge.");
+				//throw new RuntimeException("Unable to form a complete ridge.");
+				break;
 			}
 			
-			boolean end = water.isTouchingWater(leadingCoord) || ridgeCoords.size() > 100;
+			
+			//System.out.println("leading Coord: "+leadingCoord +", water?: "+touchesWater);
+			
+			//boolean end = touchesWater || ridgeCoords.size() > 5000;
 			if (end) {
 				break;
 			}
 		}
 		
+		if (nextFid == 118) {
+			//System.exit(1);
+		}
+		
 		LineString ridgeLineString = SpatialUtils.toLineString(ridgeCoords);
-		SimpleFeature ridgeFeature = SpatialUtils.geomToFeature(ridgeLineString, ridgeFeatureType, (nextFid++)+"");
+		SimpleFeature ridgeFeature = SpatialUtils.geomToFeature(ridgeLineString, ridgeFeatureType, (nextFid)+"");
+		nextFid += 1;
 		return ridgeFeature;
 	}
 	
@@ -181,7 +200,7 @@ public class RidgeGrower {
 		int touchesAdjacentCount = 0;
 		Point p = geometryFactory.createPoint(coord);
 		for (SimpleFeature adjacentWaterFeature : adjacentWater) {
-			Geometry g = (Geometry)adjacentWaterFeature;
+			Geometry g = (Geometry)adjacentWaterFeature.getDefaultGeometry();
 			if (g.contains(p)) {
 				touchesAdjacentCount++;
 			}
@@ -207,11 +226,21 @@ public class RidgeGrower {
 		List<SimpleFeature> seedEdges = new ArrayList<SimpleFeature>();		
 		List<SimpleFeature> edgesBetweenWater = new ArrayList<SimpleFeature>();
 		
+		//if the first edge is a water features, copy it to the end of the list (so it
+		//appears at the start and the end)
+		if (edgesToIterate.size() > 0) {
+			SimpleFeature firstEdge = edgesToIterate.get(0);
+			boolean isFirstEdgeWater = water.isTouchingWater((Geometry)firstEdge.getDefaultGeometry());
+			if(isFirstEdgeWater) {
+				edgesToIterate.add(firstEdge);
+			}
+		}
+		
 		for (int i = 0; i < edgesToIterate.size(); i++) {
 			SimpleFeature edge = edgesToIterate.get(i);
-			boolean isWater = water.isOverlappingWater((Geometry)edge.getDefaultGeometry());
+			boolean isWater = water.isTouchingWater((Geometry)edge.getDefaultGeometry());
 			
-			System.out.println("  edge "+edge+", isWater: "+isWater);
+			//System.out.println("  edge "+edge+", isWater: "+isWater);
 			
 			if (!isWater) {
 				edgesBetweenWater.add(edge);
@@ -223,7 +252,7 @@ public class RidgeGrower {
 					//edgesToIterate.add(edge);
 				}
 			}
-			else {
+			else { //is water
 				//choose best fitting edge from 'edgesBetweenWater' to be a seed edge
 				SimpleFeature seedEdge = getBestFittingEdge(edgesBetweenWater);
 				if (seedEdge != null) {
@@ -242,7 +271,7 @@ public class RidgeGrower {
 		SimpleFeature waterAfter = null;
 		boolean nextWaterIsAdjacent = false;
 		for (SimpleFeature edge : edgesTouchingConfluence) {
-			SimpleFeature waterFeature = water.getOverlappingWater((Geometry)edge.getDefaultGeometry());
+			SimpleFeature waterFeature = water.getTouchingWater((Geometry)edge.getDefaultGeometry());
 			if (edge.equals(nonWaterEdge)) {
 				nextWaterIsAdjacent = true;
 			}			

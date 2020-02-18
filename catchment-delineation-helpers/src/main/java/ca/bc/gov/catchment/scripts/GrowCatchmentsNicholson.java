@@ -83,6 +83,7 @@ import org.tinfour.standard.IncrementalTin;
 
 import ca.bc.gov.catchment.CatchmentLines;
 import ca.bc.gov.catchment.algorithms.NearestNeighbour3DMaker;
+import ca.bc.gov.catchment.algorithms.RidgeCleaner;
 import ca.bc.gov.catchment.algorithms.RidgeGrower;
 import ca.bc.gov.catchment.fitness.AvgElevationLengthPenaltySectionFitness;
 import ca.bc.gov.catchment.fitness.AvgElevationSectionFitness;
@@ -130,7 +131,8 @@ public class GrowCatchmentsNicholson {
 	private static TinEdges tinEdges;
 	private static Water water;
 	private static SimpleFeatureSource waterFeatureSource;
-
+	private static int srid = -1;
+	
 	public static void main(String[] args) {
 		
 		// create Options object
@@ -232,7 +234,17 @@ public class GrowCatchmentsNicholson {
 			System.exit(1);
 		}
 	
-		String waterGeometryPropertyName = waterFeatureSource.getSchema().getGeometryDescriptor().getLocalName();
+		SimpleFeatureType waterFeatureType = waterFeatureSource.getSchema();
+		
+		CoordinateReferenceSystem crs = waterFeatureType.getCoordinateReferenceSystem();
+		try {
+			srid = CRS.lookupEpsgCode(crs, true);
+		} catch (FactoryException e1) {
+			System.out.println("Unable to lookup SRID for water features");
+			System.exit(1);
+		}
+		
+		String waterGeometryPropertyName = waterFeatureType.getGeometryDescriptor().getLocalName();
 		
 		//Open TIN edges input file
 		//---------------------------------------------------------------------
@@ -292,16 +304,30 @@ public class GrowCatchmentsNicholson {
 			water = new Water(fastWaterFeatureSource);
 			tinEdges = new TinEdges(tinEdgesFeatureSource, bufferedBboxFilter);			
 			
-			//apply algorithms
+			//grow ridges.  note: not all ridges will be complete
 			RidgeGrower ridgeGrower = new RidgeGrower(water, tinEdges);
 			SimpleFeatureCollection ridges = ridgeGrower.growRidges();
 			
 			System.out.println("done. grew "+ridges.size()+" ridges.");
 			ridges = SpatialUtils.renameFeatureType(ridges, "ridges");
 			
-			//save result			
+			//clean ridges
+			System.out.println("cleaning ridges...");
+			RidgeCleaner ridgeCleaner = new RidgeCleaner(ridges);
+			ridges = ridgeCleaner.cleanRidges();
+			
+			//identify junctions
+			SpatialIndexFeatureCollection fc = new SpatialIndexFeatureCollection(ridges);
+			SpatialIndexFeatureSource fs = new SpatialIndexFeatureSource(fc);
+			CatchmentLines catchmentLines = new CatchmentLines(fs);
+			List<Coordinate> junctionCoords = catchmentLines.getJunctions(water);			
+			SimpleFeatureType junctionFeatureType = DataUtilities.createType("junctions", "geometry:Point:srid="+srid);
+			SimpleFeatureCollection junctions = SpatialUtils.coordListToSimpleFeatureCollection(junctionCoords, junctionFeatureType);
+			
+			//save catchment lines			
+			System.out.println("saving...");
 			SaveUtils.saveToGeoPackage(outputFilename, ridges, true);
-			System.out.println("TODO: save to file");
+			SaveUtils.saveToGeoPackage(outputFilename, junctions, true);
 			
 		}
 		catch(IOException e) {

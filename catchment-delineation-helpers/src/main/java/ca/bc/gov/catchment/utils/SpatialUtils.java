@@ -123,6 +123,21 @@ public class SpatialUtils {
 		return featureCollection;
 	}
 	
+	public static SimpleFeatureCollection coordListToSimpleFeatureCollection(List<Coordinate> coordinates, SimpleFeatureType featureType) {
+		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+		DefaultFeatureCollection featureCollection = new DefaultFeatureCollection();
+		
+		int nextFid = 0;
+		for(Coordinate c : coordinates) {
+			Point p = geometryFactory.createPoint(c);
+			SimpleFeature feature = geomToFeature(p, featureType, nextFid+"");			
+			featureCollection.add(feature);
+			nextFid++;
+		}
+		
+		return featureCollection;
+	}
+	
 	public static Coordinate[] removeDuplicateCoordinates(Coordinate[] coordinates) {
 		List<Coordinate> coordList = new ArrayList<Coordinate>();
 		Coordinate prev = null;
