@@ -18,7 +18,10 @@ import org.locationtech.jts.geom.Point;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 
+import ca.bc.gov.catchment.fitness.AvgElevationSectionFitness;
+import ca.bc.gov.catchment.fitness.ElevationPointFitness;
 import ca.bc.gov.catchment.fitness.ElevationSectionFitness;
+import ca.bc.gov.catchment.fitness.EquidistantPointFitness;
 import ca.bc.gov.catchment.fitness.SectionFitness;
 import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchment.utils.SpatialUtils;
@@ -27,11 +30,13 @@ import ca.bc.gov.catchment.water.Water;
 public class RidgeGrower {
 
 	private static final String RIDGE_TABLE_NAME = "ridges";
+	private static final int UNCERTAINTY_Z = 5; //metres
 	
 	private Water water;
 	private TinEdges tinEdges;
 	private SectionFitness sectionFitness;
-	private Comparator<SimpleFeature> fitnessComparator;
+	private SectionFitness avgElevationFitness;
+	private Comparator<Coordinate> elevationComparator;
 	private int nextFid;
 	private SimpleFeatureType ridgeFeatureType;
 	private GeometryFactory geometryFactory;
@@ -42,6 +47,7 @@ public class RidgeGrower {
 		this.water = water;
 		this.tinEdges = tinEdges;
 		this.sectionFitness = new ElevationSectionFitness(tinEdges);
+		this.avgElevationFitness = new AvgElevationSectionFitness(tinEdges);
 		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
 		
 		//create a feature type for the ridge features that are created
@@ -54,23 +60,7 @@ public class RidgeGrower {
 		}
 				
 		//a comparator based on the section fitness object
-		this.fitnessComparator = new Comparator<SimpleFeature>() {
-
-			public int compare(SimpleFeature f1, SimpleFeature f2) {
-				double fitness1;
-				double fitness2;
-				try {
-					fitness1 = sectionFitness.fitness((Geometry)f1.getDefaultGeometry());
-					fitness2 = sectionFitness.fitness((Geometry)f2.getDefaultGeometry());
-				} catch (IOException e) {
-					throw new RuntimeException("unable to determine fitness");
-				}
-				return fitness1 > fitness2 ? -1 
-						 : fitness1 < fitness2 ? 1 
-					     : 0;
-			}
-			
-		};
+		this.elevationComparator = ElevationPointFitness.getCoordinateComparator();
 		
 		SimpleFeatureCollection fc;
 		try {
@@ -99,7 +89,6 @@ public class RidgeGrower {
 				SimpleFeature ridge = growRidge(confluence, (LineString)seedEdge.getDefaultGeometry(), adjacentWater);
 				System.out.println("    done.  fid="+ridge.getID());
 				result.add(ridge);
-				
 			}
 		}
 		return result;
@@ -108,7 +97,87 @@ public class RidgeGrower {
 	private SimpleFeature growRidge(Coordinate fromConfluence, 
 			LineString seedEdge, 
 			List<SimpleFeature> adjacentWater) throws IOException {
+		
+		//make sure sure the first point is the confluence
+		if (fromConfluence.equals(seedEdge.getCoordinateN(seedEdge.getNumPoints()-1))) {
+			seedEdge = (LineString)seedEdge.reverse();
+		}
+		//return growQuickRidge(fromConfluence, seedEdge, adjacentWater);
+		return growBestRidge(fromConfluence, seedEdge, adjacentWater);
+	}
 	
+	private SimpleFeature growBestRidge(Coordinate fromConfluence, 
+			LineString seedEdge, 
+			List<SimpleFeature> adjacentWater) throws IOException {
+		
+		LineString ridgeLineString = growBestRidge(seedEdge, adjacentWater);	
+		
+		SimpleFeature ridgeFeature = SpatialUtils.geomToFeature(ridgeLineString, ridgeFeatureType, (nextFid)+"");
+		nextFid += 1;
+		return ridgeFeature;
+	}
+	
+	/**
+	 * a recursive function which chooses the best ridge after testing multiple possibilities
+	 * @param stemCoords a list of coordinates which represent the start of the ridge.  the first
+	 * coordinate is the confluence, and the last coordinate is the one that will be extended if 
+	 * any valid extension is possible
+	 * @param adjacentWater two adjacent water features
+	 * @return
+	 * @throws IOException 
+	 */
+	private LineString growBestRidge(LineString stem, List<SimpleFeature> adjacentWater) throws IOException {
+		//System.out.println("testing stem length "+stem.getNumPoints());
+		if (stem.getNumPoints() < 2) {
+			throw new IllegalArgumentException("'stemCoords' must contain at least two coordinates");
+		}
+		if (adjacentWater.size() != 2) {
+			throw new IllegalArgumentException("'adjancentWater' must contain exactly two coordinates");
+		}
+		Coordinate leadingCoord = stem.getCoordinateN(stem.getNumPoints()-1);
+		List<Coordinate> stemCoords = SpatialUtils.toCoordinateList(stem.getCoordinates());
+		List<Coordinate> nextCoordsToConsider = tinEdges.getConnectedCoordinates(leadingCoord);
+		nextCoordsToConsider.sort(elevationComparator);
+		
+		double bestRidgeFit = stem.getLength(); //avgElevationFitness.fitness(stem);
+		LineString bestRidge = stem;
+		
+		for (Coordinate nextCoord : nextCoordsToConsider) {
+			boolean isHigher = isHigherOrSameWithinUncertainty(nextCoord, leadingCoord);
+			boolean isValid = isCoordValid(nextCoord, stemCoords, adjacentWater);
+			if (!isHigher || !isValid) {
+				continue;
+			}
+			
+			//extend the stem with the next coordinate
+			List<Coordinate> stemCoordsToTest = new ArrayList<Coordinate>();
+			stemCoordsToTest.addAll(stemCoords);
+			stemCoordsToTest.add(nextCoord);
+			LineString nextStemToTest = SpatialUtils.toLineString(stemCoordsToTest);
+			LineString ridge = growBestRidge(nextStemToTest, adjacentWater);
+			
+			double fit = ridge.getLength(); //avgElevationFitness.fitness(ridge);
+			if (fit > bestRidgeFit) {
+				bestRidge = ridge;
+				bestRidgeFit = fit;
+				break;
+			}
+		}
+		
+		if (bestRidge.getNumPoints() == 2) {
+			System.out.println("no improvement found");
+		}
+		return bestRidge;
+	}
+	
+	private SimpleFeature growQuickRidge(Coordinate fromConfluence, 
+			LineString seedEdge, 
+			List<SimpleFeature> adjacentWater) throws IOException {
+	
+		if (adjacentWater.size() != 2) {
+			throw new IllegalArgumentException("precondition failed: 'adjacentWater' must contain two features");
+		}
+		
 		//identify the coordinate at the leading end of the ridge (i.e. opposite end 
 		//of the ridge line from the confluence)
 		Coordinate leadingCoord = seedEdge.getCoordinateN(0);
@@ -121,59 +190,42 @@ public class RidgeGrower {
 		ridgeCoords.add(fromConfluence);
 		ridgeCoords.add(leadingCoord);
 		
-		boolean end = false;
-		while(!end) {
+		while(true) {
 			
 			//next edges to consider, sorted by best candidate first
-			List<SimpleFeature> nextEdgesToConsider = tinEdges.getEdgesTouchingCoordinate(leadingCoord);
-			nextEdgesToConsider.sort(fitnessComparator);
+			List<Coordinate> nextCoordsToConsider = tinEdges.getConnectedCoordinates(leadingCoord);
 			
-			int initialLineLen = ridgeCoords.size();
-			//System.out.println("to consider: "+nextEdgesToConsider.size()+ " from "+leadingCoord);
-			for (SimpleFeature next : nextEdgesToConsider) {
-				LineString edgeToConsider = (LineString)next.getDefaultGeometry();
+			//choose the next coordinate as the one with the highest elevation >= the current coordinate
+			Coordinate nextCoord = pickNextCoordByElevation(nextCoordsToConsider, ridgeCoords, adjacentWater);
+			if (nextCoord == null) {
 				
-				//choose the next coordinate to use as the leading edge
-				Coordinate nextCoord = edgeToConsider.getCoordinateN(0);
-				if (nextCoord.equals(leadingCoord)) {
-					nextCoord = edgeToConsider.getCoordinateN(1);
-				}
-				
-				boolean isValid = isCoordValid(nextCoord, ridgeCoords, adjacentWater);
-				if (!isValid) {
-					continue;
-				}
-				boolean isGettingHigher = nextCoord.getZ() > leadingCoord.getZ();
-				if (!isGettingHigher) {
-					continue;
-				}
-			
-				boolean touchesWater = water.isTouchingWater(nextCoord);
-				if (touchesWater) {
-					end = true;
+				//no suitable next coordinate found by the elevation rule above.  try an alternative rule:
+				//choose the coordinate which is most equadistant between the two adjacent water features
+				//Note: the equidistance option doesn't work very well.
+				//nextCoord = pickNextCoordByEquidistance(nextCoordsToConsider, ridgeCoords, adjacentWater);
+				if (nextCoord == null) {
+					System.out.println(" cannot find suitable next coordinate. stopping at length: "+ridgeCoords.size());
 					break;
 				}
-				ridgeCoords.add(nextCoord);
-				leadingCoord = nextCoord;
-				break;		
 			}
-			int newLineLen = ridgeCoords.size();
-			if (newLineLen == initialLineLen) {
-				//throw new RuntimeException("Unable to form a complete ridge.");
+			
+			/*
+			boolean touchesWater = water.isTouchingWater(nextCoord);
+			if (touchesWater) {
+				System.out.println(" terminating at water. stopping at length: "+ridgeCoords.size());
+				System.exit(1);
+				break;				
+			}	
+			*/
+			
+			ridgeCoords.add(nextCoord);
+			leadingCoord = ridgeCoords.get(ridgeCoords.size()-1);
+			
+			if (ridgeCoords.size() > 5000) {
+				System.out.println(" terminated because line is too long");
 				break;
 			}
 			
-			
-			//System.out.println("leading Coord: "+leadingCoord +", water?: "+touchesWater);
-			
-			//boolean end = touchesWater || ridgeCoords.size() > 5000;
-			if (end) {
-				break;
-			}
-		}
-		
-		if (nextFid == 118) {
-			//System.exit(1);
 		}
 		
 		LineString ridgeLineString = SpatialUtils.toLineString(ridgeCoords);
@@ -183,31 +235,94 @@ public class RidgeGrower {
 	}
 	
 	/**
+	 * returns true if a is higher than b (within uncertainty)
+	 * @param a
+	 * @param b
+	 * @return
+	 */
+	private boolean isHigherOrSameWithinUncertainty(Coordinate a, Coordinate b) {
+		return a.getZ() + UNCERTAINTY_Z >= b.getZ() - UNCERTAINTY_Z;
+	}
+	
+	private Coordinate pickNextCoordByElevation(List<Coordinate> coordsToConsider, List<Coordinate> ridgeCoords, List<SimpleFeature> adjacentWater) throws IOException {
+		coordsToConsider.sort(elevationComparator);
+		Coordinate leadingCoord = ridgeCoords.get(ridgeCoords.size()-1);
+		
+		//System.out.println("to consider: "+nextEdgesToConsider.size()+ " from "+leadingCoord);
+		for (Coordinate nextCoord : coordsToConsider) {
+			
+			boolean isValid = isCoordValid(nextCoord, ridgeCoords, adjacentWater);
+			if (!isValid) {
+				continue;
+			}
+			boolean isGettingHigher = isHigherOrSameWithinUncertainty(nextCoord, leadingCoord);
+			if (!isGettingHigher) {
+				continue;
+			}
+			
+			return nextCoord;
+		}
+		
+		return null;
+	}
+	
+	private Coordinate pickNextCoordByEquidistance(List<Coordinate> coordsToConsider, List<Coordinate> ridgeCoords, List<SimpleFeature> adjacentWater) throws IOException {
+		
+		//sort edges by relative equidistance to the adjacent water features
+		SimpleFeature adjacentWater1 = adjacentWater.get(0);
+		SimpleFeature adjacentWater2 = adjacentWater.get(1);
+		Comparator<Coordinate> comparator = EquidistantPointFitness.getCoordinateComparator(adjacentWater1, adjacentWater2);
+		coordsToConsider.sort(comparator);
+		
+		for (Coordinate nextCoord : coordsToConsider) {
+		
+			boolean isValid = isCoordValid(nextCoord, ridgeCoords, adjacentWater);
+			if (!isValid) {
+				continue;
+			}	
+			return nextCoord;
+		}
+		
+		return null;
+		
+	}
+	
+	/**
 	 * determines if a coordinate is a valid member of a ridge line.
 	 * @param coord
 	 * @param ridgeCoords
 	 * @param adjacentWater
 	 * @return
+	 * @throws IOException 
 	 */
-	private boolean isCoordValid(Coordinate coord, List<Coordinate> ridgeCoords, List<SimpleFeature> adjacentWater) {
+	private boolean isCoordValid(Coordinate coord, List<Coordinate> ridgeCoords, List<SimpleFeature> adjacentWater) throws IOException {
 
 		//is the coordinate already part of the line?  if so, disallow it again.  (no loops permitted)
-		if (ridgeCoords.contains(coord)) {
+		//compare only on X and Y (not on Z)
+		for(Coordinate rc : ridgeCoords) {
+			if (rc.getX() == coord.getX() && rc.getY() == coord.getY()) {
+				return false;
+			}
+		}
+		
+		boolean isTouchingWater = water.isTouchingWater(coord);
+		if (isTouchingWater) {
 			return false;
 		}
 		
+		/*
 		//if the coordinate touches any adjacent water feature, disallow it.
 		int touchesAdjacentCount = 0;
-		Point p = geometryFactory.createPoint(coord);
 		for (SimpleFeature adjacentWaterFeature : adjacentWater) {
 			Geometry g = (Geometry)adjacentWaterFeature.getDefaultGeometry();
-			if (g.contains(p)) {
-				touchesAdjacentCount++;
-			}
+			
+			//check whether the given coord is in the geometry's coordinates (2d comparison only)
+			water.isTouchingWater(coord);
 		}
 		if (touchesAdjacentCount == 1) { //0 is ok.  more than 1 is ok (that means confluence)
 			return false;
 		}
+		*/
 		
 		return true;
 	}
@@ -230,7 +345,7 @@ public class RidgeGrower {
 		//appears at the start and the end)
 		if (edgesToIterate.size() > 0) {
 			SimpleFeature firstEdge = edgesToIterate.get(0);
-			boolean isFirstEdgeWater = water.isTouchingWater((Geometry)firstEdge.getDefaultGeometry());
+			boolean isFirstEdgeWater = water.isOverlappingWater((Geometry)firstEdge.getDefaultGeometry());
 			if(isFirstEdgeWater) {
 				edgesToIterate.add(firstEdge);
 			}
@@ -238,19 +353,12 @@ public class RidgeGrower {
 		
 		for (int i = 0; i < edgesToIterate.size(); i++) {
 			SimpleFeature edge = edgesToIterate.get(i);
-			boolean isWater = water.isTouchingWater((Geometry)edge.getDefaultGeometry());
+			boolean isWater = water.isOverlappingWater((Geometry)edge.getDefaultGeometry());
 			
 			//System.out.println("  edge "+edge+", isWater: "+isWater);
 			
 			if (!isWater) {
 				edgesBetweenWater.add(edge);
-				
-				//add any non-water edges that occur *before* the first water edge
-				//to the end of the edgesToIterate.  These will get processed at the end
-				//note: this will affect the end condition of the For loop.
-				if (seedEdges.size() == 0) {
-					//edgesToIterate.add(edge);
-				}
 			}
 			else { //is water
 				//choose best fitting edge from 'edgesBetweenWater' to be a seed edge
@@ -262,15 +370,26 @@ public class RidgeGrower {
 			}
 			
 		}
+		
 		return seedEdges;
 	}
 	
 	private List<SimpleFeature> getAdjacentWater(SimpleFeature nonWaterEdge, List<SimpleFeature> edgesTouchingConfluence) throws IOException {
+		List<SimpleFeature> edgesToIterate = new ArrayList<SimpleFeature>();
+		edgesToIterate.addAll(edgesTouchingConfluence);
+		if (edgesTouchingConfluence.size() > 0) {
+			SimpleFeature first = edgesTouchingConfluence.get(0);
+			boolean isWater = water.getTouchingWater((Geometry)first.getDefaultGeometry()) != null;
+			if (isWater) {
+				edgesToIterate.add(first);
+			}
+		}
+		
 		List<SimpleFeature> adjacentWater = new ArrayList<SimpleFeature>();
 		SimpleFeature waterBefore = null;
 		SimpleFeature waterAfter = null;
 		boolean nextWaterIsAdjacent = false;
-		for (SimpleFeature edge : edgesTouchingConfluence) {
+		for (SimpleFeature edge : edgesToIterate) {
 			SimpleFeature waterFeature = water.getTouchingWater((Geometry)edge.getDefaultGeometry());
 			if (edge.equals(nonWaterEdge)) {
 				nextWaterIsAdjacent = true;
@@ -323,4 +442,6 @@ public class RidgeGrower {
 		}
 		return bestEdge;
 	}
+	
+
 }

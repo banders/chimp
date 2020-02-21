@@ -145,10 +145,15 @@ public class Water {
 	 * @throws IOException
 	 */
 	public boolean isTouchingWater(Geometry g) throws IOException {
-		Filter overlapsFilter = filterFactory.contains(
-				filterFactory.property(waterGeometryPropertyName), 
-				filterFactory.literal(g));
-		SimpleFeatureCollection overlappingWaterFeatures = waterFeatures.getFeatures(overlapsFilter);
+		Filter filter = filterFactory.or(
+				filterFactory.touches(
+						filterFactory.property(waterGeometryPropertyName), 
+						filterFactory.literal(g)),
+				filterFactory.contains(
+						filterFactory.property(waterGeometryPropertyName), 
+						filterFactory.literal(g))
+				);
+		SimpleFeatureCollection overlappingWaterFeatures = waterFeatures.getFeatures(filter);
 		return overlappingWaterFeatures.size() > 0;
 	}
 	
@@ -160,11 +165,30 @@ public class Water {
 	 */
 	public boolean isTouchingWater(Coordinate c) throws IOException {
 		Point p = geometryFactory.createPoint(c);
-		Filter overlapsFilter = filterFactory.contains(
-				filterFactory.property(waterGeometryPropertyName), 
-				filterFactory.literal(p));
-		SimpleFeatureCollection overlappingWaterFeatures = waterFeatures.getFeatures(overlapsFilter);
+		Filter filter = filterFactory.or(
+				filterFactory.touches(
+						filterFactory.property(waterGeometryPropertyName), 
+						filterFactory.literal(p)),
+				filterFactory.contains(
+						filterFactory.property(waterGeometryPropertyName), 
+						filterFactory.literal(p))
+				);
+		SimpleFeatureCollection overlappingWaterFeatures = waterFeatures.getFeatures(filter);
 		return overlappingWaterFeatures.size() > 0;
 	}
 	
+	/**
+	 * determines whether the given geometry overlaps any water feature
+	 * @param f
+	 * @return
+	 * @throws IOException
+	 */
+	public boolean isOverlappingWater(Geometry g) throws IOException {
+		Filter overlapsFilter = filterFactory.contains(
+				filterFactory.property(waterGeometryPropertyName), 
+				filterFactory.literal(g));
+		SimpleFeatureCollection overlappingWaterFeatures = waterFeatures.getFeatures(overlapsFilter);
+		return overlappingWaterFeatures.size() > 0;
+	}
+
 }

@@ -100,6 +100,21 @@ public class TinEdges extends Tin {
 		return result;
 	}
 	
+	public List<Coordinate> getConnectedCoordinates(Coordinate c) throws IOException {
+		List<Coordinate> result = new ArrayList<Coordinate>();
+		List<SimpleFeature> touchingEdges = getEdgesTouchingCoordinate(c);
+		for(SimpleFeature touchingEdge : touchingEdges) {
+			Geometry g = (Geometry)touchingEdge.getDefaultGeometry();
+			Coordinate[] coords = g.getCoordinates();
+			for(Coordinate edgeCoord : coords) {
+				if (!edgeCoord.equals(c) && !result.contains(edgeCoord)) {
+					result.add(edgeCoord);
+				}
+			}
+		}
+		return result;
+	}
+	
 	/**
 	 * gets the angle (in degrees) of the edge starting from 'fromCoord'.  Result is in
 	 * [0-360] where 0 is east, 90 is north.

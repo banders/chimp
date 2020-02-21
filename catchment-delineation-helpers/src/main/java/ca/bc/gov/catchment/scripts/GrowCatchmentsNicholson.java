@@ -314,7 +314,7 @@ public class GrowCatchmentsNicholson {
 			//clean ridges
 			System.out.println("cleaning ridges...");
 			RidgeCleaner ridgeCleaner = new RidgeCleaner(ridges);
-			ridges = ridgeCleaner.cleanRidges();
+			//ridges = ridgeCleaner.cleanRidges();
 			
 			//identify junctions
 			SpatialIndexFeatureCollection fc = new SpatialIndexFeatureCollection(ridges);

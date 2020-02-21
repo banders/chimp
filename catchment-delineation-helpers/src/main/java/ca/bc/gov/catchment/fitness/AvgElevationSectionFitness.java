@@ -22,6 +22,7 @@ import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
 
 import ca.bc.gov.catchment.tin.Edge;
+import ca.bc.gov.catchment.tin.Tin;
 import ca.bc.gov.catchment.tin.TinPolys;
 import ca.bc.gov.catchment.tin.Triangle;
 import ca.bc.gov.catchment.utils.SpatialUtils;
@@ -34,16 +35,8 @@ import ca.bc.gov.catchment.utils.SpatialUtils;
 public class AvgElevationSectionFitness extends SectionFitness {
 
 	private GeometryFactory geometryFactory;
-	private TinPolys tinPolys;
-	private FilterFactory2 filterFactory;
-	private SimpleFeatureType tinPolysFeatureType;
-	private String tinPolysGeometryProperty;
 	
-	public AvgElevationSectionFitness(TinPolys tinPolys) {
-		this.tinPolys = tinPolys;
-		this.filterFactory = CommonFactoryFinder.getFilterFactory2();
-		this.tinPolysFeatureType = tinPolys.getSchema();
-		this.tinPolysGeometryProperty = tinPolysFeatureType.getGeometryDescriptor().getLocalName();
+	public AvgElevationSectionFitness(Tin tin) {
 		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
 	}
 	
