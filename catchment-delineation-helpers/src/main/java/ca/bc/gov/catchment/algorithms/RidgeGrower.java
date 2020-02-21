@@ -35,11 +35,11 @@ public class RidgeGrower {
 	private Water water;
 	private TinEdges tinEdges;
 	private SectionFitness sectionFitness;
-	private SectionFitness avgElevationFitness;
 	private Comparator<Coordinate> elevationComparator;
 	private int nextFid;
 	private SimpleFeatureType ridgeFeatureType;
 	private GeometryFactory geometryFactory;
+
 	
 	public RidgeGrower(Water water,
 			TinEdges tinEdges) {
@@ -47,7 +47,6 @@ public class RidgeGrower {
 		this.water = water;
 		this.tinEdges = tinEdges;
 		this.sectionFitness = new ElevationSectionFitness(tinEdges);
-		this.avgElevationFitness = new AvgElevationSectionFitness(tinEdges);
 		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
 		
 		//create a feature type for the ridge features that are created
@@ -110,7 +109,7 @@ public class RidgeGrower {
 			LineString seedEdge, 
 			List<SimpleFeature> adjacentWater) throws IOException {
 		
-		LineString ridgeLineString = growBestRidge(seedEdge, adjacentWater);	
+		LineString ridgeLineString = growBestRidge2(seedEdge, adjacentWater);	
 		
 		SimpleFeature ridgeFeature = SpatialUtils.geomToFeature(ridgeLineString, ridgeFeatureType, (nextFid)+"");
 		nextFid += 1;
@@ -126,7 +125,7 @@ public class RidgeGrower {
 	 * @return
 	 * @throws IOException 
 	 */
-	private LineString growBestRidge(LineString stem, List<SimpleFeature> adjacentWater) throws IOException {
+	private LineString growBestRidge1(LineString stem, List<SimpleFeature> adjacentWater) throws IOException {
 		//System.out.println("testing stem length "+stem.getNumPoints());
 		if (stem.getNumPoints() < 2) {
 			throw new IllegalArgumentException("'stemCoords' must contain at least two coordinates");
@@ -154,7 +153,7 @@ public class RidgeGrower {
 			stemCoordsToTest.addAll(stemCoords);
 			stemCoordsToTest.add(nextCoord);
 			LineString nextStemToTest = SpatialUtils.toLineString(stemCoordsToTest);
-			LineString ridge = growBestRidge(nextStemToTest, adjacentWater);
+			LineString ridge = growBestRidge1(nextStemToTest, adjacentWater);
 			
 			double fit = ridge.getLength(); //avgElevationFitness.fitness(ridge);
 			if (fit > bestRidgeFit) {
@@ -164,10 +163,125 @@ public class RidgeGrower {
 			}
 		}
 		
-		if (bestRidge.getNumPoints() == 2) {
-			System.out.println("no improvement found");
-		}
 		return bestRidge;
+	}
+	
+	/**
+	 * a recursive function which chooses the best ridge after testing multiple possibilities
+	 * @param stemCoords a list of coordinates which represent the start of the ridge.  the first
+	 * coordinate is the confluence, and the last coordinate is the one that will be extended if 
+	 * any valid extension is possible
+	 * @param adjacentWater two adjacent water features
+	 * @return
+	 * @throws IOException 
+	 */
+	private LineString growBestRidge2(LineString stem, List<SimpleFeature> adjacentWater) throws IOException {
+		
+		//System.out.println("testing stem length "+stem.getNumPoints());
+		if (stem.getNumPoints() < 2) {
+			throw new IllegalArgumentException("'stemCoords' must contain at least two coordinates");
+		}
+		if (adjacentWater.size() != 2) {
+			throw new IllegalArgumentException("'adjancentWater' must contain exactly two coordinates");
+		}
+		
+		LineString ridge = stem;
+		int lookAhead = 2;
+		while(true) {
+			Coordinate leadingCoord = ridge.getCoordinateN(ridge.getNumPoints()-1);
+			
+			List<Coordinate> nextCoordsToConsider = tinEdges.getConnectedCoordinates(leadingCoord);
+			nextCoordsToConsider.sort(elevationComparator);
+			
+			//look ahead, check if we can extend ridge along each of the nextCoordsToConsider
+			List<LineString> lookAheadRidges = new ArrayList<LineString>();
+			for(Coordinate nextCoord : nextCoordsToConsider) {
+				LineString lookAheadRidge = growByN(ridge, nextCoord, adjacentWater, lookAhead);
+				lookAheadRidges.add(lookAheadRidge);
+			}
+
+			//choose the best look-ahead ridge
+			LineString bestLookAhead = pickBestLookAhead(lookAheadRidges, ridge.getNumPoints());
+			
+			//clip the chosen look-ahead ridge back to length: ridge + 1 
+			LineString nextRidge = clipToLength(bestLookAhead, ridge.getNumPoints()+1);
+
+			//System.out.println("ridge len:"+ridge.getNumPoints());
+			boolean improvementFound = nextRidge.getNumPoints() > ridge.getNumPoints();
+			if (!improvementFound) {
+				break;
+			}
+			ridge = nextRidge;
+		}
+		
+		return ridge;
+	}
+	
+	/**
+	 * grows the given ridge by the given 'firstCoord' coordinate if possible.  then attempts to grow by N-1 additional coords.
+	 * if not possible to grow by N, returns the original.
+	 * @param stem
+	 * @param firstCoord
+	 * @param adjacentWater
+	 * @return
+	 * @throws IOException
+	 */
+	private LineString growByN(LineString stem, Coordinate firstCoord, List<SimpleFeature> adjacentWater, int N) throws IOException {
+		List<Coordinate> nextCoordsToConsider = new ArrayList<Coordinate>();
+		nextCoordsToConsider.add(firstCoord);
+		
+		int maxLen = stem.getNumPoints() + N;
+		LineString result = stem;
+		Coordinate leadingCoord = result.getCoordinateN(result.getNumPoints()-1);
+		while(true) {
+			
+			int initialLen = result.getNumPoints();
+			List<Coordinate> existingCoords = SpatialUtils.toCoordinateList(result.getCoordinates());
+			for(Coordinate nextCoord : nextCoordsToConsider) {
+				boolean isHigher = isHigherOrSameWithinUncertainty(nextCoord, leadingCoord);
+				boolean isValid = isCoordValid(nextCoord, existingCoords, adjacentWater);
+				if (!isHigher || !isValid) {
+					continue;
+				}
+				
+				//extend the stem with the next coordinate
+				List<Coordinate> extendedCoords = new ArrayList<Coordinate>();
+				extendedCoords.addAll(existingCoords);
+				extendedCoords.add(nextCoord);
+				result = SpatialUtils.toLineString(extendedCoords);
+				break;
+			
+			}
+
+			boolean improvement = result.getNumPoints() > initialLen;
+			boolean maxLenReached = result.getNumPoints() >= maxLen;
+			if (maxLenReached || !improvement) {
+				break;
+			}
+			
+			//identify points connected to the leading coord.  these are the next
+			//set of points to evaluate
+			leadingCoord = result.getCoordinateN(result.getNumPoints()-1);
+			nextCoordsToConsider = tinEdges.getConnectedCoordinates(leadingCoord);
+			nextCoordsToConsider.sort(elevationComparator);
+			
+		}
+		
+		if (result.getNumPoints() > stem.getNumPoints()) {
+			Coordinate c = result.getCoordinateN(stem.getNumPoints());
+			if (!c.equals(firstCoord)) {
+				System.out.println("stem len:"+stem.getLength());
+				System.out.println("result len:"+stem.getLength());
+				System.out.println("first new coord (expected):"+firstCoord);
+				System.out.println("first new coord (actual):"+c);
+				throw new IllegalStateException("post condition failed.  first new coord expected to be "+firstCoord);
+			}
+		}
+		
+		return result;
+		
+
+			
 	}
 	
 	private SimpleFeature growQuickRidge(Coordinate fromConfluence, 
@@ -422,6 +536,51 @@ public class RidgeGrower {
 		return adjacentWater;
 
 		
+	}
+	
+	/**
+	 * shorten the given linestring to the given number of coordinates.  If points are to be removed,
+	 * they are removed from the end.
+	 * @param s
+	 * @param len
+	 * @return
+	 */
+	private LineString clipToLength(LineString s, int len) {
+		if (s.getNumPoints() <= len) {
+			return s;
+		}
+		
+		List<Coordinate> clippedCoords = new ArrayList<Coordinate>();
+		for(Coordinate coord : s.getCoordinates()) {
+			clippedCoords.add(coord);
+			if (clippedCoords.size() >= len) {
+				break;
+			}
+		}
+		return SpatialUtils.toLineString(clippedCoords);
+	}
+	
+	private LineString pickBestLookAhead(List<LineString> lookAheads, final int targetLen) {
+		//sort by line length first, then secondary sort by elevation of last coordinate
+		Comparator<LineString> lookAheadComparator = new Comparator<LineString>() {
+			public int compare(LineString s1, LineString s2) {
+				if (s1.getNumPoints() == s2.getNumPoints()) {
+					int leadingIndex = Math.min(targetLen, s1.getNumPoints()-1);
+					Coordinate leading1 = s1.getCoordinateN(leadingIndex);
+					Coordinate leading2 = s2.getCoordinateN(leadingIndex);
+					return leading1.getZ() > leading2.getZ() ? -1 
+							 : leading1.getZ() < leading2.getZ() ? 1 
+						     : 0;
+				}
+				else {
+					return s1.getNumPoints() > s2.getNumPoints() ? -1 
+							 : s1.getNumPoints() < s2.getNumPoints() ? 1 
+						     : 0; 
+				}
+			}
+		};
+		lookAheads.sort(lookAheadComparator);
+		return lookAheads.get(0);
 	}
 	
 	/**

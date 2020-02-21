@@ -139,7 +139,10 @@ public class Water {
 	}
 	
 	/**
-	 * determines whether the given geometry overlaps any water feature
+	 * This function identifies whether the given geometry has any one or more coordinates that 
+	 * touch a water feature in any way.
+	 * It returns true if touching water at an endpoint, confluence, or mid-line, and also if an edge
+	 * in the input geometry overlaps an edge in a water feature.
 	 * @param f
 	 * @return
 	 * @throws IOException
@@ -158,7 +161,8 @@ public class Water {
 	}
 	
 	/**
-	 * determines whether the given geometry overlaps any water feature
+	 * This function identifies whether the given coordinate touches a water feature in any way.
+	 * It returns true if touching water at an endpoint, confluence, or mid-line.
 	 * @param f
 	 * @return
 	 * @throws IOException
@@ -178,7 +182,9 @@ public class Water {
 	}
 	
 	/**
-	 * determines whether the given geometry overlaps any water feature
+	 * This function is a less selective version of 'isTouchingWater'.  This function returns true in
+	 * all cases as 'isTouchingWater' **except** it doesn't return true if the only common coordinate
+	 * between the input geometry and a water feature is an endpoint of a water feature.
 	 * @param f
 	 * @return
 	 * @throws IOException
