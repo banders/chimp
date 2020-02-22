@@ -127,7 +127,7 @@ public class GrowCatchmentsNicholson {
 
 	private static final String GEOPKG_ID = "geopkg";
 
-	
+	private static final String JUNCTIONS_TABLE = "junctions";
 	private static TinEdges tinEdges;
 	private static Water water;
 	private static SimpleFeatureSource waterFeatureSource;
@@ -309,19 +309,19 @@ public class GrowCatchmentsNicholson {
 			SimpleFeatureCollection ridges = ridgeGrower.growRidges();
 			
 			System.out.println("done. grew "+ridges.size()+" ridges.");
-			ridges = SpatialUtils.renameFeatureType(ridges, "ridges");
+			ridges = SpatialUtils.renameFeatureType(ridges, outTable);
 			
 			//clean ridges
 			System.out.println("cleaning ridges...");
-			RidgeCleaner ridgeCleaner = new RidgeCleaner(ridges);
-			//ridges = ridgeCleaner.cleanRidges();
+			RidgeCleaner ridgeCleaner = new RidgeCleaner(ridges, water);
+			ridges = ridgeCleaner.cleanRidges();
 			
 			//identify junctions
 			SpatialIndexFeatureCollection fc = new SpatialIndexFeatureCollection(ridges);
 			SpatialIndexFeatureSource fs = new SpatialIndexFeatureSource(fc);
 			CatchmentLines catchmentLines = new CatchmentLines(fs);
 			List<Coordinate> junctionCoords = catchmentLines.getJunctions(water);			
-			SimpleFeatureType junctionFeatureType = DataUtilities.createType("junctions", "geometry:Point:srid="+srid);
+			SimpleFeatureType junctionFeatureType = DataUtilities.createType(JUNCTIONS_TABLE, "geometry:Point:srid="+srid);
 			SimpleFeatureCollection junctions = SpatialUtils.coordListToSimpleFeatureCollection(junctionCoords, junctionFeatureType);
 			
 			//save catchment lines			

@@ -20,6 +20,7 @@ import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
 
 import ca.bc.gov.catchment.utils.SpatialUtils;
+import ca.bc.gov.catchment.water.Water;
 
 /**
  * This algorithm is intended to be run after RidgeGrower
@@ -35,18 +36,30 @@ public class RidgeCleaner {
 	private GeometryFactory geometryFactory;
 	private SimpleFeatureType ridgeFeatureType;
 	private String ridgeGeometryPropertyName;
+	private Water water;
 	
-	public RidgeCleaner(SimpleFeatureCollection ridges) {	
+	public RidgeCleaner(SimpleFeatureCollection ridges, Water water) {	
 		this.inRidges = ridges;
+		this.water = water;
 		this.filterFactory = CommonFactoryFinder.getFilterFactory2();
 		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
 		this.ridgeFeatureType = ridges.getSchema();
 		this.ridgeGeometryPropertyName = ridgeFeatureType.getGeometryDescriptor().getLocalName();
 	}
 	
-	public SimpleFeatureCollection cleanRidges() {
+	public SimpleFeatureCollection cleanRidges() throws IOException {
 		DefaultFeatureCollection result = new DefaultFeatureCollection();
 		
+		result = filterOutDuplicates(inRidges);
+		
+		//filter out "loose ends"
+		result = filterOutLooseEnds(result);
+		
+		return result;
+	}
+	
+	private DefaultFeatureCollection filterOutDuplicates(SimpleFeatureCollection fc) {
+		DefaultFeatureCollection result = new DefaultFeatureCollection();
 		SimpleFeatureIterator ridgeIt = inRidges.features();
 		while (ridgeIt.hasNext()) {
 			SimpleFeature ridge = ridgeIt.next();
@@ -60,11 +73,53 @@ public class RidgeCleaner {
 						filterFactory.property(ridgeGeometryPropertyName), 
 						filterFactory.literal(piece.getDefaultGeometry()));
 				SimpleFeatureCollection matches = result.subCollection(filter);
-				if (matches.size() == 0) {
+				boolean isDuplicate = matches.size() > 0; 
+				
+				if (!isDuplicate) {
 					result.add(piece);
-				}
+				}				
 			}
 		}
+		ridgeIt.close();
+		return result;
+		
+	}
+	
+	private DefaultFeatureCollection filterOutLooseEnds(SimpleFeatureCollection fc) throws IOException {
+		DefaultFeatureCollection result = new DefaultFeatureCollection();
+		
+		SimpleFeatureIterator it = fc.features();
+		while(it.hasNext()) {
+			SimpleFeature f = it.next();
+			LineString g = (LineString)f.getDefaultGeometry();
+			Coordinate first = g.getCoordinateN(0);
+			Coordinate last = g.getCoordinateN(g.getNumPoints()-1);
+			
+			Coordinate[] coordsToTest = {first, last};
+			int numStickyCoords = 0;
+			boolean touchesConfluence = false;
+			for (Coordinate c: coordsToTest) {
+				touchesConfluence = touchesConfluence || water.isConfluence(c);
+				Point p = geometryFactory.createPoint(c);
+				Filter filter = filterFactory.touches(
+						filterFactory.property(ridgeGeometryPropertyName), 
+						filterFactory.literal(p));
+				SimpleFeatureCollection matches = fc.subCollection(filter);
+				boolean isJunction = matches.size() >= 3;
+				System.out.println("isJunction: "+isJunction+" ("+matches.size()+"), touchesConfluence: "+touchesConfluence);
+				
+				if (touchesConfluence || isJunction) {
+					numStickyCoords++;
+				}
+			}
+			
+			boolean hasLooseEnd = numStickyCoords != 2 && !touchesConfluence;
+			if (!hasLooseEnd) {
+				result.add(f);
+			}
+		}
+		it.close();
+		System.out.println(" result.size: "+result.size());
 		
 		return result;
 	}
