@@ -85,6 +85,10 @@ import ca.bc.gov.catchment.CatchmentLines;
 import ca.bc.gov.catchment.algorithms.NearestNeighbour3DMaker;
 import ca.bc.gov.catchment.algorithms.RidgeCleaner;
 import ca.bc.gov.catchment.algorithms.RidgeGrower;
+import ca.bc.gov.catchment.algorithms.DeadEndPreventerRidgeGrower;
+import ca.bc.gov.catchment.algorithms.LookAheadRidgeGrower;
+import ca.bc.gov.catchment.algorithms.MedialAxisRidgeGrower;
+import ca.bc.gov.catchment.algorithms.HybridRidgeGrower;
 import ca.bc.gov.catchment.fitness.AvgElevationLengthPenaltySectionFitness;
 import ca.bc.gov.catchment.fitness.AvgElevationSectionFitness;
 import ca.bc.gov.catchment.fitness.ElevationJunctionFitness;
@@ -117,13 +121,12 @@ import ca.bc.gov.catchment.utils.SpatialUtils;
 import ca.bc.gov.catchment.water.Water;
 
 /**
- * Creates catchment boundaries by "growing" ridges from each confluence, following 
- * the patch suggested by a fitness function 
+
  * @author Brock Anderson
  *
  */
 
-public class GrowCatchmentsNicholson {
+public class CleanGrownCatchments {
 
 	private static final String GEOPKG_ID = "geopkg";
 
@@ -138,10 +141,10 @@ public class GrowCatchmentsNicholson {
 		// create Options object
 		Options options = new Options();
 		options.addOption("waterFile", true, "Input GeoPackage file with water features");
-		options.addOption("tinEdgesFile", true, "Input GeoPackage file with TIN");
+		options.addOption("i", true, "Input GeoPackage file catchment lines to be cleaned");
 		options.addOption("o", true, "Output GeoPackage file");
 		options.addOption("waterTable", true, "water table name");
-		options.addOption("tinEdgesTable", true, "TIN edges table name");
+		options.addOption("inTable", true, "catchment lines table name");
 		options.addOption("outTable", true, "output table name");
 		options.addOption("bbox", true, "bbox (minx,miny,maxx,maxy)");
 		options.addOption("bboxcrs", true, "e.g. EPSG:3005");
@@ -149,10 +152,10 @@ public class GrowCatchmentsNicholson {
 		HelpFormatter formatter = new HelpFormatter();
 		
 		String inWaterFilename = null;
-		String inTinEdgesFilename = null;
+		String inFilename = null;
 		String outputFilename = null;
 		String waterTable = null;
-		String tinEdgesTable = null;
+		String inTable = null;
 		String outTable = null;
 		String bboxStr = null;
 		String bboxCrs = null;
@@ -162,15 +165,15 @@ public class GrowCatchmentsNicholson {
 		try {
 			CommandLine cmd = parser.parse( options, args);
 			inWaterFilename = cmd.getOptionValue("waterFile");
-			inTinEdgesFilename = cmd.getOptionValue("tinEdgesFile");
+			inFilename = cmd.getOptionValue("i");
 			outputFilename = cmd.getOptionValue("o");		
 			waterTable = cmd.getOptionValue("waterTable");
-			tinEdgesTable = cmd.getOptionValue("tinEdgesTable");
+			inTable = cmd.getOptionValue("inTable");
 			outTable = cmd.getOptionValue("outTable");
 			bboxStr = cmd.getOptionValue("bbox");
 			bboxCrs = cmd.getOptionValue("bboxcrs");
 		} catch (ParseException e2) {
-			formatter.printHelp( WKTList2GeoPackage.class.getSimpleName(), options );
+			formatter.printHelp( CleanGrownCatchments.class.getSimpleName(), options );
 		}
 					
 		if(bboxStr != null) {
@@ -195,8 +198,8 @@ public class GrowCatchmentsNicholson {
 		System.out.println("Inputs:");
 		System.out.println("- water input file: "+inWaterFilename);
 		System.out.println("- water table: "+waterTable);
-		System.out.println("- TIN edges input file: "+inTinEdgesFilename);
-		System.out.println("- TIN edges table: "+tinEdgesTable);
+		System.out.println("- catchment lines input file: "+inFilename);
+		System.out.println("- catchment lines table: "+inTable);
 		System.out.println("- out file: "+outputFilename);
 		System.out.println("- out table: "+outTable);
 		if (bboxStr != null) {
@@ -246,32 +249,32 @@ public class GrowCatchmentsNicholson {
 		
 		String waterGeometryPropertyName = waterFeatureType.getGeometryDescriptor().getLocalName();
 		
-		//Open TIN edges input file
+		//Open main input file input file
 		//---------------------------------------------------------------------
 		
-		Map<String, String> tinEdgesInputDatastoreParams = new HashMap<String, String>();
-		tinEdgesInputDatastoreParams.put("dbtype", GEOPKG_ID);
-		tinEdgesInputDatastoreParams.put("database", inTinEdgesFilename);
+		Map<String, String> catchmentLinesDatastoreParams = new HashMap<String, String>();
+		catchmentLinesDatastoreParams.put("dbtype", GEOPKG_ID);
+		catchmentLinesDatastoreParams.put("database", inFilename);
 		
-		DataStore tinEdgesDatastore = null;
+		DataStore catchmentLinesDatastore = null;
 		try {
-			tinEdgesDatastore = DataStoreFinder.getDataStore(tinEdgesInputDatastoreParams);
+			catchmentLinesDatastore = DataStoreFinder.getDataStore(catchmentLinesDatastoreParams);
 		} catch (IOException e) {
-			System.out.println("Unable to open input file: "+inTinEdgesFilename);
+			System.out.println("Unable to open input file: "+inFilename);
 			e.printStackTrace();
 			System.exit(1);
 		}
 		
-		if (tinEdgesDatastore == null) {
-			System.out.println("Unable to open input TIN edges datastore");
+		if (catchmentLinesDatastore == null) {
+			System.out.println("Unable to open input catchment lines datastore");
 			System.exit(1);
 		}
 		
-		SimpleFeatureSource tinEdgesFeatureSource = null;
+		SimpleFeatureSource catchmentLinesFeatureSource = null;
 		try {
-			tinEdgesFeatureSource = tinEdgesDatastore.getFeatureSource(tinEdgesTable);
+			catchmentLinesFeatureSource = catchmentLinesDatastore.getFeatureSource(inTable);
 		} catch (IOException e1) {
-			System.out.println("Unable to get in feature source: "+tinEdgesTable);
+			System.out.println("Unable to get in feature source: "+inTable);
 			e1.printStackTrace();
 			System.exit(1);
 		}
@@ -302,32 +305,30 @@ public class GrowCatchmentsNicholson {
 			SpatialIndexFeatureSource fastWaterFeatureSource = new SpatialIndexFeatureSource(waterFeatureCollection);
 
 			water = new Water(fastWaterFeatureSource);
-			tinEdges = new TinEdges(tinEdgesFeatureSource, bufferedBboxFilter);			
+
+			SimpleFeatureCollection catchmentLinesFc = catchmentLinesFeatureSource.getFeatures();
 			
-			//grow ridges.  note: not all ridges will be complete
-			RidgeGrower ridgeGrower = new RidgeGrower(water, tinEdges);
-			SimpleFeatureCollection ridges = ridgeGrower.growRidges();
-			
-			System.out.println("done. grew "+ridges.size()+" ridges.");
-			ridges = SpatialUtils.renameFeatureType(ridges, outTable);
-			
-			//clean ridges
-			System.out.println("cleaning ridges...");
-			RidgeCleaner ridgeCleaner = new RidgeCleaner(ridges, water);
-			ridges = ridgeCleaner.cleanRidges();
+			//clean
+			System.out.println("cleaning catchment lines...");
+			RidgeCleaner ridgeCleaner = new RidgeCleaner(catchmentLinesFc, water);
+			catchmentLinesFc = ridgeCleaner.doAllCleaning();
 			
 			//identify junctions
-			SpatialIndexFeatureCollection fc = new SpatialIndexFeatureCollection(ridges);
+			SpatialIndexFeatureCollection fc = new SpatialIndexFeatureCollection(catchmentLinesFc);
 			SpatialIndexFeatureSource fs = new SpatialIndexFeatureSource(fc);
 			CatchmentLines catchmentLines = new CatchmentLines(fs);
 			List<Coordinate> junctionCoords = catchmentLines.getJunctions(water);			
 			SimpleFeatureType junctionFeatureType = DataUtilities.createType(JUNCTIONS_TABLE, "geometry:Point:srid="+srid);
 			SimpleFeatureCollection junctions = SpatialUtils.coordListToSimpleFeatureCollection(junctionCoords, junctionFeatureType);
 			
+			//working junctions
+			SimpleFeatureCollection workingJunctions = ridgeCleaner.getWorkingJunctions();
+			
 			//save catchment lines			
 			System.out.println("saving...");
-			SaveUtils.saveToGeoPackage(outputFilename, ridges, true);
+			SaveUtils.saveToGeoPackage(outputFilename, catchmentLinesFc, true);
 			SaveUtils.saveToGeoPackage(outputFilename, junctions, true);
+			SaveUtils.saveToGeoPackage(outputFilename, workingJunctions, true);
 			
 		}
 		catch(IOException e) {

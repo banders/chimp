@@ -22,19 +22,12 @@ import ca.bc.gov.catchment.utils.SpatialUtils;
  * @author Brock Anderson
  *
  */
-public class MidpointSmoother {
+public class MidpointSmoother extends Smoother {
 
 	public MidpointSmoother() {
 		
 	}
 	
-	public LineString smooth(Geometry g, int iterations) {
-		if (g.getGeometryType() == "LineString") {
-			return smooth((LineString)g, iterations);
-		}
-		throw new IllegalStateException("Unsupported geometry type: "+g.getGeometryType());
-	}
-
 	public LineString smooth(LineString g, int iterations) {
 		if (g.getNumPoints() <= 2) {
 			return g;

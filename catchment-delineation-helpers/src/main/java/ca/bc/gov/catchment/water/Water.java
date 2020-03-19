@@ -22,6 +22,7 @@ import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
 
+import ca.bc.gov.catchment.algorithms.NearestFinder;
 import ca.bc.gov.catchment.utils.SpatialUtils;
 
 public class Water {
@@ -34,6 +35,7 @@ public class Water {
 	private SimpleFeatureType waterFeatureType;
 	private String waterGeometryPropertyName;
 	private Map<Coordinate, Boolean> confluenceCache;
+	private NearestFinder nearestWaterFinder;
 
 	public Water(SimpleFeatureSource waterFeatures) {
 		Hints filterHints = new Hints(Hints.FEATURE_2D, true);
@@ -42,6 +44,12 @@ public class Water {
 		this.waterFeatures = waterFeatures;
 		this.waterFeatureType = waterFeatures.getSchema();
 		this.waterGeometryPropertyName = waterFeatureType.getGeometryDescriptor().getLocalName();
+		try {
+			this.nearestWaterFinder = new NearestFinder(waterFeatures.getFeatures());
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			throw new IllegalArgumentException("invalid water features.");
+		}
 
 		//define a map that removes the oldest entry when the 
 		//cache removes its maximum size.  i.e. the least-recently-used entry is
@@ -173,7 +181,7 @@ public class Water {
 				filterFactory.touches(
 						filterFactory.property(waterGeometryPropertyName), 
 						filterFactory.literal(p)),
-				filterFactory.contains(
+				filterFactory.contains( 
 						filterFactory.property(waterGeometryPropertyName), 
 						filterFactory.literal(p))
 				);
@@ -195,6 +203,83 @@ public class Water {
 				filterFactory.literal(g));
 		SimpleFeatureCollection overlappingWaterFeatures = waterFeatures.getFeatures(overlapsFilter);
 		return overlappingWaterFeatures.size() > 0;
+	}
+	
+	/**
+	 * returns the water feature nearest to the given geometry
+	 * @param g
+	 * @return
+	 */
+	public SimpleFeature getNearestWater(Coordinate c) {
+		Point g = geometryFactory.createPoint(c);
+		return getNearestWater(g);
+	}
+	
+	/**
+	 * returns the water feature nearest to the given geometry
+	 * @param g
+	 * @return
+	 */
+	public SimpleFeature getNearestWater(Geometry g) {
+		return nearestWaterFinder.findNearest(g);
+	}
+	
+	/**
+	 * gets the distance to the nearest water feature
+	 * @param g
+	 * @return
+	 */
+	public double getDistanceToNearestWater(Geometry g) {
+		SimpleFeature nearestWater = getNearestWater(g);
+		Geometry nearestGeom = (Geometry)nearestWater.getDefaultGeometry();
+		return g.distance(nearestGeom);
+	}
+	
+	/**
+	 * gets the distance to the nearest water feature
+	 * @param g
+	 * @return
+	 */
+	public double getDistanceToNearestWater(Coordinate c) {
+		Point g = geometryFactory.createPoint(c);
+		return getDistanceToNearestWater(g);
+	}
+	
+	/**
+	 * returns the water feature nearest to the given geometry
+	 * @param g
+	 * @return
+	 */
+	public double getDistDiffBetweenTwoNearestWater(Coordinate c) {
+		Point g = geometryFactory.createPoint(c);
+		return getDistDiffBetweenTwoNearestWater(g);
+	}
+	
+	/**
+	 * gets the difference in distance between:
+	 * g and the nearest water feature
+	 * g and the second nearest water feature
+	 * @param g
+	 * @return the distance difference
+	 */
+	public double getDistDiffBetweenTwoNearestWater(Geometry g) {
+		List<SimpleFeature> matches = nearestWaterFinder.findNearest(g, 2);
+		if (matches.size() != 2) {
+			throw new IllegalStateException("Expected to find 2 nearby water features. Found "+matches.size());
+		}
+		SimpleFeature water1 = matches.get(0);
+		SimpleFeature water2 = matches.get(1);
+		
+		Geometry g1 = (Geometry)water1.getDefaultGeometry();
+		Geometry g2 = (Geometry)water2.getDefaultGeometry();
+		
+		double dist1 = g.distance(g1);
+		double dist2 = g.distance(g2);
+		
+		//System.out.println(water1.getID() +"("+dist1+")"+", "+water2.getID()+" ("+dist2+")");
+		
+		double diff = Math.abs(dist1 - dist2);
+		return diff;
 	}
 
 }

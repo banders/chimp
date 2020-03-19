@@ -174,6 +174,10 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 		return commandLine.getOptionValue(name);
 	}
 	
+	public String getOptionValue(String name, String defaultVal) {
+		return commandLine.getOptionValue(name, defaultVal);
+	}
+	
 	/**
 	 * loads values for options in the default set into member variables
 	 * so they can be conveniently accessed by the member functions of this

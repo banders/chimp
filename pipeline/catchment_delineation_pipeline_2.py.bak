@@ -22,15 +22,12 @@ VORONOI_CLEANED_TABLE = "voronoi_edges_kept_p4"
 CATCHMENT_LINES_TABLE = "catchment_lines"
 POINT_CLOUD_TABLE_PARTIAL_3D = "point_cloud"
 POINT_CLOUD_TABLE_FULL_3D = "point_cloud_3d"
-POINT_CLOUD_TABLE_FULL_3D_ADJUSTED = "point_cloud_3d_adjusted"
-POINT_CLOUD_TABLE_FINAL = POINT_CLOUD_TABLE_FULL_3D
 BREAKLINES_TABLE = "breaklines"
 BREAKLINES_TABLE_3D = "breaklines_3d"
 TIN_EDGES_TABLE = "tin_edges"
 TIN_EDGES_COLORED_TABLE = "tin_edges_colored"
 TIN_POLYS_TABLE = "tin_polys"
 TIN_CENTROIDS_TABLE = "tin_centroids"
-SMOOTHING_ALGORITHM = "elimination"  #one of [midpoint,elimination]
 
 def main():
   argParser = argparse.ArgumentParser(description="runs a group of catchment delineation processing tools")
@@ -134,9 +131,6 @@ def main():
 
   tin_gpkg_filename = "{}-{}.tin.gpkg".format(test_id, run_id)
   tin_gpkg_filename_with_path = os.path.join(run_out_dir, tin_gpkg_filename)
-
-  grown_catchments_raw_gpkg_filename = "{}-{}.grown-catchments-raw.gpkg".format(test_id, run_id)
-  grown_catchments_raw_gpkg_filename_with_path = os.path.join(run_out_dir, grown_catchments_raw_gpkg_filename)
 
   grown_catchments_gpkg_filename = "{}-{}.grown-catchments.gpkg".format(test_id, run_id)
   grown_catchments_gpkg_filename_with_path = os.path.join(run_out_dir, grown_catchments_gpkg_filename)
@@ -413,13 +407,12 @@ def main():
         print("Failure.  Pipeline execution stopped early.")
         exit(1);
 
-      if os.path.exists(initial_catchments_simp_dens_gpkg_filename_with_path):
-        print("Adding initial catchments to break line set")
-        cmd6b = "{} -cp {} ca.bc.gov.catchment.scripts.SegmentAndAppendToSet -i {} -inTable {} -o {} -outTable {} -outLabel {} {}".format(settings.get("java_path"), settings.get("java_classpath"), initial_catchments_simp_dens_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, breaklines_gpkg_filename_with_path, BREAKLINES_TABLE, "voronoi", bbox)
-        resp = call(cmd6b.split())
-        if resp != 0:
-          print("Failure.  Pipeline execution stopped early.")
-          exit(1);
+      print("Adding initial catchments to break line set")
+      cmd6b = "{} -cp {} ca.bc.gov.catchment.scripts.SegmentAndAppendToSet -i {} -inTable {} -o {} -outTable {} -outLabel {} {}".format(settings.get("java_path"), settings.get("java_classpath"), initial_catchments_simp_dens_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, breaklines_gpkg_filename_with_path, BREAKLINES_TABLE, "voronoi", bbox)
+      resp = call(cmd6b.split())
+      if resp != 0:
+        print("Failure.  Pipeline execution stopped early.")
+        exit(1);
 
       #explicit breaklines
       has_additional_breakline_data = run_config["input"].get("elevation_file") and run_config["input"].get("elevation_breakline_table") #"additional" means in addition to the water features
@@ -477,13 +470,12 @@ def main():
         exit(1);
 
       #add initial catchments
-      if os.path.exists(initial_catchments_simp_dens_gpkg_filename_with_path):
-        print("Adding 2D vertices from initial catchments to point cloud")
-        cmd6b = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), initial_catchments_simp_dens_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, "C", point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_PARTIAL_3D, bbox)
-        resp = call(cmd6b.split())
-        if resp != 0:
-          print("Failure.  Pipeline execution stopped early.")
-          exit(1);
+      print("Adding 2D vertices from initial catchments to point cloud")
+      cmd6b = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), initial_catchments_simp_dens_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, "C", point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_PARTIAL_3D, bbox)
+      resp = call(cmd6b.split())
+      if resp != 0:
+        print("Failure.  Pipeline execution stopped early.")
+        exit(1);
   
       #add breaklines
       print("Adding break lines to point cloud")
@@ -500,23 +492,17 @@ def main():
       print("Failure.  Pipeline execution stopped early.")
       exit(1);
 
-    print("Adjusting point cloud elevation values") 
-    cmd7 = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.AdjustPointCloud -i {} -inTable {} -o {} -outTable {} -waterFile {} -waterTable {}".format(settings.get("java_path"), settings.get("java_classpath"), point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_FULL_3D, point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_FULL_3D_ADJUSTED, water_feature_segmented_filename_with_path, WATER_FEATURES_TABLE)
-    resp = call(cmd7.split())
-    if resp != 0:
-      print("Failure.  Pipeline execution stopped early.")
-      exit(1);
-
     print("Converting breaklines to 3D")
-    cmd8 = "{} -cp {} ca.bc.gov.catchment.scripts.AssignElevation -i {} -inTable {} -pointCloud3DFile {} -inPointCloud3DTable {} -o {} -outTable {} -searchRadius {} {}".format(settings.get("java_path"), settings.get("java_classpath"), breaklines_gpkg_filename_with_path, BREAKLINES_TABLE, point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_FINAL, breaklines_gpkg_filename_with_path, BREAKLINES_TABLE_3D, touches_distance_tolerance, bbox)
+    cmd8 = "{} -cp {} ca.bc.gov.catchment.scripts.AssignElevation -i {} -inTable {} -pointCloud3DFile {} -inPointCloud3DTable {} -o {} -outTable {} -searchRadius {} {}".format(settings.get("java_path"), settings.get("java_classpath"), breaklines_gpkg_filename_with_path, BREAKLINES_TABLE, point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_FULL_3D, breaklines_gpkg_filename_with_path, BREAKLINES_TABLE_3D, touches_distance_tolerance, bbox)
     resp = call(cmd8.split())
     if resp != 0:
       print("Failure.  Pipeline execution stopped early.")
       exit(1);
 
+    #TODO: add make catchments 3d here
 
 
-  #create TIN
+  #create point cloud
   if args.start_step <= 8 and 8 <= args.last_step:
     print("")  
     print("---------------------------------------------------")
@@ -528,7 +514,7 @@ def main():
 
     if not os.path.exists(tin_gpkg_filename_with_path):
       print("Creating TIN edges")
-      cmd8a = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.CreateTIN -pointCloudFile {} -pointCloudTable {} -breakLinesFile {} -breakLinesTable {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_FINAL, breaklines_gpkg_filename_with_path, BREAKLINES_TABLE_3D, tin_gpkg_filename_with_path, TIN_EDGES_TABLE, bbox)
+      cmd8a = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.CreateTIN -pointCloudFile {} -pointCloudTable {} -breakLinesFile {} -breakLinesTable {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_FULL_3D, breaklines_gpkg_filename_with_path, BREAKLINES_TABLE_3D, tin_gpkg_filename_with_path, TIN_EDGES_TABLE, bbox)
       resp = call(cmd8a.split())
       if resp != 0:
         print("Failure.  Pipeline execution stopped early.")
@@ -541,6 +527,7 @@ def main():
         print("Failure.  Pipeline execution stopped early.")
         exit(1);
 
+    
     print("Computing slopes of triangles adjacent to tin edges")
     cmd8c = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.ComputeAdjacentSlopes -i {} -inTable {} -o {} -outTable {} -tinPolysFilename {} -tinPolysTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), tin_gpkg_filename_with_path, TIN_EDGES_TABLE, tin_gpkg_filename_with_path, TIN_EDGES_COLORED_TABLE, tin_gpkg_filename_with_path, TIN_POLYS_TABLE, bbox)
     resp = call(cmd8c.split())
@@ -557,37 +544,21 @@ def main():
     print("---------------------------------------------------")
     print("")  
 
-    #data_bbox = "1681070.2,503143.9,1684697.1,506297.8" #test case 1
-    #data_bbox = "1683985.5,504660.8,1684098.9,504759.4" #test case 2
+    #data_bbox = "1676154.3,502408.5,1676317.2,502547.6" #test case
     #data_bbox = "1680546.3,501755.5,1682284.9,503082.5" #small
-    #data_bbox = "1673235.6,499766.7,1679748.7,504957.6" #medium
-    data_bbox = "1669296.2,499296.8,1684879.1,508149.5" #almost 1 full mapsheet
+    data_bbox = "1673235.6,499766.7,1679748.7,504957.6" #medium
     data_bbox_crs = "EPSG:3005"
     print("NOTE: custom bbox: {}".format(data_bbox))
 
     bbox = "-bbox {} -bboxcrs {}".format(data_bbox, data_bbox_crs)
 
-    if not os.path.exists(grown_catchments_raw_gpkg_filename_with_path):
+    if not os.path.exists(grown_catchments_gpkg_filename_with_path):
       print("Growing catchments")
-      cmd9 = "{} -cp {} -Djava.util.logging.config.file={} -Xms2g ca.bc.gov.catchment.scripts.GrowCatchments -waterFile {} -waterTable {} -tinEdgesFile {} -tinEdgesTable {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), settings.get("log_properties_file"), water_feature_segmented_filename_with_path, WATER_FEATURES_TABLE, tin_gpkg_filename_with_path, TIN_EDGES_TABLE, grown_catchments_raw_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, bbox)
+      cmd9 = "{} -cp {} -Djava.util.logging.config.file={} -Xms2g ca.bc.gov.catchment.scripts.GrowCatchmentsNicholson -waterFile {} -waterTable {} -tinEdgesFile {} -tinEdgesTable {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), settings.get("log_properties_file"), water_feature_segmented_filename_with_path, WATER_FEATURES_TABLE, tin_gpkg_filename_with_path, TIN_EDGES_TABLE, grown_catchments_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, bbox)
       resp = call(cmd9.split())
       if resp != 0:
         print("Failure.  Pipeline execution stopped early.")
         exit(1);
-    else:
-      print("{} already exists".format(grown_catchments_gpkg_filename_with_path))
-
-    
-    if not os.path.exists(grown_catchments_gpkg_filename_with_path):
-      print("Cleaning catchments")
-      cmd9b = "{} -cp {} -Djava.util.logging.config.file={} -Xms2g ca.bc.gov.catchment.scripts.CleanGrownCatchments -waterFile \"{}\" -waterTable {} -i {} -inTable {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), settings.get("log_properties_file"), water_feature_segmented_filename_with_path, WATER_FEATURES_TABLE, grown_catchments_raw_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, grown_catchments_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, bbox)
-      resp = call(cmd9b.split())
-      if resp != 0:
-        print("Failure.  Pipeline execution stopped early.")
-        exit(1);
-    else:
-      print("{} already exists".format(grown_catchments_gpkg_filename_with_path))
-    
 
   #cosmetic adjustments
   if args.start_step <= 10 and 10 <= args.last_step:
@@ -599,12 +570,16 @@ def main():
 
     #smoothing
     print("Smoothing catchments")
-    cmd6 = "{} -cp {} ca.bc.gov.catchment.scripts.SmoothGeometries -i {} -inTable {} -o {} -outTable {} -alg {}".format(settings.get("java_path"), settings.get("java_classpath"), grown_catchments_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, catchments_smoothed_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, SMOOTHING_ALGORITHM)
+    cmd6 = "{} -cp {} ca.bc.gov.catchment.scripts.SmoothGeometries -i {} -inTable {} -o {} -outTable {}".format(settings.get("java_path"), settings.get("java_classpath"), grown_catchments_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, catchments_smoothed_gpkg_filename_with_path, CATCHMENT_LINES_TABLE)
 
     resp = call(cmd6.split())
     if resp != 0:
       print("Failure.  Pipeline execution stopped early.")
       exit(1);
+
+  """
+  -voronoiEdgesTable voronoi_edges  water_features -startPhase 1
+  """
 
   print("---------------------------------------------------")
   print("")

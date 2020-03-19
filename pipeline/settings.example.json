@@ -2,5 +2,6 @@
   "out_base_dir": "pipeline-results",
   "voronoi_catchment_path": "path to voronoi-catchments.exe",
   "java_path": "path to java.exe",
-  "java_classpath": "copy from eclipse"
+  "java_classpath": "copy from eclipse",
+  "log_properties_file": "path to logging.properties"
 }

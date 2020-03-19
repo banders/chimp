@@ -117,6 +117,7 @@ public class AssignElevation {
 		options.addOption("bbox", true, "bbox (minx,miny,maxx,maxy)");
 		options.addOption("bboxcrs", true, "e.g. EPSG:3005");
 		options.addOption("searchRadius", true, "distance in same unit as input data crs");
+		options.addOption("onFailedPoint", true, "what to do if a point cannot be converted to 3D. one of [exit,omit]"); 
 		CommandLineParser parser = new DefaultParser();
 		HelpFormatter formatter = new HelpFormatter();
 		
@@ -129,6 +130,7 @@ public class AssignElevation {
 		String bboxStr = null;
 		String bboxCrs = null;
 		int bboxSrid = -1;
+		String onFailedPoint = null;
 		ReferencedEnvelope boundsToProcess = null;
 		
 		double searchRadius = -1;
@@ -144,6 +146,7 @@ public class AssignElevation {
 			bboxStr = cmd.getOptionValue("bbox");
 			bboxCrs = cmd.getOptionValue("bboxcrs");
 			String searchRadiusStr = cmd.getOptionValue("searchRadius");
+			onFailedPoint = cmd.getOptionValue("onFailedPoint", "exit");
 			if (searchRadiusStr == null) {
 				searchRadius = DEFAULT_SEARCH_RADIUS;
 			}
@@ -352,7 +355,16 @@ public class AssignElevation {
 				SimpleFeature inFeature = inIterator.next();
 				Geometry inGeometry = (Geometry)inFeature.getDefaultGeometry();
 				
-				Coordinate[] coordsUpdated = to3D(inGeometry.getCoordinates(), inPointCloud3DFeatureSource, searchRadius);
+				Coordinate[] coordsUpdated = null;
+				try {
+					coordsUpdated = to3D(inGeometry.getCoordinates(), inPointCloud3DFeatureSource, searchRadius);
+				} catch (IllegalStateException e) {
+					if (onFailedPoint.equals("omit")) {
+						continue;
+					}
+					System.out.println("Unable to convert at least one geometry to 3D");
+					System.exit(1);
+				}
 				
 				String type = inGeometry.getGeometryType();
 				Geometry outGeometry = null;

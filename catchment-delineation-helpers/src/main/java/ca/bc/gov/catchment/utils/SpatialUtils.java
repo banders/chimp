@@ -103,6 +103,12 @@ public class SpatialUtils {
 	}
 
 	public static SimpleFeature geomToFeature(Geometry geom, SimpleFeatureType type, String fid) {
+		if (geom == null) {
+			throw new NullPointerException("Geometry must not be null");
+		}
+		if (type == null) {
+			throw new NullPointerException("'type' must not be null");
+		}
 		SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder(type);
 		Object[] attrValues = {geom};
 		SimpleFeature feature = featureBuilder.buildFeature(fid, attrValues);
@@ -270,6 +276,9 @@ public class SpatialUtils {
 	}
 	
 	public static boolean hasCoordinate(Geometry g, Coordinate c) {
+		if (c == null) {
+			return false;
+		}
 		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
 		Point p = geometryFactory.createPoint(c);
 		boolean hasCoordinate = g.distance(p) == 0;
