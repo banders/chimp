@@ -4,14 +4,17 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.geotools.data.DataUtilities;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.feature.DefaultFeatureCollection;
+import org.geotools.feature.SchemaException;
 import org.geotools.geometry.jts.JTSFactoryFinder;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import org.opengis.feature.simple.SimpleFeature;
+import org.opengis.feature.simple.SimpleFeatureType;
 
 import ca.bc.gov.catchment.fitness.ElevationSectionFitness;
 import ca.bc.gov.catchment.fitness.SectionFitness;
@@ -27,11 +30,21 @@ public abstract class RidgeGrower {
 	protected Water water;
 	protected TinEdges tinEdges;
 	private SectionFitness seedEdgeFitness;
+	private SimpleFeatureType ridgeFeatureType;
 	
 	public RidgeGrower(Water water, TinEdges tinEdges) {
 		this.water = water;
 		this.tinEdges = tinEdges;
 		this.seedEdgeFitness = new ElevationSectionFitness(tinEdges);
+		
+		//create a feature type for the ridge features that are created
+		this.ridgeFeatureType = null;
+		try {
+			ridgeFeatureType = DataUtilities.createType(RIDGE_TABLE_NAME, "geometry:LineString");
+		} catch (SchemaException e1) {
+			System.out.println("Unable to create feature type "+RIDGE_TABLE_NAME);
+			System.exit(1);
+		}
 	}
 
 	public SimpleFeatureCollection growRidges() throws IOException {
@@ -53,6 +66,10 @@ public abstract class RidgeGrower {
 			}
 		}
 		return result;
+	}
+	
+	public SimpleFeatureType getRidgeFeatureType() {
+		return this.ridgeFeatureType;
 	}
 	
 	public abstract SimpleFeature growRidge(Coordinate confluence, LineString seedEdge, List<SimpleFeature> adjacentWater) throws IOException;
@@ -103,6 +120,10 @@ public abstract class RidgeGrower {
 		
 		return seedEdges;
 	}	
+	
+	public abstract boolean canChooseNext(LineString stem, List<SimpleFeature> adjacentWater) throws IOException;
+	
+	public abstract Coordinate chooseNext(LineString stem, List<SimpleFeature> adjacentWater) throws IOException;
 	
 	private List<SimpleFeature> getAdjacentWater(SimpleFeature nonWaterEdge, List<SimpleFeature> edgesTouchingConfluence) throws IOException {
 		List<SimpleFeature> edgesToIterate = new ArrayList<SimpleFeature>();
@@ -171,7 +192,7 @@ public abstract class RidgeGrower {
 		return bestEdge;
 	}
 	
-
+	
 	/**
 	 * determines if a coordinate is a valid member of a ridge line.
 	 * @param coord
@@ -190,10 +211,10 @@ public abstract class RidgeGrower {
 			}
 		}
 		
-		//boolean isTouchingWater = water.isTouchingWater(coord);
-		//if (isTouchingWater) {
-		//	return false;
-		//}
+		boolean isTouchingWater = water.isTouchingWater(coord);
+		if (isTouchingWater) {
+			return false;
+		}
 		
 		/*
 		//if the coordinate touches any adjacent water feature, disallow it.
@@ -241,6 +262,16 @@ public abstract class RidgeGrower {
 	 */
 	protected boolean definatelyHigherWithinUncertainty(Coordinate a, Coordinate b) {
 		return a.getZ() - UNCERTAINTY_Z > b.getZ() + UNCERTAINTY_Z;
+	}
+	
+	/**
+	 * returns true if a is definately higher than b (within uncertainty)
+	 * @param a
+	 * @param b
+	 * @return
+	 */
+	protected boolean definatelyHigherOrSameWithinUncertainty(Coordinate a, Coordinate b) {
+		return a.getZ() - UNCERTAINTY_Z >= b.getZ() + UNCERTAINTY_Z;
 	}
 	
 	/**

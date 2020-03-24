@@ -86,9 +86,10 @@ import ca.bc.gov.catchment.algorithms.NearestNeighbour3DMaker;
 import ca.bc.gov.catchment.algorithms.RidgeCleaner;
 import ca.bc.gov.catchment.algorithms.RidgeGrower;
 import ca.bc.gov.catchment.algorithms.DeadEndPreventerRidgeGrower;
+import ca.bc.gov.catchment.algorithms.HybridRidgeGrower;
 import ca.bc.gov.catchment.algorithms.LookAheadRidgeGrower;
 import ca.bc.gov.catchment.algorithms.MedialAxisRidgeGrower;
-import ca.bc.gov.catchment.algorithms.HybridRidgeGrower;
+import ca.bc.gov.catchment.algorithms.HybridRidgeGrowerOld;
 import ca.bc.gov.catchment.fitness.AvgElevationLengthPenaltySectionFitness;
 import ca.bc.gov.catchment.fitness.AvgElevationSectionFitness;
 import ca.bc.gov.catchment.fitness.ElevationJunctionFitness;
@@ -308,18 +309,15 @@ public class GrowCatchments {
 			water = new Water(fastWaterFeatureSource);
 			tinEdges = new TinEdges(tinEdgesFeatureSource, bufferedBboxFilter);			
 			
-			//grow ridges.  note: not all ridges will be complete
-			RidgeGrower ridgeGrower = new MedialAxisRidgeGrower(water, tinEdges, 1);
+			//grow ridges.
+			//RidgeGrower ridgeGrower = new MedialAxisRidgeGrower(water, tinEdges);
+			RidgeGrower ridgeGrower = new HybridRidgeGrower(water, tinEdges);
 			SimpleFeatureCollection ridges = ridgeGrower.growRidges();
 			
 			System.out.println("done. grew "+ridges.size()+" ridges.");
 			ridges = SpatialUtils.renameFeatureType(ridges, outTable);
 			
-			//clean ridges
-			System.out.println("cleaning ridges...");
-			RidgeCleaner ridgeCleaner = new RidgeCleaner(ridges, water);
-			//ridges = ridgeCleaner.doAllCleaning();
-			
+		
 			//identify junctions
 			SpatialIndexFeatureCollection fc = new SpatialIndexFeatureCollection(ridges);
 			SpatialIndexFeatureSource fs = new SpatialIndexFeatureSource(fc);

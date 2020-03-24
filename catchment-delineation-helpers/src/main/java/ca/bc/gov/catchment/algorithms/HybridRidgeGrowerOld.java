@@ -28,16 +28,16 @@ import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchment.utils.SpatialUtils;
 import ca.bc.gov.catchment.water.Water;
 
-public class LookAheadRidgeGrower extends RidgeGrower {
+public class HybridRidgeGrowerOld extends RidgeGrower {
 	
-	private static final int MAX_NUM_POINTS = 500;
+	private static final int MAX_NUM_POINTS = 1000;
 	
 	private Comparator<Coordinate> elevationComparator;
 	private int nextFid;
 	private SimpleFeatureType ridgeFeatureType;
 	private int lookAhead;
 	
-	public LookAheadRidgeGrower(Water water,
+	public HybridRidgeGrowerOld(Water water,
 			TinEdges tinEdges, 
 			int lookAhead) {
 		super(water, tinEdges);
@@ -114,6 +114,7 @@ public class LookAheadRidgeGrower extends RidgeGrower {
 			if (nextCoord == null ||ridge.getNumPoints() > MAX_NUM_POINTS) {
 				break;
 			}
+			//System.out.println("chose:" +nextCoord.getZ()+" dist:"+water.getDistanceToNearestWater(nextCoord));
 			
 			//extend the ridge with the new coordinate
 			List<Coordinate> existingCoords = SpatialUtils.toCoordinateList(ridge.getCoordinates());
@@ -126,19 +127,17 @@ public class LookAheadRidgeGrower extends RidgeGrower {
 		return ridge;
 	}
 	
-	@Override
 	public boolean canChooseNext(LineString stem, List<SimpleFeature> adjacentWater) throws IOException {
 		List<LineString> growthPossibilities = growthPossibilities(stem, adjacentWater, true, lookAhead);
 		return growthPossibilities.size() > 0;
 	}
 	
-	@Override
 	public Coordinate chooseNext(LineString stem, List<SimpleFeature> adjacentWater) throws IOException {
 		
 		Coordinate nextCoord = null;
 		
 		List<LineString> growthPossibilities = growthPossibilities(stem, adjacentWater, true, lookAhead);
-		LineString bestGrowthPossibility = pickBestGrowthPossibility(growthPossibilities);
+		LineString bestGrowthPossibility = pickBestGrowthPossibility(stem, growthPossibilities);
 		
 		int nextCoordIndex = stem.getNumPoints();
 		if (bestGrowthPossibility != null && nextCoordIndex < bestGrowthPossibility.getNumPoints()) {
@@ -167,19 +166,13 @@ public class LookAheadRidgeGrower extends RidgeGrower {
 		Coordinate leadingCoord = stem.getCoordinateN(stem.getNumPoints()-1);
 		List<Coordinate> nextCoordsToConsider = tinEdges.getConnectedCoordinates(leadingCoord);
 		nextCoordsToConsider.sort(elevationComparator);
-		
-		String s = "";
-		for(Coordinate c : nextCoordsToConsider) {
-			s += " "+c.getZ();
-		}
-		
+				
 		List<LineString> allExtensions = new ArrayList<LineString>();
 
 		for (Coordinate ext : nextCoordsToConsider) {
 			boolean isValid = isCoordValid(ext, stemCoords, adjacentWater);
-			//boolean isHigher = couldBeHigherOrSameWithinUncertainty(ext, leadingCoord);
-			boolean isHigher = definatelyHigherOrSameWithinUncertainty(ext, leadingCoord);
-			if (!isValid || !isHigher) {
+			//boolean isHigher = isHigherWithinUncertainty(ext, leadingCoord);
+			if (!isValid) {
 				continue;
 			}
 
@@ -190,9 +183,12 @@ public class LookAheadRidgeGrower extends RidgeGrower {
 			}
 			if (!allExtensions.contains(extendedStem)) {
 				allExtensions.add(extendedStem);
-			}			
+			}
+			
 			
 		}
+		
+		
 		return allExtensions;
 
 	}
@@ -212,35 +208,70 @@ public class LookAheadRidgeGrower extends RidgeGrower {
 	}
 	
 	
-	private LineString pickBestGrowthPossibility(List<LineString> lookAheads) {
+	private LineString pickBestGrowthPossibility(final LineString stem, List<LineString> lookAheads) {
+		final Coordinate leadingCoord = stem.getCoordinateN(stem.getNumPoints()-1);
+		final int indexOfExtensionFirstCoord = stem.getNumPoints();
 		if (lookAheads == null || lookAheads.size() == 0) {
 			return null;
 		}
 		
-		//sort by line length first, then secondary sort by elevation of last coordinate
-		final AvgElevationSectionFitness sectionFitness = new AvgElevationSectionFitness(tinEdges);
+		//sort by:
+		// "is dead end" (non-dead end gets higher rank)
+		// elevation of first coordinate in extension
+		// distance to medial axis of first coord in extension
 		Comparator<LineString> lookAheadComparator = new Comparator<LineString>() {
 			public int compare(LineString s1, LineString s2) {
-				if (s1.getNumPoints() == s2.getNumPoints()) {
-					try {
-						double fit1 = sectionFitness.fitness(s1);
-						double fit2 = sectionFitness.fitness(s2);
-						return fit1 > fit2 ? -1 
-								 : fit1 < fit2 ? 1 
-							     : 0;
-					} 
-					catch(IOException e) {
-						return 0;
+				try {
+					boolean isDeadEnd1 = s1.getNumPoints() - stem.getNumPoints() <= 1;
+					boolean isDeadEnd2 = s2.getNumPoints() - stem.getNumPoints() <= 1;
+					//one line is dead, the other isn't
+					if (lookAhead > 1 && isDeadEnd1 != isDeadEnd2) {
+						int result = isDeadEnd1 ? 1 : -1; //higher rank to the non-dead end
+						return result;
 					}
+					else { //both dead, or both not dead
+						Coordinate c1 = s1.getCoordinateN(indexOfExtensionFirstCoord);
+						Coordinate c2 = s2.getCoordinateN(indexOfExtensionFirstCoord);
+						double z1 = c1.getZ();
+						double z2 = c2.getZ();
+						boolean isHigherThanLeading1 = definatelyHigherWithinUncertainty(c1, leadingCoord);
+						boolean isHigherThanLeading2 = definatelyHigherWithinUncertainty(c2, leadingCoord);;
+						if (isHigherThanLeading1 != isHigherThanLeading2) { //only one of the points is higher than the leading point
+							int result = isHigherThanLeading1 ? -1 : 1; //higher rank to the point that is higher than the leading coord
+							return result;
+						}
+						else { //both higher than leading coord, or both not higher than leading coord
+							if (isHigherThanLeading1) { //if both higher than leading coord..
+								int result = z1 > z2 ? -1 : 1;
+								return result;
+							}
+							else { //if both lower than or same height as leading coord...
+								double distDiff1 = water.getDistDiffBetweenTwoNearestWater(c1);
+								double distDiff2 = water.getDistDiffBetweenTwoNearestWater(c2);
+								int result = distDiff1 > distDiff2 ? 1 //higher rank when distDiff is small (ie when closer to medial axis)
+									 : distDiff1 < distDiff2 ? -1 
+								     : 0;
+								return result;
+							}
+						}
+					}	
 				}
-				else {
-					return s1.getNumPoints() > s2.getNumPoints() ? -1 
-							 : s1.getNumPoints() < s2.getNumPoints() ? 1 
-						     : 0; 
+				catch(Exception e) {
+					return 0;
 				}
 			}
+			
 		};
 		lookAheads.sort(lookAheadComparator);
+		
+		/*
+		System.out.println("next choices (sorted):");
+		for (LineString s :lookAheads) {
+			Coordinate c = s.getCoordinateN(indexOfExtensionFirstCoord);
+			System.out.println(" "+c.getZ()+" dist:"+water.getDistDiffBetweenTwoNearestWater(c));
+		}
+		*/
+		
 		return lookAheads.get(0);
 	}
 

@@ -85,6 +85,15 @@ public class SimpleRidgeGrower extends RidgeGrower {
 		return ridgeFeature;
 	}
 	
+	
+	public boolean canChooseNext(LineString stem, List<SimpleFeature> adjacentWater) throws IOException {
+		throw new IllegalStateException("not implemented");
+	}
+	
+	public Coordinate chooseNext(LineString stem, List<SimpleFeature> adjacentWater) throws IOException {
+		throw new IllegalStateException("not implemented");
+	}
+	
 	/**
 	 * a recursive function which chooses the best ridge after testing multiple possibilities
 	 * @param stemCoords a list of coordinates which represent the start of the ridge.  the first

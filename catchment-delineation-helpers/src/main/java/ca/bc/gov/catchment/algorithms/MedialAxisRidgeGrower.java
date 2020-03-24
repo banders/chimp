@@ -31,25 +31,13 @@ import ca.bc.gov.catchment.water.Water;
 
 public class MedialAxisRidgeGrower extends RidgeGrower {
 	
-	private static final int MAX_NUM_POINTS = 1000;
-	
 	private int nextFid;
 	private SimpleFeatureType ridgeFeatureType;
 	
 	public MedialAxisRidgeGrower(Water water,
-			TinEdges tinEdges, 
-			int lookAhead) {
+			TinEdges tinEdges) {
 		super(water, tinEdges);
 		this.nextFid = 0;
-		
-		//create a feature type for the ridge features that are created
-		this.ridgeFeatureType = null;
-		try {
-			ridgeFeatureType = DataUtilities.createType(RIDGE_TABLE_NAME, "geometry:LineString");
-		} catch (SchemaException e1) {
-			System.out.println("Unable to create feature type "+RIDGE_TABLE_NAME);
-			System.exit(1);
-		}
 		
 		SimpleFeatureCollection fc;
 		try {
@@ -80,7 +68,7 @@ public class MedialAxisRidgeGrower extends RidgeGrower {
 		
 		LineString ridgeLineString = growBestRidgeImpl(seedEdge, adjacentWater);	
 		
-		SimpleFeature ridgeFeature = SpatialUtils.geomToFeature(ridgeLineString, ridgeFeatureType, (nextFid)+"");
+		SimpleFeature ridgeFeature = SpatialUtils.geomToFeature(ridgeLineString, getRidgeFeatureType(), (nextFid)+"");
 		nextFid += 1;
 		return ridgeFeature;
 	}
@@ -101,8 +89,6 @@ public class MedialAxisRidgeGrower extends RidgeGrower {
 			throw new IllegalArgumentException("'adjancentWater' must contain exactly two coordinates");
 		}
 		
-		List<Coordinate> consideredCoords = new ArrayList<Coordinate>();
-		
 		LineString ridge = stem;		
 		while(true) {
 			
@@ -110,7 +96,7 @@ public class MedialAxisRidgeGrower extends RidgeGrower {
 			//if (loopedBackOnSelf) {
 			//	System.out.println("end on loopback. ridge len: "+ridge.getNumPoints());
 			//}
-			Coordinate nextCoord = chooseNext(ridge, adjacentWater, consideredCoords);
+			Coordinate nextCoord = chooseNext(ridge, adjacentWater);
 			
 			boolean isTouchingWater = water.isTouchingWater(nextCoord);
 			
@@ -133,9 +119,14 @@ public class MedialAxisRidgeGrower extends RidgeGrower {
 		return ridge;
 	}
 	
-	private Coordinate chooseNext(LineString stem, List<SimpleFeature> adjacentWater, List<Coordinate> consideredCoords) throws IOException {
+	public boolean canChooseNext(LineString stem, List<SimpleFeature> adjacentWater) {
+		return true;
+	}
+	
+	public Coordinate chooseNext(LineString stem, List<SimpleFeature> adjacentWater) throws IOException {
 		
 		Coordinate nextCoord = null;
+		Coordinate leadingCoord = stem.getCoordinateN(stem.getNumPoints()-1);
 		
 		List<Coordinate> growthPossibilities = getPossibleNextCoords(stem, adjacentWater, true);
 		if (growthPossibilities.size() == 0) {
@@ -146,28 +137,12 @@ public class MedialAxisRidgeGrower extends RidgeGrower {
 		Comparator<Coordinate> uphillComparator = getUphillComparator(stem);
 		growthPossibilities.sort(uphillComparator);
 		nextCoord = growthPossibilities.get(0);
-		/*
-		for(Coordinate c: growthPossibilities) {
-			boolean alreadyConsidered = consideredCoords.contains(c);
-			if (!alreadyConsidered) {
-				nextCoord = c;
-				break;
-			}
-		}
-		*/
 		
-		//consideredCoords.addAll(growthPossibilities);
-
-		if (nextCoord == null) { // || !isMovingAway(stem, nextCoord)
+		boolean isGettingCloserToWater = water.getDistanceToNearestWater(nextCoord) < water.getDistanceToNearestWater(leadingCoord);
+		if (isGettingCloserToWater) { 
 			Comparator<Coordinate> downhillComparator = getDownhillComparator(stem);
-			//nextCoord = null;
 			growthPossibilities.sort(downhillComparator);
-			nextCoord = growthPossibilities.get(0);
-			//System.out.println("possibilities:");
-			//for(Coordinate c : growthPossibilities) {
-			//	System.out.println(c+", dist:"+water.getDistanceToNearestWater(c));
-			//}
-			
+			nextCoord = growthPossibilities.get(0);		
 		}
 		
 		return nextCoord;
@@ -292,6 +267,30 @@ public class MedialAxisRidgeGrower extends RidgeGrower {
 		return comparator;		
 	}
 	
-	
+	/**
+	 * determines if a coordinate is a valid member of a ridge line.
+	 * @param coord
+	 * @param ridgeCoords
+	 * @param adjacentWater
+	 * @return
+	 * @throws IOException 
+	 */
+	protected boolean isCoordValid(Coordinate coord, List<Coordinate> ridgeCoords, List<SimpleFeature> adjacentWater) throws IOException {
+
+		//is the coordinate already part of the line?  if so, disallow it again.  (no loops permitted)
+		//compare only on X and Y (not on Z)
+		for(Coordinate rc : ridgeCoords) {
+			if (rc.getX() == coord.getX() && rc.getY() == coord.getY()) {
+				return false;
+			}
+		}
+		
+		//it's okay to touch water at a confluence, but nowhere else
+		if (water.isTouchingWater(coord) && !water.isConfluence(coord)) {
+			return false;
+		}
+						
+		return true;
+	}
 
 }

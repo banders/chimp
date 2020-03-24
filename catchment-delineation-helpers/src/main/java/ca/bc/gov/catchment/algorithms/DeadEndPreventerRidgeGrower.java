@@ -191,6 +191,14 @@ public class DeadEndPreventerRidgeGrower extends RidgeGrower {
 		
 		return ridge;
 	}
+	
+	public boolean canChooseNext(LineString stem, List<SimpleFeature> adjacentWater) throws IOException {
+		throw new IllegalStateException("not implemented");
+	}
+	
+	public Coordinate chooseNext(LineString stem, List<SimpleFeature> adjacentWater) throws IOException {
+		throw new IllegalStateException("not implemented");
+	}
 		
 	/**
 	 * grows the given ridge by the given 'firstCoord' coordinate if possible.  then attempts to grow by N-1 additional coords.

@@ -22,6 +22,7 @@ import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.geom.Polygon;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.feature.type.AttributeDescriptor;
@@ -129,6 +130,7 @@ public class SpatialUtils {
 		return featureCollection;
 	}
 	
+
 	public static SimpleFeatureCollection coordListToSimpleFeatureCollection(List<Coordinate> coordinates, SimpleFeatureType featureType) {
 		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
 		DefaultFeatureCollection featureCollection = new DefaultFeatureCollection();
@@ -294,4 +296,5 @@ public class SpatialUtils {
 		}
 		return true;
 	}
+	
 }

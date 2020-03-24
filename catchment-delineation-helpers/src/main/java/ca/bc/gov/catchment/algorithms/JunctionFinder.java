@@ -42,6 +42,20 @@ public class JunctionFinder {
 		return allJunctions;
 	}
 	
+	public List<Coordinate> getJunctions(LineString g1, LineString g2) {
+		List<Coordinate> junctions1 = getJunctionsOneWay(g1, g2);
+		List<Coordinate> junctions2 = getJunctionsOneWay(g2, g1);
+		
+		List<Coordinate> allJunctions = new ArrayList<Coordinate>();
+		allJunctions.addAll(junctions1);
+		for (Coordinate c : junctions2) {
+			if (!allJunctions.contains(c)) {
+				allJunctions.add(c);
+			}
+		}
+		return allJunctions;
+	}
+	
 	public Coordinate getJunctionOld(LineString g1, LineString g2) {
 		LineSegmenter segmenter = new LineSegmenter();
 		List<LineString> s2 = segmenter.segment(g2);

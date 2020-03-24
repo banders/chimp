@@ -17,6 +17,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.geom.Polygon;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.Filter;
@@ -117,6 +118,15 @@ public class Water {
 		waterIt.close();
 		
 		return confluences;
+	}
+	
+	public boolean containsWater(Polygon poly) throws IOException {
+		Filter filter = filterFactory.within(
+				filterFactory.property(waterGeometryPropertyName), 
+				filterFactory.literal(poly));
+		SimpleFeatureCollection matches = waterFeatures.getFeatures(filter);
+		boolean contains = matches.size() > 0;
+		return contains;
 	}
 	
 	/**

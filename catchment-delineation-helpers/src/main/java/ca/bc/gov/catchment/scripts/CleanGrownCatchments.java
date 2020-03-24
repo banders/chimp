@@ -88,7 +88,7 @@ import ca.bc.gov.catchment.algorithms.RidgeGrower;
 import ca.bc.gov.catchment.algorithms.DeadEndPreventerRidgeGrower;
 import ca.bc.gov.catchment.algorithms.LookAheadRidgeGrower;
 import ca.bc.gov.catchment.algorithms.MedialAxisRidgeGrower;
-import ca.bc.gov.catchment.algorithms.HybridRidgeGrower;
+import ca.bc.gov.catchment.algorithms.HybridRidgeGrowerOld;
 import ca.bc.gov.catchment.fitness.AvgElevationLengthPenaltySectionFitness;
 import ca.bc.gov.catchment.fitness.AvgElevationSectionFitness;
 import ca.bc.gov.catchment.fitness.ElevationJunctionFitness;
@@ -131,6 +131,7 @@ public class CleanGrownCatchments {
 	private static final String GEOPKG_ID = "geopkg";
 
 	private static final String JUNCTIONS_TABLE = "junctions";
+	private static final String CATCHMENT_POLYS_TABLE = "catchment_polys";
 	private static TinEdges tinEdges;
 	private static Water water;
 	private static SimpleFeatureSource waterFeatureSource;
@@ -310,10 +311,11 @@ public class CleanGrownCatchments {
 			
 			//clean
 			System.out.println("cleaning catchment lines...");
-			RidgeCleaner ridgeCleaner = new RidgeCleaner(catchmentLinesFc, water);
+			RidgeCleaner ridgeCleaner = new RidgeCleaner(catchmentLinesFc, water, CATCHMENT_POLYS_TABLE);
 			catchmentLinesFc = ridgeCleaner.doAllCleaning();
 			
 			//identify junctions
+			System.out.println("identifying junctions...");
 			SpatialIndexFeatureCollection fc = new SpatialIndexFeatureCollection(catchmentLinesFc);
 			SpatialIndexFeatureSource fs = new SpatialIndexFeatureSource(fc);
 			CatchmentLines catchmentLines = new CatchmentLines(fs);
@@ -321,14 +323,11 @@ public class CleanGrownCatchments {
 			SimpleFeatureType junctionFeatureType = DataUtilities.createType(JUNCTIONS_TABLE, "geometry:Point:srid="+srid);
 			SimpleFeatureCollection junctions = SpatialUtils.coordListToSimpleFeatureCollection(junctionCoords, junctionFeatureType);
 			
-			//working junctions
-			SimpleFeatureCollection workingJunctions = ridgeCleaner.getWorkingJunctions();
 			
 			//save catchment lines			
 			System.out.println("saving...");
 			SaveUtils.saveToGeoPackage(outputFilename, catchmentLinesFc, true);
 			SaveUtils.saveToGeoPackage(outputFilename, junctions, true);
-			SaveUtils.saveToGeoPackage(outputFilename, workingJunctions, true);
 			
 		}
 		catch(IOException e) {
