@@ -558,7 +558,8 @@ def main():
         print("Failure.  Pipeline execution stopped early.")
         exit(1);
 
-    data_bbox = "1680546.3,501755.5,1682284.9,503082.5" #small
+    data_bbox = "1677377.3,499514.1,1682493.3,503349.0" #test
+    #data_bbox = "1680546.3,501755.5,1682284.9,503082.5" #small
     #data_bbox = "1673235.6,499766.7,1679748.7,504957.6" #medium
     data_bbox_crs = "EPSG:3005"
     print("NOTE: custom bbox: {}".format(data_bbox))

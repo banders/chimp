@@ -291,6 +291,8 @@ def main():
   voronoi_input_txt_filename_with_path = os.path.join(run_out_dir, voronoi_input_txt_filename)
   voronoi_input_gpkg_filename_with_path = water_feature_segmented_filename_with_path
   
+  """
+  
   if args.start_step <= 2 and 2 <= args.last_step:
     print("")  
     print("---------------------------------------------------")
@@ -392,7 +394,7 @@ def main():
         print("Failure.  Pipeline execution stopped early.")
         exit(1);
 
-    
+  """
 
 
   #create breaklines
@@ -458,6 +460,29 @@ def main():
       print ("No elevation data provided.  Unable to create point cloud.")
       exit(1)
 
+    if run_config["options"]["resample_elevation_distance"]:
+
+      resampled_elevation_gpkg_filename = "{}-{}.elevation-resampled-{}.gpkg".format(test_id, run_id, run_config["options"]["resample_elevation_distance"])
+      resampled_elevation_gpkg_filename_with_path = os.path.join(run_out_dir, resampled_elevation_gpkg_filename)
+      original_elevation_file_with_path = elevation_file_with_path
+      original_elevation_point_table = elevation_point_table
+      elevation_file_with_path = resampled_elevation_gpkg_filename_with_path
+      elevation_point_table = "points"
+
+      if not os.path.exists(resampled_elevation_gpkg_filename_with_path):
+        print("Resampling elevation points to {} m resolution".format(run_config["options"]["resample_elevation_distance"]))
+        cmd7a = "{} -cp {} ca.bc.gov.catchment.scripts.ResampleElevationPoints -i {} -inTable {} -o {} -outTable {} -resolution {} {}".format(settings.get("java_path"), settings.get("java_classpath"), original_elevation_file_with_path, original_elevation_point_table, elevation_file_with_path, elevation_point_table, run_config["options"]["resample_elevation_distance"], point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_PARTIAL_3D, bbox)
+        resp = call(cmd7a.split())
+        if resp != 0:
+          print("Failure.  Pipeline execution stopped early.")
+          exit(1);
+      else:
+        print("Elevation points have already been resampled")
+
+    else:
+      print("Using source elevation data at its original resolution")
+
+
     if not os.path.exists(point_cloud_gpkg_filename_with_path):
 
       #add elevation points
@@ -477,6 +502,7 @@ def main():
         exit(1);
 
       #add initial catchments
+      """
       if os.path.exists(initial_catchments_simp_dens_gpkg_filename_with_path):
         print("Adding 2D vertices from initial catchments to point cloud")
         cmd6b = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), initial_catchments_simp_dens_gpkg_filename_with_path, CATCHMENT_LINES_TABLE, "C", point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_PARTIAL_3D, bbox)
@@ -484,7 +510,8 @@ def main():
         if resp != 0:
           print("Failure.  Pipeline execution stopped early.")
           exit(1);
-  
+      """
+
       #add breaklines
       print("Adding break lines to point cloud")
       cmd6b = "{} -cp {} ca.bc.gov.catchment.scripts.BuildPointCloud -i {} -inTable {} -inTypeCode {} -o {} -outTable {} {}".format(settings.get("java_path"), settings.get("java_classpath"), breaklines_gpkg_filename_with_path, BREAKLINES_TABLE, "B", point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_PARTIAL_3D, bbox)
@@ -500,12 +527,14 @@ def main():
       print("Failure.  Pipeline execution stopped early.")
       exit(1);
 
+    """
     print("Adjusting point cloud elevation values") 
     cmd7 = "{} -cp {} -Xms2g ca.bc.gov.catchment.scripts.AdjustPointCloud -i {} -inTable {} -o {} -outTable {} -waterFile {} -waterTable {}".format(settings.get("java_path"), settings.get("java_classpath"), point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_FULL_3D, point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_FULL_3D_ADJUSTED, water_feature_segmented_filename_with_path, WATER_FEATURES_TABLE)
     resp = call(cmd7.split())
     if resp != 0:
       print("Failure.  Pipeline execution stopped early.")
       exit(1);
+    """
 
     print("Converting breaklines to 3D")
     cmd8 = "{} -cp {} ca.bc.gov.catchment.scripts.AssignElevation -i {} -inTable {} -pointCloud3DFile {} -inPointCloud3DTable {} -o {} -outTable {} -searchRadius {} {}".format(settings.get("java_path"), settings.get("java_classpath"), breaklines_gpkg_filename_with_path, BREAKLINES_TABLE, point_cloud_gpkg_filename_with_path, POINT_CLOUD_TABLE_FINAL, breaklines_gpkg_filename_with_path, BREAKLINES_TABLE_3D, touches_distance_tolerance, bbox)
@@ -557,7 +586,7 @@ def main():
     print("---------------------------------------------------")
     print("")  
 
-    #data_bbox = "1678564.3,503203.3,1679721.0,504070.3" #test case 1
+    #data_bbox = "1681352.8,507263.1,1681642.0,507479.9" #test case 1
     #data_bbox = "1683985.5,504660.8,1684098.9,504759.4" #test case 2
     #data_bbox = "1680546.3,501755.5,1682284.9,503082.5" #small
     #data_bbox = "1673235.6,499766.7,1679748.7,504957.6" #medium

@@ -27,8 +27,10 @@ public class ComputeAdjacentSlopes extends CLItoAlgorithmBridge {
 	}
 
 	@Override
-	public SimpleFeatureCollection transformBatch(SimpleFeatureCollection inTinEdges) {
+	public SimpleFeatureCollection transformBatch(SimpleFeatureSource inFeatureSource) throws IOException {
 
+		SimpleFeatureCollection inTinEdges = applyDefaultFilter(inFeatureSource);
+		
 		//load values of extra command line options
 		String tinPolysFilename = getOptionValue("tinPolysFilename");
 		String tinPolysTable = getOptionValue("tinPolysTable");

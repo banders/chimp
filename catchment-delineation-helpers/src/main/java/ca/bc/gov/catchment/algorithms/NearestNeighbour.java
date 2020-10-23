@@ -34,7 +34,7 @@ public class NearestNeighbour {
 		this(features, 200);
 	}
 	
-	public NearestNeighbour(SimpleFeatureSource features, int initialSearchRadius) {
+	public NearestNeighbour(SimpleFeatureSource features, double initialSearchRadius) {
 		this.features = features;
 		this.initialSearchRadiusMetres = initialSearchRadius;
 		

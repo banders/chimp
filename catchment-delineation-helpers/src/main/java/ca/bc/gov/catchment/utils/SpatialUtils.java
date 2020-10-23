@@ -118,7 +118,7 @@ public class SpatialUtils {
 	
 	public static SimpleFeatureCollection geomCollectionToSimpleFeatureCollection(Collection<Geometry> geometries, SimpleFeatureType featureType) {
 		
-		DefaultFeatureCollection featureCollection = new DefaultFeatureCollection();
+		DefaultFeatureCollection featureCollection = new DefaultFeatureCollection(null, featureType);		
 		
 		int nextFid = 0;
 		for(Geometry geometry : geometries) {
@@ -133,7 +133,7 @@ public class SpatialUtils {
 
 	public static SimpleFeatureCollection coordListToSimpleFeatureCollection(List<Coordinate> coordinates, SimpleFeatureType featureType) {
 		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
-		DefaultFeatureCollection featureCollection = new DefaultFeatureCollection();
+		DefaultFeatureCollection featureCollection = new DefaultFeatureCollection(null, featureType);
 		
 		int nextFid = 0;
 		for(Coordinate c : coordinates) {
@@ -167,6 +167,11 @@ public class SpatialUtils {
 		coords.add(c1);
 		coords.add(c2);
 		return toLineString(coords);
+	}
+	
+	public static Point toPoint(Coordinate coord) {
+		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+		return geometryFactory.createPoint(coord);
 	}
 	
 	public static LineString toLineString(Coordinate[] in) {
@@ -234,7 +239,10 @@ public class SpatialUtils {
 	}
 	
 	public static SimpleFeatureCollection renameFeatureType(SimpleFeatureCollection fc, String tableName) throws SchemaException {
-		SimpleFeatureType originalFeatureType = fc.getSchema();		
+		SimpleFeatureType originalFeatureType = fc.getSchema();
+		if (originalFeatureType == null) {
+			throw new NullPointerException("feature collection must have a non-null schema");
+		}
 		String spec = DataUtilities.encodeType(originalFeatureType);
 		SimpleFeatureType newFeatureType = DataUtilities.createType(tableName, spec);
 				

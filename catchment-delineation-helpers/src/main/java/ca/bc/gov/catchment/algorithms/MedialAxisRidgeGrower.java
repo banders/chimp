@@ -197,23 +197,6 @@ public class MedialAxisRidgeGrower extends RidgeGrower {
 		return SpatialUtils.toLineString(allCoords);
 	}
 	
-	/**
-	 * determines if a proposed next coordinate gets farther from or closer to the start of the line
-	 * @param stem
-	 * @param nextCoord
-	 * @return
-	 */
-	private boolean isMovingAway(LineString stem, Coordinate nextCoord) {
-		Coordinate start = stem.getCoordinateN(0);
-		Coordinate end = stem.getCoordinateN(stem.getNumPoints()-1);
-				
-		double dist1 = start.distance(end);
-		double dist2 = start.distance(nextCoord);
-		
-		boolean isMovingAway = dist2 > dist1;
-		return isMovingAway;
-	}
-	
 	private Comparator<Coordinate> getUphillComparator(final LineString stem) {
 		Comparator<Coordinate> comparator = new Comparator<Coordinate>() {
 			public int compare(Coordinate c1, Coordinate c2) {
@@ -232,9 +215,6 @@ public class MedialAxisRidgeGrower extends RidgeGrower {
 					     : 0;
 					return result;	
 				}
-
-				
-				
 							
 			}			
 		};

@@ -45,6 +45,11 @@ public class CatchmentLines {
 		this.filterFactory = CommonFactoryFinder.getFilterFactory2();
 		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
 		this.featureType = catchmentLines.getSchema();
+		
+		if (featureType == null) {
+			throw new IllegalArgumentException("catchment lines feature source must have a non-null schema");
+		}
+		
 		this.geometryPropertyName = featureType.getGeometryDescriptor().getLocalName();
 		
 		this.originalCatchmentLines = catchmentLines;

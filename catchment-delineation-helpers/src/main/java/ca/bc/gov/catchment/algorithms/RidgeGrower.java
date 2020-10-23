@@ -233,6 +233,22 @@ public abstract class RidgeGrower {
 		return true;
 	}
 	
+	/**
+	 * determines if a proposed next coordinate gets farther from or closer to the start of the line
+	 * @param stem
+	 * @param nextCoord
+	 * @return
+	 */
+	protected boolean isMovingAway(LineString stem, Coordinate nextCoord) {
+		Coordinate start = stem.getCoordinateN(0);
+		Coordinate end = stem.getCoordinateN(stem.getNumPoints()-1);
+				
+		double dist1 = start.distance(end);
+		double dist2 = start.distance(nextCoord);
+		
+		boolean isMovingAway = dist2 > dist1;
+		return isMovingAway;
+	}
 	
 	/**
 	 * returns true if a could be higher than b, or the same as b (within uncertainty)

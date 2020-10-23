@@ -35,8 +35,10 @@ public class AdjustPointCloud extends CLItoAlgorithmBridge {
 	}
 
 	@Override
-	public SimpleFeatureCollection transformBatch(SimpleFeatureCollection inFeatures) {
+	public SimpleFeatureCollection transformBatch(SimpleFeatureSource inFeatureSource) throws IOException {
 				
+		SimpleFeatureCollection inFeatures = applyDefaultFilter(inFeatureSource);
+		
 		//load values of extra command line options
 		String waterFilename = this.getOptionValue("waterFile");
 		String waterTable = this.getOptionValue("waterTable");

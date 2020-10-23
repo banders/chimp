@@ -217,26 +217,37 @@ public class LookAheadRidgeGrower extends RidgeGrower {
 			return null;
 		}
 		
-		//sort by line length first, then secondary sort by elevation of last coordinate
+		//sort by:
+		//1. is moving away?
+		//2. line length
+		//3. elevation of last coordinate
 		final AvgElevationSectionFitness sectionFitness = new AvgElevationSectionFitness(tinEdges);
 		Comparator<LineString> lookAheadComparator = new Comparator<LineString>() {
 			public int compare(LineString s1, LineString s2) {
-				if (s1.getNumPoints() == s2.getNumPoints()) {
-					try {
-						double fit1 = sectionFitness.fitness(s1);
-						double fit2 = sectionFitness.fitness(s2);
-						return fit1 > fit2 ? -1 
-								 : fit1 < fit2 ? 1 
-							     : 0;
-					} 
-					catch(IOException e) {
-						return 0;
-					}
+				
+				boolean m1 = isMovingAway(s1, s1.getCoordinateN(s1.getNumPoints()-1));
+				boolean m2 = isMovingAway(s2, s2.getCoordinateN(s2.getNumPoints()-1));
+				if (m1 != m2) {
+					return m1 ? -1 : 1;
 				}
 				else {
-					return s1.getNumPoints() > s2.getNumPoints() ? -1 
-							 : s1.getNumPoints() < s2.getNumPoints() ? 1 
-						     : 0; 
+					if (s1.getNumPoints() == s2.getNumPoints()) {
+						try {
+							double fit1 = sectionFitness.fitness(s1);
+							double fit2 = sectionFitness.fitness(s2);
+							return fit1 > fit2 ? -1 
+									 : fit1 < fit2 ? 1 
+								     : 0;
+						} 
+						catch(IOException e) {
+							return 0;
+						}
+					}
+					else {
+						return s1.getNumPoints() > s2.getNumPoints() ? -1 
+								 : s1.getNumPoints() < s2.getNumPoints() ? 1 
+							     : 0; 
+					}
 				}
 			}
 		};

@@ -59,15 +59,19 @@ public class RidgeCleaner {
 		this.filterFactory = CommonFactoryFinder.getFilterFactory2();
 		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
 		this.ridgeFeatureType = ridges.getSchema();
+		
+		if (this.ridgeFeatureType == null) {
+			throw new IllegalArgumentException("input feature collection must have a non-null schema");
+		}
 		this.ridgeGeometryPropertyName = ridgeFeatureType.getGeometryDescriptor().getLocalName();
 		this.lineSegmenter = new LineSegmenter();
 
-		CoordinateReferenceSystem crs = inRidges.getSchema().getCoordinateReferenceSystem();
+		CoordinateReferenceSystem crs = ridgeFeatureType.getCoordinateReferenceSystem();
 		int srid = -1;
 		try {
 			srid = CRS.lookupEpsgCode(crs, true);
 		} catch (FactoryException e1) {
-			System.out.println("Unable to lookup SRID for feature type "+inRidges.getSchema().getTypeName());
+			System.out.println("Unable to lookup SRID for feature type "+ridgeFeatureType.getTypeName());
 			System.exit(1);
 		}
 		
@@ -621,9 +625,9 @@ public class RidgeCleaner {
 		List<LineString> lines = toLineStrings(keptPolys);
 		Collection<Geometry> geoms = new ArrayList<Geometry>();
 		geoms.addAll(lines);
-		
+				
 		//convert lines to features
-		SimpleFeatureCollection results = SpatialUtils.geomCollectionToSimpleFeatureCollection(geoms, inRidges.getSchema());
+		SimpleFeatureCollection results = SpatialUtils.geomCollectionToSimpleFeatureCollection(geoms, ridgeFeatureType);
 		
 		return results;		
 	}

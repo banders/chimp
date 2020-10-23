@@ -425,7 +425,7 @@ public class ImproveCatchments {
 					waterAnalyzer, 
 					sectionImprover, 
 					junctionImprover, 
-					6, //childrenPerGeneration
+					2, //childrenPerGeneration
 					100, //maxGenerations
 					true //stop early if no improvement
 					);

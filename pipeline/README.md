@@ -1,10 +1,22 @@
 # catchment delineation pipeline
 
-This is a python script which runs various tools from catchment-delineation-helpers
-and also the voronoi-catchments tool.  The output of each tool is fed into the input 
-of the next tool.  The specific set of tools to run is controlled via a run 
-configuration file.
+This python module includes:
+- a build pipeline script to prepare all inputs for the catchment delineation process, 
+  and then to run the catchment delineation process itself.
+- other utility tools to support the build pipeline
 
+
+## installation
+
+- create virtual environment
+- activate virtual environment
+- pip install -r requirements.txt
+- install gdal
+    windows:
+      - download gdal wheel package  (https://www.lfd.uci.edu/~gohlke/pythonlibs/#gdal)
+        and install into virtual environment:
+	  pipe install GDAL-X.Y.Z-cp38-none-win_XYZ.whl
+ 
 ## Setup
 
 * Rename settings.example.json to settings.json

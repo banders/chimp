@@ -93,12 +93,13 @@ public class HybridRidgeGrower extends RidgeGrower {
 	}
 	
 	public Coordinate chooseNext(LineString stem, List<SimpleFeature> adjacentWater) throws IOException {
-		//String s = primaryGrower.canChooseNext(stem, adjacentWater) ? "primary" : "secondary";
+		
 		RidgeGrower grower = 
 				primaryGrower.canChooseNext(stem, adjacentWater) ?
 						primaryGrower :
 						secondaryGrower;
 		Coordinate nextCoord = grower.chooseNext(stem, adjacentWater);
+		//String s = primaryGrower.canChooseNext(stem, adjacentWater) ? "primary" : "secondary";
 		//System.out.println(nextCoord+", "+s);
 		
 		return nextCoord;

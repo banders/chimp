@@ -25,11 +25,13 @@ public class NearestNeighbour3DMaker {
 	private int kNeighbours;
 	private NearestNeighbour nearestNeighbour;
 	private GeometryFactory geometryFactory;
+	private ElevationEstimator elevationEstimator;
 	
 	public NearestNeighbour3DMaker(SimpleFeatureSource features3D, int kNeighbours) {
 		this.kNeighbours = kNeighbours;
 		this.nearestNeighbour = new NearestNeighbour(features3D);		
 		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
+		this.elevationEstimator = new ElevationEstimator();
 	}
 	
 	public NearestNeighbour3DMaker(SimpleFeatureSource features3D, int kNeighbours, int searchRadius) {
@@ -73,7 +75,7 @@ public class NearestNeighbour3DMaker {
 			Coordinate coord3d = null;
 			if (Double.isNaN(originalCoord.getZ())) {
 				List<Coordinate> nearbyCoords = nearestNeighbour.getKNearestCoords(originalCoord, kNeighbours);
-				double z = estimateElevationFromNearbyPoints(originalCoord, nearbyCoords);
+				double z = elevationEstimator.estimateElevationFromNearbyPoints(originalCoord, nearbyCoords);
 				coord3d = new Coordinate(originalCoord.getX(), originalCoord.getY(), z);
 			}
 			else {
@@ -94,36 +96,5 @@ public class NearestNeighbour3DMaker {
 		throw new IllegalArgumentException(g.getGeometryType() + " geometries are not currently supported.");
 	}
 	
-	private double estimateElevationFromNearbyPoints(Coordinate c, List<Coordinate> nearbyCoords) {
-		Point p = geometryFactory.createPoint(c);
-		
-		//get distance sum of nearest points
-		double denom = 0;
-		for(Coordinate nearbyCoord : nearbyCoords) {
-			Point nearbyPoint = geometryFactory.createPoint(nearbyCoord);
-			denom += 1/nearbyPoint.distance(p);
-		}
-		
-		//calc weighted average elevation
-		double weightedAverageElevation = 0;
-		for(Coordinate nearbyCoord : nearbyCoords) {
-			Point nearbyPoint = geometryFactory.createPoint(nearbyCoord);
-			double z = nearbyCoord.getZ();
-			double dist = nearbyPoint.distance(p);
-			
-			//if a nearbyPoint is exactly on top of the given point, don't attempt to find a 
-			//weighted average of multiple nearby points.  instead just use the value from the single 
-			//point at the same location
-			if (dist == 0) {
-				return z;
-			}
-			double numerator = z/dist;
-			double thisVal = numerator/denom;
-			//System.out.println(" elevation:"+z+", dist:"+dist);
-			weightedAverageElevation += thisVal;
-		}
-		
-		return weightedAverageElevation;
-	}
 	
 }

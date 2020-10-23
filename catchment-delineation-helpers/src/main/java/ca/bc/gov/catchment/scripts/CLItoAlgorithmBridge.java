@@ -118,21 +118,14 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 		}
 		loadDefaultOptionValues();
 			
+		System.out.println("Loading feature source");
+		
 		//load spatial data from input file
 		inFeatureSource = loadFeautreSource(inFilename, inTable);
 		
-		//filter out unwanted features
-		SimpleFeatureCollection inFeatures = null;
-		try {
-			inFeatures = filter(inFeatureSource);
-		} 
-		catch (IOException e) {
-			System.out.println("Unable to load input features from:"+inFilename+" (table '"+inTable+"')");
-			e.printStackTrace();
-		}
-		
+				
 		//transform the input into the output
-		transform(inFeatures);
+		transform(inFeatureSource);
 		
 	}
 	
@@ -254,6 +247,7 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 			System.exit(1);
 		}
 		
+		/*
 		try {
 			SpatialIndexFeatureCollection fastInFeatureCollection = new SpatialIndexFeatureCollection(featureSource.getFeatures());
 			featureSource = new SpatialIndexFeatureSource(fastInFeatureCollection);
@@ -263,6 +257,7 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 			e.printStackTrace();
 			System.exit(1);
 		}
+		*/
 
 		return featureSource;
 	}
@@ -274,7 +269,7 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 	 * @return
 	 * @throws IOException
 	 */
-	private SimpleFeatureCollection filter(SimpleFeatureSource inFeatureSource) throws IOException {
+	protected SimpleFeatureCollection applyDefaultFilter(SimpleFeatureSource inFeatureSource) throws IOException {
 		
 		String geometryPropertyName = inFeatureSource.getSchema().getGeometryDescriptor().getLocalName();;
 		
@@ -296,10 +291,16 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 	 * Applies either a batch transform or a streaming transform, depending on which option is selected
 	 * @param inFeatures
 	 */
-	private void transform(SimpleFeatureCollection inFeatures) {
+	private void transform(SimpleFeatureSource inFeatureSource) {
 		if (isBatch) {
 			message("Applying batch transform...");
-			SimpleFeatureCollection outFeatures = transformBatch(inFeatures);
+			SimpleFeatureCollection outFeatures = null;
+			try {
+				outFeatures = transformBatch(inFeatureSource);
+			} catch (IOException e) {
+				System.out.println("Unable to transform features");
+				e.printStackTrace();
+			}
 	
 			//save result to output file
 			message("Saving...");
@@ -312,7 +313,7 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 		}
 		else {
 			message("Applying streaming transform...");
-			streamingTransform(inFeatures);
+			streamingTransform(inFeatureSource);
 		}
 	}
 	
@@ -326,7 +327,7 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 	 * the transformation.
 	 * @param inFeatures
 	 */
-	public SimpleFeatureCollection transformBatch(SimpleFeatureCollection inFeatures) {
+	public SimpleFeatureCollection transformBatch(SimpleFeatureSource inFeatureSource) throws IOException {
 		throw new UnsupportedOperationException("Batch transform is not supported");
 	}
 
@@ -341,7 +342,7 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 	 * as it is ready.
 	 * @param inFeatures
 	 */
-	public void streamingTransform(SimpleFeatureCollection inFeatures) {
+	public void streamingTransform(SimpleFeatureSource inFeatureSource) {
 		throw new UnsupportedOperationException("Streaming transform is not supported");
 	}
 	
