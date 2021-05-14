@@ -7,6 +7,7 @@ import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.io.ParseException;
 
+import ca.bc.gov.catchment.ridgeclean.RidgeCleaner;
 import ca.bc.gov.catchment.synthetic.TestHelper;
 
 public class RidgeCleanerTest {

@@ -21,6 +21,8 @@ import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
 
+import ca.bc.gov.catchment.utils.VectorUtils;
+
 public class TinEdges extends Tin {
 
 
@@ -89,8 +91,8 @@ public class TinEdges extends Tin {
 		//sort results by angle, clockwise from east
 		result.sort(new Comparator<SimpleFeature>() {
 			public int compare(SimpleFeature s1, SimpleFeature s2) {
-				double angle1 = angle2D(c, (LineString)s1.getDefaultGeometry());
-				double angle2 = angle2D(c, (LineString)s2.getDefaultGeometry());
+				double angle1 = VectorUtils.angle2D(c, (LineString)s1.getDefaultGeometry());
+				double angle2 = VectorUtils.angle2D(c, (LineString)s2.getDefaultGeometry());
 				return angle1 < angle2 ? -1 
 					 : angle1 > angle2 ? 1 
 				     : 0;
@@ -115,38 +117,6 @@ public class TinEdges extends Tin {
 		return result;
 	}
 	
-	/**
-	 * gets the angle (in degrees) of the edge starting from 'fromCoord'.  Result is in
-	 * [0-360] where 0 is east, 90 is north.
-	 * @param fromCoord
-	 * @param f
-	 * @return
-	 */
-	private double angle2D(Coordinate fromCoord, LineString edge) {
-		Coordinate[] coords = edge.getCoordinates();
-		if (coords.length != 2) {
-			throw new IllegalArgumentException("edge must have exactly two vertices");
-		}
-		Coordinate firstCoord = coords[0];
-		Coordinate secondCoord = coords[1];
-		Coordinate toCoord = null;
-		if (firstCoord.equals(fromCoord)) {
-			toCoord = secondCoord;
-		}
-		else if (secondCoord.equals(fromCoord)) {
-			toCoord = firstCoord;
-		}
-		else {
-			throw new IllegalArgumentException("'fromCoord' must be in the edge");
-		}
-		
-		double opposite = toCoord.getY() - fromCoord.getY();
-		double adjacent = toCoord.getX() - fromCoord.getX();
-		double angleDegrees = Math.toDegrees(Math.atan2(opposite, adjacent));
-		if (angleDegrees < 0) {
-			angleDegrees +=360;
-		}
-		return angleDegrees;
-	}
+
 	
 }

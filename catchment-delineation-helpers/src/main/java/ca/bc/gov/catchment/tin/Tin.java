@@ -15,6 +15,7 @@ import org.geotools.feature.DefaultFeatureCollection;
 import org.geotools.feature.SchemaException;
 import org.geotools.geometry.jts.JTSFactoryFinder;
 import org.geotools.referencing.CRS;
+import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -47,7 +48,8 @@ public abstract class Tin {
 		this.featureSource = featureSource;
 		this.featureType = featureSource.getSchema();
 		this.geometryPropertyName = featureType.getGeometryDescriptor().getLocalName();
-		this.filterFactory = CommonFactoryFinder.getFilterFactory2();
+		Hints filterHints = new Hints( Hints.FEATURE_2D, true ); // force 2D queries
+		this.filterFactory = CommonFactoryFinder.getFilterFactory2(filterHints);
 		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
 		this.pointCloud = null;
 		this.defaultFilter = defaultFilter;
@@ -103,7 +105,8 @@ public abstract class Tin {
 				filterFactory.literal(p),
 				radius,
 				"meter");
-		SimpleFeatureCollection matches = getFeatures(radiusFilter);		
+		SimpleFeatureCollection matches = getFeatures(radiusFilter);	
+		System.out.println(matches.size()+" matches");
 		SimpleFeatureIterator matchesIt = matches.features();
 		try {
 			while(matchesIt.hasNext()) {
@@ -224,5 +227,22 @@ public abstract class Tin {
 			
 		return this.pointCloud;
 		
+	}
+	
+	/**
+	 * Gets the coordinate from the tin at given coord.  At first glance this may seem useless, but 
+	 * it can be useful for:
+	 * - determining if a coordinate exists in the tin
+	 * - find the 3d coordinate from the tin which corresponds to the given coordinate (which may be 2d).
+	 * @param c
+	 * @return
+	 * @throws IOException
+	 */
+	public Coordinate getCoordinateAt(Coordinate c) throws IOException {
+		List<Coordinate> coords = getCoordsInRadius(c, 0);
+		if (coords.size() > 0) {
+			return coords.get(0);
+		}
+		return null;
 	}
 }

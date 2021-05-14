@@ -2,6 +2,8 @@
   "out_base_dir": "pipeline-results",
   "voronoi_catchment_path": "path to voronoi-catchments.exe",
   "java_path": "path to java.exe",
+  "java_initial_heap_size": "1g",
+  "java_max_heap_size": "8g",
   "java_classpath": "copy from eclipse",
   "log_properties_file": "path to logging.properties"
 }

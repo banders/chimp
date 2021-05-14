@@ -2,6 +2,8 @@ package ca.bc.gov.catchment.algorithms;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import org.geotools.data.DataUtilities;
@@ -22,6 +24,11 @@ import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchment.utils.SpatialUtils;
 import ca.bc.gov.catchment.water.Water;
 
+/**
+ * @deprecated Instead use ca.bc.gov.catchment.ridgegrowth.RidgeGrower
+ * @author Brock
+ *
+ */
 public abstract class RidgeGrower {
 
 	private static final double UNCERTAINTY_Z = 2;
@@ -67,6 +74,7 @@ public abstract class RidgeGrower {
 		}
 		return result;
 	}
+	
 	
 	public SimpleFeatureType getRidgeFeatureType() {
 		return this.ridgeFeatureType;
@@ -125,12 +133,19 @@ public abstract class RidgeGrower {
 	
 	public abstract Coordinate chooseNext(LineString stem, List<SimpleFeature> adjacentWater) throws IOException;
 	
+	/**
+	 * @param nonWaterEdge an edge in the TIN which touches a confluence at one end
+	 * @param edgesTouchingConfluence a list of other edges in the TIN which also touch the same confluence
+	 * @return a subset of edgesTouchingConfluence which contains exactly two edges: those corresponding to the water feature 
+	 * immediately clockwise and immediately counterclockwise 
+	 * @throws IOException
+	 */
 	private List<SimpleFeature> getAdjacentWater(SimpleFeature nonWaterEdge, List<SimpleFeature> edgesTouchingConfluence) throws IOException {
 		List<SimpleFeature> edgesToIterate = new ArrayList<SimpleFeature>();
 		edgesToIterate.addAll(edgesTouchingConfluence);
 		if (edgesTouchingConfluence.size() > 0) {
 			SimpleFeature first = edgesTouchingConfluence.get(0);
-			boolean isWater = water.getTouchingWater((Geometry)first.getDefaultGeometry()) != null;
+			boolean isWater = water.getContainingingWater((Geometry)first.getDefaultGeometry()) != null;
 			if (isWater) {
 				edgesToIterate.add(first);
 			}
@@ -141,7 +156,7 @@ public abstract class RidgeGrower {
 		SimpleFeature waterAfter = null;
 		boolean nextWaterIsAdjacent = false;
 		for (SimpleFeature edge : edgesToIterate) {
-			SimpleFeature waterFeature = water.getTouchingWater((Geometry)edge.getDefaultGeometry());
+			SimpleFeature waterFeature = water.getOneContainingWater((Geometry)edge.getDefaultGeometry());						
 			if (edge.equals(nonWaterEdge)) {
 				nextWaterIsAdjacent = true;
 			}			

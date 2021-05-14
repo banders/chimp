@@ -28,7 +28,7 @@ import ca.bc.gov.catchment.CatchmentLines;
 import ca.bc.gov.catchment.fitness.CatchmentValidity;
 import ca.bc.gov.catchment.fitness.SectionFitness;
 import ca.bc.gov.catchment.routes.RouteException;
-import ca.bc.gov.catchment.routes.WaterAwareCatchmentRouter;
+import ca.bc.gov.catchment.routes.WaterAwareLineStringRouter;
 import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchment.utils.SaveUtils;
 import ca.bc.gov.catchment.utils.SpatialUtils;
@@ -43,7 +43,7 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 	private TinEdges tinEdges;
 	private int maxSteps;
 	private double radius;
-	private WaterAwareCatchmentRouter router;
+	private WaterAwareLineStringRouter router;
 	private ImprovementCoverage improvementCoverage;
 	
 	public SimulatedAnnealingSectionImprover(
@@ -55,7 +55,7 @@ public class SimulatedAnnealingSectionImprover extends SectionImprover {
 		this.tinEdges = tinEdges;
 		this.setSectionFitness(fitnessFinder);
 		this.catchmentValidityChecker = new CatchmentValidity(waterFeatures);
-		this.router = new WaterAwareCatchmentRouter(tinEdges, new Water(waterFeatures));
+		this.router = new WaterAwareLineStringRouter(tinEdges, new Water(waterFeatures));
 		this.maxSteps = maxSteps;
 		this.radius = radius;
 		this.improvementCoverage = new ImprovementCoverage(tinEdges.getPointCloud());

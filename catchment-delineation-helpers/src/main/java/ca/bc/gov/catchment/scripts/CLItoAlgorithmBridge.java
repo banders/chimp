@@ -19,7 +19,6 @@ import org.geotools.data.collection.SpatialIndexFeatureSource;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.factory.CommonFactoryFinder;
-import org.geotools.factory.Hints;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.referencing.CRS;
 import org.opengis.feature.simple.SimpleFeature;
@@ -377,6 +376,10 @@ public abstract class CLItoAlgorithmBridge implements BatchTransformer, Streamin
 	
 	public String getOutTable() {
 		return this.outTable;
+	}
+	
+	public String getOutFilename() {
+		return this.outFilename;
 	}
 	
 	public int getInSrid() {

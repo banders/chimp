@@ -66,7 +66,7 @@ public class WaterAwareCatchmentRouterTest {
 		
 		Water waterAnalyzer = new Water(water);
 		
-		WaterAwareCatchmentRouter catchmentRouter = new WaterAwareCatchmentRouter(tinEdges, waterAnalyzer);
+		WaterAwareLineStringRouter catchmentRouter = new WaterAwareLineStringRouter(tinEdges, waterAnalyzer);
 		LineString modifiedRoute = catchmentRouter.reroute(originalRoute, coordToMove, coordToReplaceWith, 1, false);
 
 		Assert.assertTrue("modified route expected to be not null", modifiedRoute != null);

@@ -1,6 +1,7 @@
 package ca.bc.gov.catchment.utils;
 
 import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.LineString;
 
 public class VectorUtils {
 
@@ -48,5 +49,56 @@ public class VectorUtils {
 			return n*360 + angle;
 		}
 		return angle % 360;
+	}
+	
+	/**
+	 * gets the angle (in degrees) of the edge starting from 'fromCoord'.  Result is in
+	 * [0-360] where 0 is east, 90 is north.
+	 * @param fromCoord
+	 * @param f
+	 * @return
+	 */
+	public static double angle2D(Coordinate fromCoord, LineString edge) {
+		Coordinate[] coords = edge.getCoordinates();
+		if (coords.length != 2) {
+			throw new IllegalArgumentException("edge must have exactly two vertices");
+		}
+		Coordinate firstCoord = coords[0];
+		Coordinate secondCoord = coords[1];
+		Coordinate toCoord = null;
+		if (firstCoord.equals(fromCoord)) {
+			toCoord = secondCoord;
+		}
+		else if (secondCoord.equals(fromCoord)) {
+			toCoord = firstCoord;
+		}
+		else {
+			throw new IllegalArgumentException("'fromCoord' must be in the edge");
+		}
+		
+		double opposite = toCoord.getY() - fromCoord.getY();
+		double adjacent = toCoord.getX() - fromCoord.getX();
+		double angleDegrees = Math.toDegrees(Math.atan2(opposite, adjacent));
+		if (angleDegrees < 0) {
+			angleDegrees +=360;
+		}
+		return angleDegrees;
+	}
+	
+	/**
+	 * Creates a line of length 1 from 'fromCoord' in the direction of 'compasAngleDegrees'
+	 * @param fromCoord
+	 * @param compassAngleDegrees
+	 * @return
+	 */
+	public static LineString createLineInDirection(Coordinate fromCoord, double compassAngleDegrees, double length) {
+		compassAngleDegrees = compassAngleDegrees % 360;
+		double angleRadians = Math.toRadians(compassAngleDegrees);
+		double y = Math.sin(angleRadians) * length;
+		double x = Math.cos(angleRadians) * length;
+	
+		Coordinate toCoord = new Coordinate(fromCoord.x+x, fromCoord.y+y);
+		LineString line = SpatialUtils.toLineString(fromCoord, toCoord);
+		return line;
 	}
 }

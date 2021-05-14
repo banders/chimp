@@ -30,7 +30,30 @@ public class IdentifyAdjacentSlopesAlg {
 		this.tinPolys = tinPolys;
 	}
 	
+	/**
+	 * computes the slope of the triangle on either side of each edge.  the output contains the same 
+	 * geometries from the input, but adds two new attributes: slope1 and slope 2. negative values mean 
+	 * downward, positive numbers mean upward.
+	 * @param tinEdges
+	 * @param outTableName
+	 * @return
+	 */
 	public SimpleFeatureCollection process(SimpleFeatureCollection tinEdges, String outTableName) throws IOException {
+		return process(tinEdges, outTableName, Double.NaN);
+	}
+	
+	/**
+	 * computes the slope of the triangle on either side of each edge.  the output contains the same 
+	 * geometries from the input, but adds two new attributes: slope1 and slope 2. negative values mean 
+	 * downward, positive numbers mean upward.
+	 * @param tinEdges
+	 * @param outTableName
+	 * @param maxSlopeToKeep (optional).  if NaN, the output set will include all edges from the input set.  
+	 * if a value is specified, only output edges in which both slopes are less than the given value.  
+	 * @return
+	 * @throws IOException
+	 */
+	public SimpleFeatureCollection process(SimpleFeatureCollection tinEdges, String outTableName, double maxSlopeToKeep) throws IOException {
 		SimpleFeatureType inFeatureType = tinEdges.getSchema();
 		
 		DefaultFeatureCollection outFeatureCollection = new DefaultFeatureCollection();
@@ -65,10 +88,13 @@ public class IdentifyAdjacentSlopesAlg {
 			SimpleFeature outFeature = SimpleFeatureBuilder.retype(inFeature, outFeatureType);
 			outFeature.setAttribute("slope1", adjacentSlopes[0]);
 			outFeature.setAttribute("slope2", adjacentSlopes[1]);
-			outFeatureCollection.add(outFeature);
+			double maxSlope = Math.max(adjacentSlopes[0], adjacentSlopes[1]);
+			if (Double.isNaN(maxSlopeToKeep) || maxSlope < maxSlopeToKeep) {
+				outFeatureCollection.add(outFeature);
+			}
 			
 			if (index % 50000 == 0) {
-				System.out.println(index + "/" + numFeatures);
+				System.out.println(index + "/" + numFeatures + " processed");
 				//break;
 			}
 			

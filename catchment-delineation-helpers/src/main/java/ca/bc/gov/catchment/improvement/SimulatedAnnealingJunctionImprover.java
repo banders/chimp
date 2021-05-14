@@ -22,7 +22,7 @@ import ca.bc.gov.catchment.fitness.CatchmentValidity;
 import ca.bc.gov.catchment.fitness.JunctionFitness;
 import ca.bc.gov.catchment.fitness.SectionFitness;
 import ca.bc.gov.catchment.routes.RouteException;
-import ca.bc.gov.catchment.routes.WaterAwareCatchmentRouter;
+import ca.bc.gov.catchment.routes.WaterAwareLineStringRouter;
 import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchment.water.Water;
 
@@ -36,7 +36,7 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 	private JunctionFitness fitnessFinder;
 	private int maxSteps;
 	private double radius;
-	private WaterAwareCatchmentRouter router;
+	private WaterAwareLineStringRouter router;
 	private boolean shortCircuitOnFirstImprovement;
 	private ImprovementCoverage improvementCoverage;
 	
@@ -50,7 +50,7 @@ public class SimulatedAnnealingJunctionImprover extends JunctionImprover {
 		this.tinEdges = tinEdges;
 		this.fitnessFinder = fitnessFinder;
 		this.catchmentValidityChecker = new CatchmentValidity(waterFeatures);
-		this.router = new WaterAwareCatchmentRouter(tinEdges, new Water(waterFeatures));
+		this.router = new WaterAwareLineStringRouter(tinEdges, new Water(waterFeatures));
 		this.radius = radius;
 		this.maxSteps = maxSteps;
 		this.shortCircuitOnFirstImprovement = shortCircuitOnFirstImprovement;

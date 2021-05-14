@@ -28,6 +28,11 @@ import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchment.utils.SpatialUtils;
 import ca.bc.gov.catchment.water.Water;
 
+/**
+ * @deprecated Instead use ca.bc.gov.catchment.ridgegrowth.HillClimbStrategy with ca.bc.gov.catchment.ridgegrowth.RidgeGrower
+ * @author Brock
+ *
+ */
 public class LookAheadRidgeGrower extends RidgeGrower {
 	
 	private static final int MAX_NUM_POINTS = 500;
@@ -36,6 +41,32 @@ public class LookAheadRidgeGrower extends RidgeGrower {
 	private int nextFid;
 	private SimpleFeatureType ridgeFeatureType;
 	private int lookAhead;
+	
+	/**
+	 * This line growing strategy chooses an up-hill path through a given TIN.  
+	 * It chooses each path extension by looking ahead up to N connected edges and then
+	 * choosing the most favourable next step according to some pre-defined rules.
+	 * 
+	 * - start the "growing line" as a 1-segment "seed line" from the confluence outward  
+	 * - initialize the "leading coordinate" of the growing line to the second coordinate of the seed line (i.e. the coordinate
+	 *   at the non-confluence end)
+	 * - loop:
+	 * 	- identify all possible paths of length N or less extending from the leading coordinate 
+	 *    of the growing line
+	 * 	- sort the possible path extensions by:
+	 * 	  1. is path moving away from start of the growing line? (Yes or no).  Prefer Yes.
+	 *    2. number of segments in the possible path extension (1 to N). Prefer larger.
+	 *    3. average elevation of possible path extension.  Prefer higher average elevation.
+	 * 	- select the path extension at the top of the sorted list 
+	 * 	- select the first coordinate after the current coordinate from the selected path extension.
+	 *    this selected coordinate will be the next "leading coordinate" of the grown line
+	 * 	- repeat until the no valid path extensions can be found from the current leading coordinate (valid means doesn't intersect water) 
+	 * 
+	 * 
+	 * @param water
+	 * @param tinEdges
+	 * @param lookAhead
+	 */
 	
 	public LookAheadRidgeGrower(Water water,
 			TinEdges tinEdges, 
@@ -138,12 +169,12 @@ public class LookAheadRidgeGrower extends RidgeGrower {
 		Coordinate nextCoord = null;
 		
 		List<LineString> growthPossibilities = growthPossibilities(stem, adjacentWater, true, lookAhead);
-		LineString bestGrowthPossibility = pickBestGrowthPossibility(growthPossibilities);
+		LineString bestGrowthPossibility = pickBestGrowthPossibility3(growthPossibilities);
 		
 		int nextCoordIndex = stem.getNumPoints();
 		if (bestGrowthPossibility != null && nextCoordIndex < bestGrowthPossibility.getNumPoints()) {
 			nextCoord = bestGrowthPossibility.getCoordinateN(nextCoordIndex);
-		} 
+		}
 		
 		return nextCoord;
 	}
@@ -211,16 +242,22 @@ public class LookAheadRidgeGrower extends RidgeGrower {
 		return SpatialUtils.toLineString(allCoords);
 	}
 	
-	
-	private LineString pickBestGrowthPossibility(List<LineString> lookAheads) {
+	/**
+	 * this implementation is fairly good, but it performs awkardly when it encounters sliver triangles.  
+	 * if the TIN is delanuay conforming then this is a good choice, otherwise, "pickBestGrowthPossibility2"
+	 * may be preferable.
+	 * @param lookAheads
+	 * @return
+	 */
+	private LineString pickBestGrowthPossibility1(List<LineString> lookAheads) {
 		if (lookAheads == null || lookAheads.size() == 0) {
 			return null;
 		}
 		
 		//sort by:
 		//1. is moving away?
-		//2. line length
-		//3. elevation of last coordinate
+		//2. number of coordinates in line
+		//3. average elevation of line
 		final AvgElevationSectionFitness sectionFitness = new AvgElevationSectionFitness(tinEdges);
 		Comparator<LineString> lookAheadComparator = new Comparator<LineString>() {
 			public int compare(LineString s1, LineString s2) {
@@ -255,4 +292,103 @@ public class LookAheadRidgeGrower extends RidgeGrower {
 		return lookAheads.get(0);
 	}
 
+	/**
+	 * this implementation is less susceptible to getting channeled along long edges of sliver triangles,
+	 * (as compared to pickBestGrowthPossibility1)
+	 * which means this is a reasonable choice when triangles aren't delaunay confirming
+	 * @param lookAheads
+	 * @return
+	 */
+	private LineString pickBestGrowthPossibility2(List<LineString> lookAheads) {		
+		if (lookAheads == null || lookAheads.size() == 0) {
+			return null;
+		}
+		
+		//sort by:
+		//1. is moving away?
+		//2. number of coordinates in line
+		//3. slope
+		Comparator<LineString> lookAheadComparator = new Comparator<LineString>() {
+			public int compare(LineString s1, LineString s2) {
+				
+				boolean m1 = isMovingAway(s1, s1.getCoordinateN(s1.getNumPoints()-1));
+				boolean m2 = isMovingAway(s2, s2.getCoordinateN(s2.getNumPoints()-1));
+				if (m1 != m2) {
+					return m1 ? -1 : 1;
+				}
+				else { //both moving away, or neither moving away.  look to second criteria
+					
+					if (s1.getNumPoints() == s2.getNumPoints()) {
+
+						double slope1 = SpatialUtils.getSlope(s1);
+						double slope2 = SpatialUtils.getSlope(s2);
+						return slope1 > slope2 ? -1 
+								 : slope1 < slope2 ? 1 
+							     : 0; 
+					}
+					else {
+						return s1.getNumPoints() > s2.getNumPoints() ? -1 
+								 : s1.getNumPoints() < s2.getNumPoints() ? 1 
+							     : 0; 
+					}
+					
+				}
+			}
+		};
+		lookAheads.sort(lookAheadComparator);
+		return lookAheads.get(0);
+	}
+	
+	/**
+	 * this implementation is less susceptible to getting channeled along long edges of sliver triangles,
+	 * (as compared to pickBestGrowthPossibility1)
+	 * which means this is a reasonable choice when triangles aren't delaunay confirming
+	 * @param lookAheads
+	 * @return
+	 */
+	private LineString pickBestGrowthPossibility3(List<LineString> lookAheads) {		
+		if (lookAheads == null || lookAheads.size() == 0) {
+			return null;
+		}
+		
+		//sort by:
+		//1. is moving away?
+		//2. number of coordinates in line
+		//3. average elevation (above the lowest coord) of line divided by length of line
+		// e..g if Z values of growth possibility are 618m, 625m, 634m, the average will be the average
+		//Z above the lowest coord will be 7.6m.  that value will be divided by the line length
+		final AvgElevationSectionFitness sectionFitness = new AvgElevationSectionFitness(tinEdges);
+		Comparator<LineString> lookAheadComparator = new Comparator<LineString>() {
+			public int compare(LineString s1, LineString s2) {
+				
+				boolean m1 = isMovingAway(s1, s1.getCoordinateN(s1.getNumPoints()-1));
+				boolean m2 = isMovingAway(s2, s2.getCoordinateN(s2.getNumPoints()-1));
+				if (m1 != m2) {
+					return m1 ? -1 : 1;
+				}
+				else {
+					if (s1.getNumPoints() == s2.getNumPoints()) {
+						try {							
+							double fit1 = sectionFitness.fitness(s1) - SpatialUtils.getLowestZ(s1) / s1.getLength();
+							double fit2 = sectionFitness.fitness(s2) - SpatialUtils.getLowestZ(s2) / s2.getLength();
+							return fit1 > fit2 ? -1 
+									 : fit1 < fit2 ? 1 
+								     : 0;
+						} 
+						catch(IOException e) {
+							return 0;
+						}
+					}
+					else {
+						return s1.getNumPoints() > s2.getNumPoints() ? -1 
+								 : s1.getNumPoints() < s2.getNumPoints() ? 1 
+							     : 0; 
+					}
+				}
+			}
+		};
+		lookAheads.sort(lookAheadComparator);
+		return lookAheads.get(0);
+	}
+	
 }

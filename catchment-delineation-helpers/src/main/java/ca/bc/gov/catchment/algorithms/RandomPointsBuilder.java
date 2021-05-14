@@ -44,9 +44,6 @@ public class RandomPointsBuilder {
 	    double cellFrac = 1.0 - gutterFrac;
 	    double cellDX = cellFrac * gridDX;
 	    double cellDY = cellFrac * gridDY;
-	    	
-	    System.out.println("nCellsX:"+nCellsX);
-	    System.out.println("nCellsY:"+nCellsY);
 	    
 	    for (int x = 0; x < nCellsX; x++) {
 	      for (int y = 0; y < nCellsY; y++) {

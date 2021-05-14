@@ -42,8 +42,6 @@ import org.geotools.data.simple.SimpleFeatureReader;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.data.simple.SimpleFeatureWriter;
 import org.geotools.factory.CommonFactoryFinder;
-import org.geotools.factory.GeoTools;
-import org.geotools.factory.Hints;
 import org.geotools.feature.DefaultFeatureCollection;
 import org.geotools.feature.FeatureCollection;
 import org.geotools.feature.FeatureIterator;
@@ -56,6 +54,7 @@ import org.geotools.geopkg.FeatureEntry;
 import org.geotools.geopkg.GeoPackage;
 import org.geotools.geopkg.GeoPkgDataStoreFactory;
 import org.geotools.referencing.CRS;
+import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateSequenceFactory;
 import org.locationtech.jts.geom.Geometry;
@@ -83,13 +82,7 @@ import org.tinfour.standard.IncrementalTin;
 
 import ca.bc.gov.catchment.CatchmentLines;
 import ca.bc.gov.catchment.algorithms.NearestNeighbour3DMaker;
-import ca.bc.gov.catchment.algorithms.RidgeCleaner;
-import ca.bc.gov.catchment.algorithms.RidgeGrower;
 import ca.bc.gov.catchment.algorithms.DeadEndPreventerRidgeGrower;
-import ca.bc.gov.catchment.algorithms.HybridRidgeGrower;
-import ca.bc.gov.catchment.algorithms.LookAheadRidgeGrower;
-import ca.bc.gov.catchment.algorithms.MedialAxisRidgeGrower;
-import ca.bc.gov.catchment.algorithms.HybridRidgeGrowerOld;
 import ca.bc.gov.catchment.fitness.AvgElevationLengthPenaltySectionFitness;
 import ca.bc.gov.catchment.fitness.AvgElevationSectionFitness;
 import ca.bc.gov.catchment.fitness.ElevationJunctionFitness;
@@ -115,8 +108,14 @@ import ca.bc.gov.catchment.improvement.SectionModification;
 import ca.bc.gov.catchment.improvement.SetImprover;
 import ca.bc.gov.catchment.improvement.SimulatedAnnealingJunctionImprover;
 import ca.bc.gov.catchment.improvement.SimulatedAnnealingSectionImprover;
+import ca.bc.gov.catchment.ridgeclean.RidgeCleaner;
+import ca.bc.gov.catchment.ridgegrowth.HillClimbStrategy;
+import ca.bc.gov.catchment.ridgegrowth.PlanAPlanBStrategy;
+import ca.bc.gov.catchment.ridgegrowth.MedialAxisStrategy;
+import ca.bc.gov.catchment.ridgegrowth.RidgeGrowthStrategy;
 import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchment.tin.TinPolys;
+import ca.bc.gov.catchment.uncertainty.PointUncertainty;
 import ca.bc.gov.catchment.utils.SaveUtils;
 import ca.bc.gov.catchment.utils.SpatialUtils;
 import ca.bc.gov.catchment.water.Water;
@@ -311,12 +310,19 @@ public class GrowCatchments {
 			
 			//grow ridges.
 			//RidgeGrower ridgeGrower = new MedialAxisRidgeGrower(water, tinEdges);
-			RidgeGrower ridgeGrower = new HybridRidgeGrower(water, tinEdges);
-			SimpleFeatureCollection ridges = ridgeGrower.growRidges();
+			//RidgeGrower ridgeGrower = new HybridRidgeGrower(water, tinEdges);
+			int numThreads = 24;
+			int lookAhead = 2;
+			RidgeGrowthStrategy hillClimbStrategy = new HillClimbStrategy(water, tinEdges, new PointUncertainty(0,  1), lookAhead);
+			RidgeGrowthStrategy medialAxisStrategy = new MedialAxisStrategy(water, tinEdges);
+			RidgeGrowthStrategy combinedStrategy = new PlanAPlanBStrategy(hillClimbStrategy, medialAxisStrategy, water, tinEdges);
+			
+			ca.bc.gov.catchment.ridgegrowth.RidgeGrower ridgeGrower = 
+					new ca.bc.gov.catchment.ridgegrowth.RidgeGrower(water, tinEdges, hillClimbStrategy, numThreads);
+			SimpleFeatureCollection ridges = ridgeGrower.growAllRidges();
 			
 			System.out.println("done. grew "+ridges.size()+" ridges.");
-			ridges = SpatialUtils.renameFeatureType(ridges, outTable);
-			
+			ridges = SpatialUtils.renameFeatureType(ridges, outTable);			
 		
 			//identify junctions
 			SpatialIndexFeatureCollection fc = new SpatialIndexFeatureCollection(ridges);

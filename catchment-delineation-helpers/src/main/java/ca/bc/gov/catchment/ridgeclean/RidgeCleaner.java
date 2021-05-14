@@ -1,13 +1,15 @@
-package ca.bc.gov.catchment.algorithms;
+package ca.bc.gov.catchment.ridgeclean;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.geotools.data.DataUtilities;
+import org.geotools.data.collection.SpatialIndexFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.factory.CommonFactoryFinder;
@@ -23,6 +25,7 @@ import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.operation.polygonize.Polygonizer;
+import org.locationtech.jts.operation.valid.IsValidOp;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.Filter;
@@ -31,6 +34,9 @@ import org.opengis.filter.identity.FeatureId;
 import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
+import ca.bc.gov.catchment.algorithms.JunctionFinder;
+import ca.bc.gov.catchment.algorithms.LineSegmenter;
+import ca.bc.gov.catchment.algorithms.SinuosityQuantifier;
 import ca.bc.gov.catchment.utils.SpatialUtils;
 import ca.bc.gov.catchment.utils.VectorUtils;
 import ca.bc.gov.catchment.water.Water;
@@ -82,7 +88,9 @@ public class RidgeCleaner {
 	public SimpleFeatureCollection doAllCleaning() throws IOException {
 		SimpleFeatureCollection result = inRidges;		
 		
-		result =  truncateLoopbackLines(result);
+		//Note: this step no longer seems necessary.  In fact, it can be harmful to the final result because
+		//sometimes lines are incorrectly truncated when they take a minor jog backwards
+		//result =  truncateLoopbackLines(result);
 		
 		//result = truncateSinuousLines(inRidges);
 		
@@ -105,18 +113,23 @@ public class RidgeCleaner {
 		
 		//result = filterOutFalseCatchments(result);
 
+		//result = splitAndFilterOutDuplicates(result);
+		
 		int initialSize = -1;
 		while (true) {
-			result = splitAndFilterOutDuplicates(result);
+			result = splitAndFilterOutDuplicates(result);			
 			result = filterOutFalseCatchments(result);
 			int finalSize = result.size();
 			System.out.println(initialSize+" =? "+finalSize);
 			if (initialSize == finalSize) {
+				//one more split because 'filterOutFalseCatcmhemts' changes the toppology,
+				//and 'splitAndFilterOutDuplicates' restores the desired topology
+				result = splitAndFilterOutDuplicates(result);
 				break;
 			}
 			initialSize = finalSize;
 		}
-	
+		
 
 		
 		//filter out crossing lines
@@ -216,16 +229,19 @@ public class RidgeCleaner {
 		return result;
 	}
 	
-	private DefaultFeatureCollection splitAndFilterOutDuplicates(SimpleFeatureCollection fc) {
+	private SimpleFeatureCollection splitAndFilterOutDuplicates(SimpleFeatureCollection fc) throws IOException {
 		
-		System.out.println("Splitting and filtering out dups");
-		
+		SpatialIndexFeatureCollection fastFc = new SpatialIndexFeatureCollection(fc);
+		System.out.println("Splitting and filtering out dups. "+fc.size()+" features to process.");
+				
 		List<LineString> segments = new ArrayList<LineString>();
 		SimpleFeatureIterator ridgeIt = fc.features();
+		int index = 0;
 		while (ridgeIt.hasNext()) {
+			//System.out.println(index++);			
 			SimpleFeature ridge = ridgeIt.next();
-			List<Coordinate> junctions = getJunctions(ridge, fc);
-			List<LineString> ridgePieces = lineSegmenter.segment((LineString)ridge.getDefaultGeometry(), junctions);
+			List<Coordinate> junctions = getJunctions(ridge, fastFc);			
+			List<LineString> ridgePieces = lineSegmenter.segment((LineString)ridge.getDefaultGeometry(), junctions);			
 			
 			for (LineString piece : ridgePieces) {
 				
@@ -235,6 +251,7 @@ public class RidgeCleaner {
 					segments.add(piece);
 				}	
 			}
+			
 		}
 		ridgeIt.close();
 		
@@ -244,7 +261,7 @@ public class RidgeCleaner {
 			SimpleFeature segmentFeature = SpatialUtils.geomToFeature(segment, fc.getSchema(), fid);
 			result.add(segmentFeature);
 		}
-		
+			
 		return result;
 		
 	}
@@ -560,66 +577,66 @@ public class RidgeCleaner {
 	
 	/**
 	 * note: a prerequisite for this function is "splitAndFilterOutDuplicates".
+	 * A side effect of running this is that lines are converted into polygons, and then back into lines, and the 
+	 * final lines aren't necessarily a subset of the original lines
 	 * @param fc
 	 * @return
 	 * @throws IOException
 	 */
 	private SimpleFeatureCollection filterOutFalseCatchments(SimpleFeatureCollection fc) throws IOException {
-		System.out.println("Filtering out false catchments");
+		System.out.println("Filtering out false catchments.  startng with "+fc.size()+" lines");
+
+		//convert the input linestring features to polygon features
 		Collection<Geometry> polys = toPolygons(fc);
-		SimpleFeatureCollection polyFeatures = SpatialUtils.geomCollectionToSimpleFeatureCollection(polys, catchmentPolysFeatureType);
-			
-		Map<FeatureId, Polygon> oldToNew = new HashMap<FeatureId, Polygon>();
+		SimpleFeatureCollection initialPolyFeatures = SpatialUtils.geomCollectionToSimpleFeatureCollection(polys, catchmentPolysFeatureType);
+		List<SimpleFeature> sortedPolyFeatures = SpatialUtils.simpleFeatureCollectionToFeatList(initialPolyFeatures);
+		sortedPolyFeatures.sort(new DescendingAreaComparator());
 		
-		SimpleFeatureIterator polyIt = polyFeatures.features();
-		while (polyIt.hasNext()) {
-			SimpleFeature f = polyIt.next();
-			Polygon poly = (Polygon)f.getDefaultGeometry();
-			if (!oldToNew.containsKey(f.getIdentifier())) {
-				oldToNew.put(f.getIdentifier(), poly);
-			}
-			poly = oldToNew.get(f.getIdentifier());
-			boolean containsWater = water.containsWater(poly);
+		//initialize a special-purpose collection to help track which catchments have been merged together
+		CatchmentUnionTracker tracker = new CatchmentUnionTracker(initialPolyFeatures);
+		
+		//sort the initial polygon features so that we can process the largest polygons first
+		
+
+		for (SimpleFeature f : sortedPolyFeatures) {
+			Polygon po = (Polygon)f.getDefaultGeometry();
+			System.out.println("poly area: "+po.getArea());
+			Catchment catchment = tracker.getCatchment(f.getIdentifier());
+			boolean containsWater = water.containsWater(catchment.getPolygon());
 			if (!containsWater) {
 				//false catchment.  merge into adjacent catchment
 				//note: the adjacent catchment may also be a false catchment.
 				//as such, this function should be run multiple times until no further merging
 				//is done.
 				
-				SimpleFeature adjacentFeat = chooseAdjacent(f, polyFeatures);
-				if (adjacentFeat != null && !oldToNew.containsKey(adjacentFeat.getIdentifier())) {
-					//the chosen adjacent feature has been removed (it was
-					//merged into another feature)
-					adjacentFeat = null;
-				}
+				List<SimpleFeature> touching = getTouching(f, initialPolyFeatures);
+				SimpleFeature adjacentFeat = chooseMergeCandidateByLowestSharedEdge(f, touching);
 				
 				if (adjacentFeat == null) {
-					System.out.println("false catchment with no adjacent poly");
+					//System.out.println("false catchment with no adjacent poly");
 					continue;
 				}				
-				
-				//get the latest Polygon associated with the adjacent feature
-				Polygon adjacentPoly = oldToNew.get(adjacentFeat.getIdentifier());
+
+				//get the latest polygon associated with the adjacent feature's ID
+				//(the original adjacent polygon may have been merged in another polygon during an earlier
+				//iteration of this loop)
+				Catchment adjacentCatchment = tracker.getCatchment(adjacentFeat.getIdentifier());
 								
-				//the union should always be a polygon if the 'poly' and 'adjacentPoly'
-				//touch only at one shared edge
-				Polygon union = (Polygon)poly.union(adjacentPoly);				
-				oldToNew.put(adjacentFeat.getIdentifier(), union);
-				oldToNew.remove(f.getIdentifier());
-				
-			}
+				//merge "catchment" and "adjacentCatchment"
+				tracker.union(catchment, adjacentCatchment);				
+			}		
+			
 		}
-		polyIt.close();
 		
 		List<Polygon> keptPolys = new ArrayList<Polygon>();
-		for (FeatureId key : oldToNew.keySet()) {
-			Polygon p = oldToNew.get(key);
-			keptPolys.add(p);
+		for (Catchment catchment : tracker.getAllCatchments()) {
+			keptPolys.add(catchment.getPolygon());
 		}
 		
-		int numRemoved = polys.size() - keptPolys.size();
-		System.out.println(" - found "+polys.size()+ " catchments.");
-		System.out.println(" - filtered out "+numRemoved+" false catchments");
+		int numRemoved = initialPolyFeatures.size() - keptPolys.size();		
+		System.out.println(" - started with "+initialPolyFeatures.size()+" catchments");
+		System.out.println(" - merged "+numRemoved+" false catchments into neighbouring catchments");
+		System.out.println(" - "+keptPolys.size()+" catchments remaining");
 		
 		//convert polys to lines
 		List<LineString> lines = toLineStrings(keptPolys);
@@ -632,13 +649,23 @@ public class RidgeCleaner {
 		return results;		
 	}
 	
-	private SimpleFeature chooseAdjacent(SimpleFeature polyFeature, SimpleFeatureCollection allPolyFeatures) {
+	/**
+	 * Given a polygon and list of adjacent polygons, selects one of the adjacent polygons.
+	 * This implementation is not sophisticated.  One of the adjacent polygons is arbitrarily chosen.
+	 * The only constraint being that the intersection of the polygon and the selected adjacent polygon be of type 
+	 * linestring, multilinestring or geometrycollection
+	 * 
+	 * @param polyFeature
+	 * @param allPolyFeatures
+	 * @return
+	 */
+	private SimpleFeature chooseArbitraryMergeCandidate(SimpleFeature polyFeature, List<SimpleFeature> adjacentFeatures) {
 		SimpleFeature result = null;
 		Geometry g = (Geometry)polyFeature.getDefaultGeometry();
 		
-		List<SimpleFeature> touching = getTouching(polyFeature, allPolyFeatures);
+		
 
-		for (SimpleFeature adjacentFeat : touching) {
+		for (SimpleFeature adjacentFeat : adjacentFeatures) {
 			Geometry adjacentGeom = (Geometry)adjacentFeat.getDefaultGeometry();
 			Geometry intersection = g.intersection(adjacentGeom);
 			
@@ -665,6 +692,185 @@ public class RidgeCleaner {
 		return result;
 	}
 	
+	private boolean isIntersectionValid(Geometry intersection) {
+		boolean isValid = intersection.getGeometryType().equals("LineString") 
+				|| intersection.getGeometryType().equals("MultiLineString")
+				|| intersection.getGeometryType().equals("GeometryCollection");
+		return isValid;
+	}
+	
+	private double getAvgElevation(Geometry g) {
+		double sumZ = 0;
+		for(Coordinate coord : g.getCoordinates()) {
+			sumZ += coord.getZ();
+		}
+		double avgElevation = sumZ / g.getNumPoints();
+		return avgElevation;
+	}
+	
+	/**
+	 * Given a polygon and list of adjacent polygons, selects the adjacent polygon whose intersection (with the main polygon) has
+	 * the lowest average elevation.
+	 * The only constraint being that the intersection of the polygon and the selected adjacent polygon be of type 
+	 * linestring, multilinestring or geometrycollection
+	 * 
+	 * @param polyFeature
+	 * @param allPolyFeatures
+	 * @return
+	 */
+	private SimpleFeature chooseMergeCandidateByLowestSharedEdge(SimpleFeature polyFeature, List<SimpleFeature> adjacentFeatures) {
+
+		Geometry g = (Geometry)polyFeature.getDefaultGeometry();
+		
+		double lowestAvgElevation = Double.NaN;
+		SimpleFeature chosenFeat = null;
+
+		for (SimpleFeature adjacentFeat : adjacentFeatures) {
+			boolean isSelf = adjacentFeat.equals(polyFeature);
+			if (isSelf) {
+				continue;
+			}
+
+			Geometry adjacentGeom = (Geometry)adjacentFeat.getDefaultGeometry();
+			Geometry intersection = g.intersection(adjacentGeom);
+			
+			//only consider touching features that share an edge
+			//  (exclude touching features that share only one point
+			//   and also those that share an area)
+			
+			if (!isIntersectionValid(intersection)) {
+				continue;
+			}
+			
+			//average elevation of intersection
+			double sumZ = 0;
+			for(Coordinate coord : intersection.getCoordinates()) {
+				sumZ += coord.getZ();
+			}
+			double avgElevationOfIntersection = sumZ / intersection.getNumPoints();
+			
+			//check if this adjacent feature is the one with the lowest known intersection
+			if (chosenFeat == null || avgElevationOfIntersection < lowestAvgElevation) {
+				chosenFeat = adjacentFeat;
+				lowestAvgElevation = avgElevationOfIntersection;
+			}
+			
+		}
+		
+		//System.out.println("lowestAvgElevation:"+lowestAvgElevation+, "hasChosenFeat:"+(chosenFeat!= null));
+		
+		return chosenFeat;
+		
+	}
+	
+	/**
+	 * Given a polygon and list of adjacent polygons, selects the adjacent polygon whose intersection (with the main polygon) has
+	 * the smallest slope.
+	 * The only constraint being that the intersection of the polygon and the selected adjacent polygon be of type 
+	 * linestring, multilinestring or geometrycollection
+	 * 
+	 * @param polyFeature
+	 * @param allPolyFeatures
+	 * @return
+	 */
+	private SimpleFeature chooseMergeCandidateBySmallestSlope(SimpleFeature polyFeature, List<SimpleFeature> adjacentFeatures) {
+
+		Geometry g = (Geometry)polyFeature.getDefaultGeometry();
+		
+		double smallestAvgSlope = Double.NaN;
+		SimpleFeature chosenFeat = null;
+
+		for (SimpleFeature adjacentFeat : adjacentFeatures) {
+			boolean isSelf = adjacentFeat.equals(polyFeature);
+			if (isSelf) {
+				continue;
+			}
+
+			Geometry adjacentGeom = (Geometry)adjacentFeat.getDefaultGeometry();
+			Geometry intersection = g.intersection(adjacentGeom);
+			
+			//only consider touching features that share an edge
+			//  (exclude touching features that share only one point
+			//   and also those that share an area)
+			
+			if (!isIntersectionValid(intersection)) {
+				continue;
+			}
+			
+			double avgSlope = SpatialUtils.getAverageSlope(intersection);
+			
+			//check if this adjacent feature is the one with the lowest known intersection
+			if (chosenFeat == null || avgSlope < smallestAvgSlope) {
+				chosenFeat = adjacentFeat;
+				smallestAvgSlope = avgSlope;
+			}
+			
+		}
+		
+		//System.out.println("lowestAvgElevation:"+lowestAvgElevation+, "hasChosenFeat:"+(chosenFeat!= null));
+		
+		return chosenFeat;
+		
+	}
+	
+	
+	private SimpleFeature chooseMergeCandidateByLowestSharedEdge2(SimpleFeature polyFeature, List<SimpleFeature> adjacentFeatures) {
+
+		final Geometry g = (Geometry)polyFeature.getDefaultGeometry();
+		
+		/**
+		 * sort order:
+		 * - polygon area (largest first)
+		 * - intersection validity (valid first)
+		 * - avg elevation of edge shared with 'polyFeature' (lowest elevation first)
+		 */
+		Comparator<SimpleFeature> comparator = new Comparator<SimpleFeature>() {
+
+			public int compare(SimpleFeature f1, SimpleFeature f2) {
+				Polygon p1 = (Polygon)f1.getDefaultGeometry();
+				Polygon p2 = (Polygon)f2.getDefaultGeometry();
+				double area1 = p1.getArea();
+				double area2 = p2.getArea();
+				
+				if (area1 != area2) {
+					return area1 > area2 ? -1 : 1;
+				}
+				else {
+					Geometry adjacentGeom1 = (Geometry)f1.getDefaultGeometry();
+					Geometry adjacentGeom2 = (Geometry)f2.getDefaultGeometry();
+					Geometry intersection1 = g.intersection(adjacentGeom1);					
+					Geometry intersection2 = g.intersection(adjacentGeom2);
+					boolean valid1 = isIntersectionValid(intersection1);
+					boolean valid2 = isIntersectionValid(intersection2);
+					
+					if (valid1 != valid2) {
+						return valid1 ? -1 : 1; 
+					}
+					else {
+						double avgElevation1 = getAvgElevation(intersection1);
+						double avgElevation2 = getAvgElevation(intersection2);
+						return avgElevation1 < avgElevation2 ? -1 : 1;
+					}
+					
+				}
+			}
+			
+		};
+		
+		//return the first result which is valid
+		adjacentFeatures.sort(comparator);
+		for(SimpleFeature f : adjacentFeatures) {
+			Geometry adjacentGeom = (Geometry)f.getDefaultGeometry();
+			Geometry intersection = g.intersection(adjacentGeom);	
+			if (isIntersectionValid(intersection)) {
+				return f;
+			}
+		}
+		
+		//not valid results found
+		return null;
+		
+	}
 	
 	private List<SimpleFeature> getTouching(SimpleFeature polyFeature, SimpleFeatureCollection allPolyFeatures) {
 		String geomPropertyName = allPolyFeatures.getSchema().getGeometryDescriptor().getLocalName();
@@ -699,18 +905,30 @@ public class RidgeCleaner {
 	 * @return
 	 */
 	private Collection<Geometry> toPolygons(SimpleFeatureCollection fc) {
-		Polygonizer polygonizer = new Polygonizer();
+		Polygonizer polygonizer = new Polygonizer(false);
 		SimpleFeatureIterator it = fc.features();
 		while(it.hasNext()) {
 			SimpleFeature f = it.next();
 			LineString g = (LineString)f.getDefaultGeometry();
-			if (g != null) {
+			if (g != null && g.isValid()) {
 				polygonizer.add(g);
 			}
 		}
 		it.close();
 		Collection<Geometry> polys = polygonizer.getPolygons();
-		return polys;
+		
+		//filter out invalid polygons
+		Collection<Geometry> polysFiltered = new ArrayList<Geometry>();
+		for (Geometry poly : polys) {
+			if (poly.isValid()) {
+				polysFiltered.add(poly);
+			}
+			else {
+				System.out.println(poly);
+			}
+		}
+		
+		return polysFiltered;
 		
 	}
 	
@@ -748,4 +966,7 @@ public class RidgeCleaner {
 		
 		return avg;
 	}
+	
+	
+	
 }

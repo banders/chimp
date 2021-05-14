@@ -43,8 +43,6 @@ import org.geotools.data.simple.SimpleFeatureReader;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.data.simple.SimpleFeatureWriter;
 import org.geotools.factory.CommonFactoryFinder;
-import org.geotools.factory.GeoTools;
-import org.geotools.factory.Hints;
 import org.geotools.feature.DefaultFeatureCollection;
 import org.geotools.feature.FeatureCollection;
 import org.geotools.feature.FeatureIterator;
@@ -57,6 +55,7 @@ import org.geotools.geopkg.FeatureEntry;
 import org.geotools.geopkg.GeoPackage;
 import org.geotools.geopkg.GeoPkgDataStoreFactory;
 import org.geotools.referencing.CRS;
+import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateSequenceFactory;
 import org.locationtech.jts.geom.Envelope;
@@ -103,6 +102,11 @@ public class AssignElevation {
 	private static final int MIN_NEIGHBOURS = 1;
 	private static final int K_NEIGHBOURS = 1;
 	private static final double DEFAULT_SEARCH_RADIUS = 0.1;
+		
+	private static final int EXIT_CODE_GENERAL = 100;
+	private static final int EXIT_CODE_INPUT_ERROR = 101;
+	private static final int EXIT_CODE_OUTPUT_ERROR = 102;
+	
 	
 	public static void main(String[] args) {
 		
@@ -173,7 +177,7 @@ public class AssignElevation {
 			}
 			else {
 				System.out.println("Unknown bboxcrs: "+bboxCrs);
-				System.exit(1);
+				System.exit(EXIT_CODE_GENERAL);
 			}
 		}
 		
@@ -202,12 +206,12 @@ public class AssignElevation {
 		} catch (IOException e) {
 			System.out.println("Unable to open input file: "+inFile);
 			e.printStackTrace();
-			System.exit(1);
+			System.exit(EXIT_CODE_INPUT_ERROR);
 		}
 		
 		if (inDatastore == null) {
 			System.out.println("Unable to open input datastore");
-			System.exit(1);
+			System.exit(EXIT_CODE_INPUT_ERROR);
 		}
 		
 		//Open inPointCloud3D datastore
@@ -223,12 +227,12 @@ public class AssignElevation {
 		} catch (IOException e) {
 			System.out.println("Unable to open input file: "+pointCloud3DFile);
 			e.printStackTrace();
-			System.exit(1);
+			System.exit(EXIT_CODE_INPUT_ERROR);
 		}
 		
 		if (inPointCloudDatastore == null) {
 			System.out.println("Unable to open input datastore");
-			System.exit(1);
+			System.exit(EXIT_CODE_INPUT_ERROR);
 		}
 				
 
@@ -241,7 +245,7 @@ public class AssignElevation {
 		} catch (IOException e) {
 			System.out.println("Unable to get schema for feature type "+inTable+" in the input datastore");
 			e.printStackTrace();
-			System.exit(1);
+			System.exit(EXIT_CODE_INPUT_ERROR);
 		}
 		
 		String inGeometryPropertyName = inFeatureType.getGeometryDescriptor().getLocalName();
@@ -252,7 +256,7 @@ public class AssignElevation {
 			inSrid = CRS.lookupEpsgCode(inCrs, true);
 		} catch (FactoryException e1) {
 			System.out.println("Unable to lookup SRID for feature type "+inTable);
-			System.exit(1);
+			System.exit(EXIT_CODE_INPUT_ERROR);
 		}
 		
 		SimpleFeatureSource inFeatureSource = null;
@@ -264,7 +268,7 @@ public class AssignElevation {
 		} catch (IOException e1) {
 			System.out.println("Unable to get in feature source: "+inTable);
 			e1.printStackTrace();
-			System.exit(1);
+			System.exit(EXIT_CODE_INPUT_ERROR);
 		}
 		
 		
@@ -277,7 +281,7 @@ public class AssignElevation {
 		} catch (IOException e) {
 			System.out.println("Unable to get schema for feature type "+inPointCloud3DTable+" in the input datastore");
 			e.printStackTrace();
-			System.exit(1);
+			System.exit(EXIT_CODE_INPUT_ERROR);
 		}
 		
 		String inPointCloud3DGeometryPropertyName = inPointCloud3DFeatureType.getGeometryDescriptor().getLocalName();
@@ -288,7 +292,7 @@ public class AssignElevation {
 			inPointCloudSrid = CRS.lookupEpsgCode(inPointCloud3DCrs, true);
 		} catch (FactoryException e1) {
 			System.out.println("Unable to lookup SRID for feature type "+inPointCloud3DTable);
-			System.exit(1);
+			System.exit(EXIT_CODE_INPUT_ERROR);
 		}
 		
 		SimpleFeatureSource inPointCloud3DFeatureSource = null;
@@ -300,7 +304,7 @@ public class AssignElevation {
 		} catch (IOException e1) {
 			System.out.println("Unable to get in feature source: "+inPointCloud3DTable);
 			e1.printStackTrace();
-			System.exit(1);
+			System.exit(EXIT_CODE_INPUT_ERROR);
 		}
 		
 		//Output
@@ -313,8 +317,9 @@ public class AssignElevation {
 			outFeatureType = DataUtilities.createType(outTable, 
 					"geometry:LineString:srid="+outSrid);
 		} catch (SchemaException e1) {
+			
 			System.out.println("Unable to create feature type: "+outTable);
-			System.exit(1);
+			System.exit(EXIT_CODE_OUTPUT_ERROR);
 		}
 		
 		SimpleFeatureBuilder outFeatureBuilder = new SimpleFeatureBuilder(outFeatureType);		
@@ -341,17 +346,19 @@ public class AssignElevation {
 		catch (IOException e) {
 			System.out.println("Unable to get input features");
 			e.printStackTrace();
-			System.exit(1);
+			System.exit(EXIT_CODE_INPUT_ERROR);
 		}
 		
 		SimpleFeatureIterator inIterator = inFeatureCollection.features();
-		try {
-			
+		int numFailed = 0;
+		try {			
 			int numProcessed= 0;
+			
 			int num2D = 0;
 			int num3D = 0;
 			while(inIterator.hasNext()) {
 				numProcessed++;
+				numFailed++;
 				SimpleFeature inFeature = inIterator.next();
 				Geometry inGeometry = (Geometry)inFeature.getDefaultGeometry();
 				
@@ -362,8 +369,10 @@ public class AssignElevation {
 					if (onFailedPoint.equals("omit")) {
 						continue;
 					}
-					System.out.println("Unable to convert at least one geometry to 3D");
-					System.exit(1);
+					numFailed++;
+					continue;
+					//System.out.println("Unable to convert at least one geometry to 3D");
+					//System.exit(EXIT_CODE_GENERAL);
 				}
 				
 				String type = inGeometry.getGeometryType();
@@ -373,7 +382,7 @@ public class AssignElevation {
 				}
 				else {
 					System.out.println("Unsupported geometry type: "+type);
-					System.exit(1);
+					System.exit(EXIT_CODE_GENERAL);
 				}
 				
 				if (Double.isNaN(coordsUpdated[0].getZ())) {
@@ -393,10 +402,11 @@ public class AssignElevation {
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
-			System.exit(1);
+			System.exit(EXIT_CODE_GENERAL);
 		}
 		inIterator.close();
 		System.out.println("processing complete");
+		System.out.println(" # of geometries that couldn't be converted to 3D: "+numFailed);
 
 		//Save output
 		//---------------------------------------------------------------------
@@ -415,16 +425,16 @@ public class AssignElevation {
 		} catch (IOException e3) {
 			System.out.println("Unable to create geopackage "+outputGeopackageFilename);
 			e3.printStackTrace();
-			System.exit(1);
+			System.exit(EXIT_CODE_OUTPUT_ERROR);
 		}
 		
-		//create feature type in out file
+		//create feature type out file
 		try {
 			outGeoPackage.add(outEntry, outFeatureCollection);
 		} catch (IOException e) {
 			System.out.println("Unable to add feature collection to output");
 			e.printStackTrace();
-			System.exit(1);
+			System.exit(EXIT_CODE_OUTPUT_ERROR);
 		}
 		
 		try {
@@ -432,7 +442,7 @@ public class AssignElevation {
 		} catch (IOException e) {
 			System.out.println("Unable to create spatial index");
 			e.printStackTrace();
-			System.exit(1);
+			System.exit(EXIT_CODE_OUTPUT_ERROR);
 		}
 		
 		outGeoPackage.close();

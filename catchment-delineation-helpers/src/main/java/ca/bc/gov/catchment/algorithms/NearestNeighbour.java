@@ -9,8 +9,8 @@ import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.factory.CommonFactoryFinder;
-import org.geotools.factory.Hints;
 import org.geotools.geometry.jts.JTSFactoryFinder;
+import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -51,15 +51,15 @@ public class NearestNeighbour {
 		//search for points within a radius.  increase the radius and try again if none are found.  
 		//retry up to 3 times, before giving up.
 		List<Coordinate> matches = null;
-		for(int attempt = 0; attempt < 3; attempt++) {
+		for(int attempt = 0; attempt < 5; attempt++) {
 			matches = getCoordsInRadius(c, radius);
-			if (matches.size() > 0) {
+			if (matches.size() >= k) {
 				break;
 			}
 			radius *= 2;
 		}
 		//give up.  no neighbours found
-		if (matches.size() == 0) {
+		if (matches.size() < k) {
 			throw new IllegalArgumentException("unable to find "+k+" neighbours. ("+matches.size()+" were found)");
 		}
 		
@@ -74,11 +74,7 @@ public class NearestNeighbour {
 				return dist1 > dist2 ? 1 : -1;
 			}			
 		});
-		
-		if (matches.size() < k) {
-			throw new IllegalArgumentException("unable to find "+k+" neighbours. (only "+matches.size()+" were found)");
-		}
-		
+			
 		
 		//copy the k nearest neighbours to the result set
 		List<Coordinate> result = new ArrayList<Coordinate>();

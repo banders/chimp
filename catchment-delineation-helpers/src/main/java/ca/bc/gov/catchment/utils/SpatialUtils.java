@@ -115,6 +115,35 @@ public class SpatialUtils {
 		SimpleFeature feature = featureBuilder.buildFeature(fid, attrValues);
 		return feature;
 	}
+
+	public static SimpleFeatureCollection polygonCollectionToSimpleFeatureCollection(Collection<Polygon> geometries, SimpleFeatureType featureType) {
+		
+		DefaultFeatureCollection featureCollection = new DefaultFeatureCollection(null, featureType);		
+		
+		int nextFid = 0;
+		for(Geometry geometry : geometries) {
+			SimpleFeature feature = geomToFeature(geometry, featureType, nextFid+"");			
+			featureCollection.add(feature);
+			nextFid++;
+		}
+		
+		return featureCollection;
+	}
+	
+	public static SimpleFeatureCollection linestringCollectionToSimpleFeatureCollection(Collection<LineString> geometries, SimpleFeatureType featureType) {
+		
+		DefaultFeatureCollection featureCollection = new DefaultFeatureCollection(null, featureType);		
+		
+		int nextFid = 0;
+		for(Geometry geometry : geometries) {
+			SimpleFeature feature = geomToFeature(geometry, featureType, nextFid+"");			
+			featureCollection.add(feature);
+			nextFid++;
+		}
+		
+		return featureCollection;
+	}
+	
 	
 	public static SimpleFeatureCollection geomCollectionToSimpleFeatureCollection(Collection<Geometry> geometries, SimpleFeatureType featureType) {
 		
@@ -305,4 +334,254 @@ public class SpatialUtils {
 		return true;
 	}
 	
+	/**
+	 * Gets the a coordinate from the given list at the given index.  Use the 'startCoord' parameter to indicate which end to
+	 * count from.
+	 * @param coords
+	 * @param startCoord the coordinate at one end or the other of the array.  this will be treated as the starting
+	 * end.
+	 * @param index
+	 * @return
+	 */
+	public static Coordinate getCoordAtIndex(Coordinate[] coords, Coordinate startCoord, int index) {
+		Coordinate result = null;
+		if (coords.length == 0) {
+			throw new IndexOutOfBoundsException("Array is empty.  No such index "+index);
+		}
+		if (index > coords.length) {
+			throw new IndexOutOfBoundsException("Index must be in range 0-"+(coords.length-1));
+		}
+		
+		if (coords[0].equals2D(startCoord)) {
+			result = coords[index];
+		}
+		else if (coords[coords.length-1].equals2D(startCoord)) {
+			int reverseIndex = coords.length - 1 - index;
+			result = coords[reverseIndex];
+		}
+		else {
+			throw new IllegalArgumentException("'startCoord' must match the coordinate at one end of the array");
+		}
+		
+		return result;
+	}
+	
+	/**
+	 * gets the index of the first occurange of the given coordinate within the given geometry, or returns -1 if not found
+	 */
+	public static int getIndexOfCoordinate(Coordinate coordToFind, Geometry g) {
+		Coordinate[] coords = g.getCoordinates();
+		for(int i = 0; i < coords.length; i++) {
+			Coordinate c = coords[i];
+			if (c.equals2D(coordToFind)) {
+				return i;
+			}
+		}
+		return -1;
+	}
+	
+	/**
+	 * computes the slope of a given linestring between its first coordinate and its last coordinate
+	 * @param s
+	 * @return
+	 */
+	public static double getSlope(LineString s) {
+		Coordinate c1 = s.getCoordinateN(0);
+		Coordinate c2 = s.getCoordinateN(s.getNumPoints()-1);
+		
+		double rise = c2.getZ() - c1.getZ();
+		double run = s.getLength();
+		double slope = rise / run;
+		return slope;		
+	}
+	
+	/**
+	 * computes the average slope of a given geometry
+	 * @param g
+	 * @return
+	 */
+	public static double getAverageSlope(Geometry g) {
+		Coordinate prevCoord = null;
+		double sumSlope = 0;
+		double numSections = 0;
+		for (Coordinate coord : g.getCoordinates()) {
+			if (prevCoord != null) {
+				//absolute value because we don't care about the direction of the slope.
+				//for example, we don want "downward" slopes to cancel out "upward" slopes				
+				double rise = Math.abs(coord.getZ() - prevCoord.getZ());
+				double run = coord.distance(prevCoord);
+				double segmentSlope = rise / run;
+				sumSlope += segmentSlope;
+				numSections++;
+			}
+			prevCoord = coord;
+		}
+		if (numSections == 0) {
+			return 0;			
+		}
+		double avgSlope = sumSlope / numSections;
+		return avgSlope;
+	}
+	
+	/**
+	 * computes the slope of a given linestring between its first coordinate and its last coordinate
+	 * @param s
+	 * @return
+	 */
+	public static double getAverageElevation(LineString s) {
+		double sumZ = 0;
+		for(Coordinate c : s.getCoordinates()) {
+			sumZ += c.getZ();
+		}
+		double avgZ = sumZ / s.getNumPoints();
+		return avgZ;
+	}
+	
+	/**
+	 * gets the coordinate with the lowest Z
+	 * @param s
+	 * @return
+	 */
+	public static Coordinate getLowestCoord(Geometry g) {
+		Coordinate lowestCoord = null;
+		for(Coordinate c : g.getCoordinates()) {
+			if (!Double.isNaN(c.getZ()) && (lowestCoord == null || c.getZ() < lowestCoord.getZ())) {
+				lowestCoord = c;
+			}
+		}
+		return lowestCoord;
+	}
+	
+	/**
+	 * gets the Z value of the coordinate with the Lowest Z in the whole linestring
+	 * @param s
+	 * @return
+	 */
+	public static double getLowestZ(Geometry g) {
+		Coordinate lowest = getLowestCoord(g);
+		if (lowest != null) {
+			return lowest.getZ();
+		}
+		return Double.NaN;
+	}
+	
+	/**
+	 * gets the coordinate with the lowest Z
+	 * @param s
+	 * @return
+	 */
+	public static Coordinate getHighestCoord(Geometry g) {
+		Coordinate highestCoord = null;
+		for(Coordinate c : g.getCoordinates()) {
+			if (!Double.isNaN(c.getZ()) && (highestCoord == null || c.getZ() > highestCoord.getZ())) {
+				highestCoord = c;
+			}
+		}
+		return highestCoord;
+	}
+	
+	/**
+	 * gets the Z value of the coordinate with the Lowest Z in the whole linestring
+	 * @param s
+	 * @return
+	 */
+	public static double getHighestZ(Geometry g) {
+		Coordinate lowest = getHighestCoord(g);
+		if (lowest != null) {
+			return lowest.getZ();
+		}
+		return Double.NaN;
+	}
+	
+	/**
+	 * Returns a subset of the given linestring
+	 * @param s
+	 * @param fromIndex
+	 * @param toIndex
+	 * @return
+	 */
+	public static LineString slice(LineString s, int fromIndex, int toIndex) {
+		if (fromIndex < 0 || fromIndex >= toIndex || toIndex > s.getNumPoints() - 1) {
+			throw new IllegalArgumentException("invalid range.  must be within [0, "+(s.getNumPoints()-1)+"] and new length must be >= 2");
+		}
+
+		
+		Coordinate[] origCoords = s.getCoordinates();
+		Coordinate[] newCoords = new Coordinate[toIndex-fromIndex+1];
+		int newIndex = 0;
+		for (int oldIndex = fromIndex; oldIndex <= toIndex; oldIndex++) {
+			newCoords[newIndex] = origCoords[oldIndex];
+			newIndex++;
+		}
+		
+		return toLineString(newCoords);
+	}
+	
+	/**
+	 * Searches all coordinates in 'geomToChooseCoordFrom', and finds the one that is nearest
+	 * to the 'other' geometry.
+	 * @param geomToChooseCoordFrom
+	 * @param other
+	 * @return
+	 */
+	public static Coordinate getCoordNearestTo(Geometry geomToChooseCoordFrom, Geometry other) {
+		double minDist = Double.NaN;
+		Coordinate nearestCoord = null;
+		for (Coordinate coord : geomToChooseCoordFrom.getCoordinates()) {
+			Point point = SpatialUtils.toPoint(coord);
+			double dist = point.distance(other);
+			if (Double.isNaN(minDist) || dist < minDist) {
+				nearestCoord = coord;
+				minDist = dist;
+			}
+		}
+		return nearestCoord;
+	}
+	
+	/**
+	 * gets the angle of a line perpendicular to the polygon at the given coordinate.  There will be two perpendicular lines: one 
+	 * towards the interior of the polygon, and the other outside the polygon.  this method returns angle of the outside line.
+	 * If no suitable line is found, returns NaN
+	 * @param coordOfPoly
+	 * @param poly
+	 * @return the compas angle of the perpendicular line
+	 */
+	public static double getOutwardNormalCompassAngle(Coordinate coordOfPoly, Polygon poly) {
+		poly = (Polygon)poly.copy();
+		
+		//normalizing ensures clockwise? ordering of coordinates
+		poly.normalize();
+		
+		Coordinate[] polyCoords = poly.getCoordinates(); 
+		for(int i = 0; i < polyCoords.length; i++) {			
+			Coordinate prevCoord = null;
+			Coordinate nextCoord = null;
+			Coordinate c = polyCoords[i];
+			if (!c.equals2D(coordOfPoly)) {
+				continue;
+			}			
+			if (i == 0) {
+				prevCoord = polyCoords[polyCoords.length-2]; //-2 may be necessary if -1 is the same as index=0
+			}
+			else {
+				prevCoord = polyCoords[i-1];
+			}
+			if (i == polyCoords.length-1) { //last
+				nextCoord = polyCoords[1];
+			}
+			else {
+				nextCoord = polyCoords[i+1];
+			}
+			//find a line between the next coord and the prev coord.  this
+			//line has the same angle as the tangent line at the current coord (c)
+			LineString line = toLineString(prevCoord, nextCoord);
+			
+			double lineAngle = VectorUtils.angle2D(prevCoord, line);
+			double perpAngle = (lineAngle + 90) % 360; //+270 is the perpendicular direction facing inward
+			return perpAngle;
+		
+		}
+		
+		return Double.NaN;
+	}
 }

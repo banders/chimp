@@ -42,8 +42,6 @@ import org.geotools.data.simple.SimpleFeatureReader;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.data.simple.SimpleFeatureWriter;
 import org.geotools.factory.CommonFactoryFinder;
-import org.geotools.factory.GeoTools;
-import org.geotools.factory.Hints;
 import org.geotools.feature.DefaultFeatureCollection;
 import org.geotools.feature.FeatureCollection;
 import org.geotools.feature.FeatureIterator;
@@ -56,6 +54,7 @@ import org.geotools.geopkg.FeatureEntry;
 import org.geotools.geopkg.GeoPackage;
 import org.geotools.geopkg.GeoPkgDataStoreFactory;
 import org.geotools.referencing.CRS;
+import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateSequenceFactory;
 import org.locationtech.jts.geom.Geometry;
@@ -81,6 +80,7 @@ import org.tinfour.common.Vertex;
 import org.tinfour.standard.IncrementalTin;
 
 import ca.bc.gov.catchment.algorithms.NearestNeighbour3DMaker;
+import ca.bc.gov.catchment.utils.SpatialUtils;
 
 /**
  * This script takes two files as input:
@@ -338,14 +338,33 @@ public class EstimateElevation {
 				inFeatureCollection = inFeatureSource.getFeatures();
 			}
 		
+			if (inFeatureCollection.size() == 0) {
+				System.out.println("input feature collection is empty.  nothing to do.");
+				System.exit(1);
+			}
+			
 			//ensure the elevation data has a spatial index for faster processing
 			System.out.println("Indexing elevation data...");
 			SpatialIndexFeatureCollection fastElevationFeatureCollection = new SpatialIndexFeatureCollection(elevationFeatureSource.getFeatures());
 			SpatialIndexFeatureSource fastElevationFeatureSource = new SpatialIndexFeatureSource(fastElevationFeatureCollection);
+			System.out.println(inFeatureCollection.size()+" in features");
 			
 			System.out.println("Adding elevation to input geometries...");
-			NearestNeighbour3DMaker threeDMaker = new NearestNeighbour3DMaker(fastElevationFeatureSource, K_NEIGHBOURS);
+			NearestNeighbour3DMaker threeDMaker = new NearestNeighbour3DMaker(fastElevationFeatureSource, K_NEIGHBOURS, searchRadius);
 			SimpleFeatureCollection outFeatureCollection = threeDMaker.make3dCopy(inFeatureCollection);
+			
+			System.out.println(outFeatureCollection.size()+" out features");
+			
+			System.out.println("Retyping output features to '"+outTable+"'");
+			try {
+				outFeatureCollection = SpatialUtils.renameFeatureType(outFeatureCollection, outTable);
+			} 
+			catch (SchemaException e) {
+				e.printStackTrace();
+				System.exit(1);
+			}
+			
+			System.out.println(outFeatureCollection.size()+" out features after retype");
 			
 			//save feature collection to output file
 			//-----------------------------------------------------------------			
@@ -360,7 +379,7 @@ public class EstimateElevation {
             System.out.println(" - Done");
             System.out.println("Adding spatial index on "+outTable+"...");
             outGeoPackage.createSpatialIndex(outEntry);
-            System.out.println(" - Done");	  
+            System.out.println(" - Done");
 			
 		} catch(IOException e) {
 			e.printStackTrace();

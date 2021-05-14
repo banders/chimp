@@ -22,22 +22,22 @@ import ca.bc.gov.catchment.utils.SpatialUtils;
 
 public class NearestNeighbour3DMaker {
 
+	private static final double DEFAULT_SEARCH_RADIUS = 100;
+	
 	private int kNeighbours;
 	private NearestNeighbour nearestNeighbour;
 	private GeometryFactory geometryFactory;
 	private ElevationEstimator elevationEstimator;
 	
 	public NearestNeighbour3DMaker(SimpleFeatureSource features3D, int kNeighbours) {
-		this.kNeighbours = kNeighbours;
-		this.nearestNeighbour = new NearestNeighbour(features3D);		
-		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
-		this.elevationEstimator = new ElevationEstimator();
+		this(features3D, kNeighbours, DEFAULT_SEARCH_RADIUS);
 	}
 	
-	public NearestNeighbour3DMaker(SimpleFeatureSource features3D, int kNeighbours, int searchRadius) {
+	public NearestNeighbour3DMaker(SimpleFeatureSource features3D, int kNeighbours, double searchRadius) {
 		this.kNeighbours = kNeighbours;
 		this.nearestNeighbour = new NearestNeighbour(features3D, searchRadius);		
 		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
+		this.elevationEstimator = new ElevationEstimator();
 	}
 	
 	public SimpleFeatureSource make3dCopy(SimpleFeatureSource features) throws IOException {
@@ -52,7 +52,13 @@ public class NearestNeighbour3DMaker {
 		SimpleFeatureIterator inIt = inFeatures.features();
 		while(inIt.hasNext()) {
 			SimpleFeature original = inIt.next();
-			SimpleFeature copy3d = make3dCopy(original);
+			SimpleFeature copy3d = null;
+			try {
+				copy3d = make3dCopy(original);
+			} catch (IllegalArgumentException e) { //thrown if not enough nearby coords to make 3d copy
+				//skip
+				continue;
+			}
 			outFeatures.add(copy3d);
 		}
 		inIt.close();
@@ -67,6 +73,9 @@ public class NearestNeighbour3DMaker {
 	}
 	
 	public Geometry make3dCopy(Geometry g) throws IOException {
+		if (g == null) {
+			throw new NullPointerException("geometry must not be null");
+		}
 		Coordinate[] originalCoords = g.getCoordinates();
 		Coordinate[] coords3d = new Coordinate[originalCoords.length];
 		

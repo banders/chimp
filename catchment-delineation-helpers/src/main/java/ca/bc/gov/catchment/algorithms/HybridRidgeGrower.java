@@ -12,6 +12,11 @@ import ca.bc.gov.catchment.tin.TinEdges;
 import ca.bc.gov.catchment.utils.SpatialUtils;
 import ca.bc.gov.catchment.water.Water;
 
+/**
+ * @deprecated Instead use ca.bc.gov.catchment.ridgegrowth.PlanAPlanBStrategy with ca.bc.gov.catchment.ridgegrowth.RidgeGrower
+ * @author Brock
+ *
+ */
 public class HybridRidgeGrower extends RidgeGrower {
 
 	private int nextFid;

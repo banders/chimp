@@ -11,8 +11,8 @@ import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.factory.CommonFactoryFinder;
-import org.geotools.factory.Hints;
 import org.geotools.geometry.jts.JTSFactoryFinder;
+import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
@@ -34,6 +34,8 @@ import ca.bc.gov.catchment.utils.SpatialUtils;
 public class LineStringRouter {
 
 	private static final int MAX_CONNECTED_COORD_CACHE_SIZE = 1000;
+	public static final int INVALID_ROUTE_ACTION_STOP = 1;
+	public static final int INVALID_ROUTE_ACTION_ROUTEEXCEPTION = 2;
 	
 	private TinEdges tinEdges;
 	private SimpleFeatureType tinEdgesFeatureType;
@@ -43,14 +45,28 @@ public class LineStringRouter {
 	private boolean allowSelfIntersection;
 	private boolean allowRepeatedCoords;
 	private Map<Coordinate, List<Coordinate>> connectedCoordCache;
+	private RouteValidator validator;
+	private int invalidRouteAction;
 	
 	public LineStringRouter(TinEdges tinEdges) {
+		this(tinEdges, 
+			new RouteValidator() {
+				public boolean isValid(LineString line) {
+					return true;
+				}			
+			}, 
+			INVALID_ROUTE_ACTION_ROUTEEXCEPTION);
+	}
+	
+	public LineStringRouter(TinEdges tinEdges, RouteValidator validator, int invalidRouteAction) {
 		this.tinEdges = tinEdges;
 		this.allowSelfIntersection = true;
 		this.allowRepeatedCoords = false;
 		this.tinEdgesFeatureType = tinEdges.getSchema();
 		this.tinEdgesGeometryProperty = tinEdgesFeatureType.getGeometryDescriptor().getLocalName();
 		this.geometryFactory = JTSFactoryFinder.getGeometryFactory();
+		this.validator = validator;
+		this.invalidRouteAction = invalidRouteAction;
 		
 		Hints filterHints = new Hints( Hints.FEATURE_2D, true ); // force 2D queries
 		this.filterFactory2D = CommonFactoryFinder.getFilterFactory2(filterHints);
@@ -395,12 +411,45 @@ public class LineStringRouter {
 			//Note: alternative algorithms could be used for routing, such as lowest angle to destination or 
 			//closest to destination
 			Coordinate nextCoord = findEndpointClosestTo(currentCoord, endCoord, routeSoFar, blacklist);
+			
+			
 			if (nextCoord == null || resultCoords.contains(nextCoord)) {
-				throw new RouteException("Unable to find route between the given coordinates");
+				throw new RouteException("Unable to find route between the given coordinates");				
 			}
+			
+			//add the next coord to the route
 			resultCoords.add(nextCoord);
 			currentCoord = nextCoord;
+			
+			
+			
+			//apply the validator
+			boolean validatorFailed = false;
+			if (this.validator != null && resultCoords.size() > 1) {
+				LineString lineSoFar = SpatialUtils.toLineString(resultCoords);
+				if (!validator.isValid(lineSoFar)) {
+					validatorFailed = true;
+				}
+			}
+			
+			if (validatorFailed) {
+				//pop the last coordinate off the line. it makes the line invalid
+				resultCoords.remove(resultCoords.size()-1);
+				
+				//there are different options for how to handle an invalid next coordinate
+				if (invalidRouteAction == INVALID_ROUTE_ACTION_ROUTEEXCEPTION) {					
+					throw new RouteException("Unable to find route between the given coordinates");
+				}
+				else {
+					break;
+				}				
+			}
+
+
+			
 		}
+		
+		System.out.println("resultCoords: "+resultCoords.size());
 		
 		LineString result = null;
 		try {

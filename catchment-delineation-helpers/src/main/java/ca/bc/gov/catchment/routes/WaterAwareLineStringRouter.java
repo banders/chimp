@@ -2,12 +2,11 @@ package ca.bc.gov.catchment.routes;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
-import org.geotools.filter.visitor.IsStaticExpressionVisitor;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.Point;
 import org.opengis.feature.simple.SimpleFeature;
 
 import ca.bc.gov.catchment.tin.TinEdges;
@@ -20,16 +19,36 @@ import ca.bc.gov.catchment.water.Water;
  * @author Brock
  *
  */
-public class WaterAwareCatchmentRouter {
+public class WaterAwareLineStringRouter {
 
 	private Water water;
 	private TinEdges tinEdges;
 	private LineStringRouter lineStringRouter;
 	
-	public WaterAwareCatchmentRouter(TinEdges tinEdges, Water water) {
+	public WaterAwareLineStringRouter(TinEdges tinEdges, final Water water) {
 		this.tinEdges = tinEdges;
 		this.water = water;
-		this.lineStringRouter = new LineStringRouter(tinEdges);
+
+		//define a route validator which disallows routes that touch water in any way, except
+		//if only touching at the first coordinate
+		RouteValidator validator = new RouteValidator() {
+
+			public boolean isValid(LineString line) {
+				boolean isValid = false;
+				try {
+					isValid = !(water.isCrossingWater(line) || water.isOverlappingWater(line));
+				} catch (IOException e) {
+					e.printStackTrace();
+				}				
+				return isValid;
+			}
+			
+		};
+		this.lineStringRouter = new LineStringRouter(tinEdges, validator, LineStringRouter.INVALID_ROUTE_ACTION_STOP);
+	}
+	
+	public LineString makeRoute(Coordinate startCoord, Coordinate endCoord) throws IOException, RouteException {
+		return this.lineStringRouter.makeRoute(startCoord, endCoord);
 	}
 	
 	/**

@@ -29,6 +29,11 @@ import ca.bc.gov.catchment.utils.SpatialUtils;
 import ca.bc.gov.catchment.utils.VectorUtils;
 import ca.bc.gov.catchment.water.Water;
 
+/**
+ * @deprecated Instead use ca.bc.gov.catchment.ridgegrowth.MedialAxisStrategy with ca.bc.gov.catchment.ridgegrowth.RidgeGrower
+ * @author Brock
+ *
+ */
 public class MedialAxisRidgeGrower extends RidgeGrower {
 	
 	private int nextFid;
@@ -245,32 +250,6 @@ public class MedialAxisRidgeGrower extends RidgeGrower {
 			
 		};
 		return comparator;		
-	}
-	
-	/**
-	 * determines if a coordinate is a valid member of a ridge line.
-	 * @param coord
-	 * @param ridgeCoords
-	 * @param adjacentWater
-	 * @return
-	 * @throws IOException 
-	 */
-	protected boolean isCoordValid(Coordinate coord, List<Coordinate> ridgeCoords, List<SimpleFeature> adjacentWater) throws IOException {
-
-		//is the coordinate already part of the line?  if so, disallow it again.  (no loops permitted)
-		//compare only on X and Y (not on Z)
-		for(Coordinate rc : ridgeCoords) {
-			if (rc.getX() == coord.getX() && rc.getY() == coord.getY()) {
-				return false;
-			}
-		}
-		
-		//it's okay to touch water at a confluence, but nowhere else
-		if (water.isTouchingWater(coord) && !water.isConfluence(coord)) {
-			return false;
-		}
-						
-		return true;
 	}
 
 }

@@ -42,8 +42,6 @@ import org.geotools.data.simple.SimpleFeatureReader;
 import org.geotools.data.simple.SimpleFeatureSource;
 import org.geotools.data.simple.SimpleFeatureWriter;
 import org.geotools.factory.CommonFactoryFinder;
-import org.geotools.factory.GeoTools;
-import org.geotools.factory.Hints;
 import org.geotools.feature.DefaultFeatureCollection;
 import org.geotools.feature.FeatureCollection;
 import org.geotools.feature.FeatureIterator;
@@ -56,6 +54,7 @@ import org.geotools.geopkg.FeatureEntry;
 import org.geotools.geopkg.GeoPackage;
 import org.geotools.geopkg.GeoPkgDataStoreFactory;
 import org.geotools.referencing.CRS;
+import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateSequenceFactory;
 import org.locationtech.jts.geom.Geometry;
@@ -376,6 +375,10 @@ public class CreateTIN {
 				breakLineIt.close();
 				
 				System.out.println("Adding "+constraints.size()+" breakline constraints");
+				
+				//Restoring delaunay conforming has a side effect of introducing new points into the TIN
+				//which didn't previously exist in the point cloud. That can cause unwanted side effects
+				//in processes that depend on the TIN
 				boolean restoreDelaunayConforming = false;
 				tin.addConstraints(constraints, restoreDelaunayConforming);
 			}
